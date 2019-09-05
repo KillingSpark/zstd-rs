@@ -1,15 +1,16 @@
 use std::collections::HashMap;
-
+use super::decodebuffer::Decodebuffer;
 
 pub struct DecoderScratch {
-    huf: HuffmanScratch,
-    fse: FSEScratch,
+   huf: HuffmanScratch,
+   fse: FSEScratch,
+   buffer: Decodebuffer,
 }
 
 pub struct HuffmanScratch {
-   decoding_map: HashMap<u32, u32>
+   pub decoding_map: HashMap<u32, u32>
 }
 
 pub struct FSEScratch {
-   decoding_map: HashMap<u32, u32>
+   pub decoding_map: HashMap<u32, u32>
 }

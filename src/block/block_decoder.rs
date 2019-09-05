@@ -28,7 +28,7 @@ impl BlockDecoder {
     pub fn decode_block_content(
         &mut self,
         header: &BlockHeader,
-        workspace: &mut DecoderScratch,
+        workspace: &mut DecoderScratch, //reuse this as often as possible. Not only if the trees are reused but also reuse the allocations when building new trees
         source: &mut Read,
         target: &mut Write,
     ) -> Result<(), String> {
