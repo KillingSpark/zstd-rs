@@ -4,7 +4,7 @@ fn test_frame_header_reading() {
     use crate::frame;
     use std::fs;
 
-    let mut content = fs::File::open("/home/moritz/rust/zstd-rs/test_img.zst").unwrap();
+    let mut content = fs::File::open("./test_img.zst").unwrap();
     let frame = frame::read_frame_header(&mut content).unwrap();
     frame.check_valid().unwrap();
 }
