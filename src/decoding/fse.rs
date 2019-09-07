@@ -26,11 +26,19 @@ fn highest_bit_set(x: u32) -> u32 {
 }
 
 impl FSEDecoder {
-    //returns how many BYTEs (not bits) were read while building the decoder
+    pub fn new() -> FSEDecoder {
+        FSEDecoder {
+            symbol_probablilities: Vec::with_capacity(256), //will never be more than 256 symbols because u8
+            decode: Vec::new(), //depending on acc_log. 
+            accuracy_log: 0,
+            state: 0,
+        }
+    }
 
+    //returns how many BYTEs (not bits) were read while building the decoder
     pub fn build_decoder(&mut self, source: &[u8]) -> Result<usize, String> {
-        self.decode.clear();
-        self.symbol_probablilities.clear();
+        self.decode.clear(); //maybe truncate to save memory, but should be ok to just leave it to avoid alloctions in the furture
+        self.symbol_probablilities.clear(); //just clear, we will fill a probability for each entry anyways. Non eed to force new allocs here
         self.state = 0;
         self.accuracy_log = 0;
 
@@ -87,9 +95,13 @@ impl FSEDecoder {
             if prob != 0 {
                 if prob > 0 {
                     probability_counter += prob as u32;
+                }else{
+                    // probability -1 counts as 1
+                    assert!(prob == -1);
+                    probability_counter += 1;
                 }
             } else {
-                //fast skip zero probabilities
+                //fast skip further zero probabilities
                 loop {
                     let skip_amount = br.get_bits(2, source)?;
                     bits_read += 2;
