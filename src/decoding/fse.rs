@@ -20,9 +20,9 @@ const fn num_bits<T>() -> usize {
     std::mem::size_of::<T>() * 8
 }
 
-fn log_2(x: u32) -> u32 {
+fn highest_bit_set(x: u32) -> u32 {
     assert!(x > 0);
-    num_bits::<u32>() as u32 - x.leading_zeros() - 1
+    num_bits::<u32>() as u32 - x.leading_zeros()
 }
 
 impl FSEDecoder {
@@ -55,7 +55,7 @@ impl FSEDecoder {
 
         while probability_counter < probablility_sum {
             let max_remaining_value = probablility_sum - probability_counter + 1; // '+ 1' because values are proabilities + 1
-            let bits_to_read = log_2(max_remaining_value);
+            let bits_to_read = highest_bit_set(max_remaining_value);
 
             let unchecked_value = br.get_bits(bits_to_read as usize, source)? as u32;
             bits_read += bits_to_read;
