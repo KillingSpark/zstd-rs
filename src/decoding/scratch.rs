@@ -1,6 +1,7 @@
-use std::collections::HashMap;
 use super::decodebuffer::Decodebuffer;
 use super::offset_history::OffsetHist;
+use super::fse::FSEDecoder;
+use super::huff0::HuffmanDecoder;
 
 pub struct DecoderScratch {
    huf: HuffmanScratch,
@@ -10,11 +11,11 @@ pub struct DecoderScratch {
 }
 
 pub struct HuffmanScratch {
-   pub decoding_map: HashMap<u32, u32>,
+   pub decoder: HuffmanDecoder,
 }
 
 pub struct FSEScratch {
-   pub offset_decoding_map: HashMap<u32, u32>,
-   pub literal_length_decoding_map: HashMap<u32, u32>,
-   pub match_length_decoding_map: HashMap<u32, u32>,
+   pub offset_decoder: FSEDecoder,
+   pub literal_length_decoder: FSEDecoder,
+   pub match_length_decoder: FSEDecoder,
 }
