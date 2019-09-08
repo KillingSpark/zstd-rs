@@ -47,6 +47,16 @@ impl FSEDecoder {
         Ok(bytes_read)
     }
 
+    pub fn decode_symbol(&self) -> u8 {
+        self.decode[self.state].symbol
+    }
+
+    pub fn update_state(&mut self, /* reverse_stream: &mut ReverseBitstream */) {
+        //let add = reverse_stream.read(self.decode[self.state].num_bits)?;
+        //self.state = self.decode[self.state].baseline + add;
+        self.state = self.state
+    }
+
     fn build_decoding_table(&mut self) {
         //TODO build decoding table
         self.decode.clear();
