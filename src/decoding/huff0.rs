@@ -34,8 +34,8 @@ impl HuffmanDecoder {
 
         //TODO read weights
         let _ = source;
-        self.build_table_from_weights();
-        Ok(100)
+        self.build_table_from_weights()?;
+        Ok(100 /* number of bytes needed while reading the weights */)
     }
 
     pub fn decode_symbol(&mut self) -> u8 {
@@ -50,7 +50,7 @@ impl HuffmanDecoder {
         Ok(num_bits)
     }
 
-    fn build_table_from_weights(&mut self) {
+    fn build_table_from_weights(&mut self) -> Result<(), String >{
         self.bits.resize(self.weights.len() + 1, 0);
 
         let mut weight_sum: u32 = 0;
@@ -71,6 +71,10 @@ impl HuffmanDecoder {
         }
         self.bits[self.weights.len()] = max_bits + 1 - last_weight;
         self.max_num_bits = max_bits;
+
+        if max_bits > MAX_MAX_NUM_BITS {
+            return Err(format!("max_bits derived from weights is: {} should be lower than: {} ", max_bits, MAX_MAX_NUM_BITS));
+        }
 
 
         self.bit_ranks.resize((max_bits+1) as usize, 0);
@@ -109,5 +113,7 @@ impl HuffmanDecoder {
                 }
             }
         }
+
+        Ok(())
     }
 }
