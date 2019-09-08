@@ -1,7 +1,8 @@
 pub struct LiteralsSection {
-    regenerated_size: u32,
-    compressed_size: Option<u32>,
-    num_streams: Option<u8>,
+    pub regenerated_size: u32,
+    pub compressed_size: Option<u32>,
+    pub num_streams: Option<u8>,
+    pub ls_type: LiteralsSectionType,
 }
 
 pub enum LiteralsSectionType {
@@ -13,8 +14,9 @@ pub enum LiteralsSectionType {
 
 impl LiteralsSection {
     pub fn parse_from_header(&mut self, raw: &[u8]) -> Result<u8, String> {
+        self.ls_type = Self::section_type(raw)?;
         let size_format = (raw[0] >> 2) & 0x3;
-        match section_type(raw)? {
+        match self.ls_type {
             LiteralsSectionType::RLE | LiteralsSectionType::Raw => {
                 self.compressed_size = None;
                 match size_format {
@@ -102,18 +104,18 @@ impl LiteralsSection {
             }
         }
     }
-}
 
-pub fn section_type(raw: &[u8]) -> Result<LiteralsSectionType, String> {
-    let t = raw[0] & 0x3;
-    match t {
-        0 => Ok(LiteralsSectionType::Raw),
-        1 => Ok(LiteralsSectionType::RLE),
-        2 => Ok(LiteralsSectionType::Compressed),
-        3 => Ok(LiteralsSectionType::Treeless),
-        _ => Err(format!(
-            "Illegal literalssectiontype. Is: {}, must be in: 0,1,2,3",
-            t
-        )),
+    fn section_type(raw: &[u8]) -> Result<LiteralsSectionType, String> {
+        let t = raw[0] & 0x3;
+        match t {
+            0 => Ok(LiteralsSectionType::Raw),
+            1 => Ok(LiteralsSectionType::RLE),
+            2 => Ok(LiteralsSectionType::Compressed),
+            3 => Ok(LiteralsSectionType::Treeless),
+            _ => Err(format!(
+                "Illegal literalssectiontype. Is: {}, must be in: 0,1,2,3",
+                t
+            )),
+        }
     }
 }
