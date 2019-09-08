@@ -122,8 +122,8 @@ impl FSEDecoder {
 
         let mut bits_read = 0; //keep track of all bits read
 
-        let mut br = BitReader::new();
-        self.accuracy_log = ACC_LOG_OFFSET + (br.get_bits(4, source)? as u8);
+        let mut br = BitReader::new(source);
+        self.accuracy_log = ACC_LOG_OFFSET + (br.get_bits(4)? as u8);
 
         let probablility_sum = 1 << self.accuracy_log;
         let mut probability_counter = 0;
@@ -132,7 +132,7 @@ impl FSEDecoder {
             let max_remaining_value = probablility_sum - probability_counter + 1; // '+ 1' because values are proabilities + 1
             let bits_to_read = highest_bit_set(max_remaining_value);
 
-            let unchecked_value = br.get_bits(bits_to_read as usize, source)? as u32;
+            let unchecked_value = br.get_bits(bits_to_read as usize)? as u32;
             bits_read += bits_to_read;
 
             let low_threshold = ((1 << bits_to_read) - 1) - (max_remaining_value as u32);
@@ -170,7 +170,7 @@ impl FSEDecoder {
             } else {
                 //fast skip further zero probabilities
                 loop {
-                    let skip_amount = br.get_bits(2, source)?;
+                    let skip_amount = br.get_bits(2)?;
                     bits_read += 2;
 
                     for _ in 0..skip_amount {

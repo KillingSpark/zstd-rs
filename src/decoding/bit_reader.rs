@@ -63,7 +63,8 @@ impl<'s> BitReader<'s> {
                 bit_shift += 8;
             }
 
-            let val_las_byte = (self.source[self.idx / 8] as u64) & (1 << bits_in_last_byte_needed) - 1;
+            let val_las_byte =
+                (self.source[self.idx / 8] as u64) & (1 << bits_in_last_byte_needed) - 1;
             value |= val_las_byte << bit_shift;
             self.idx += bits_in_last_byte_needed;
         }

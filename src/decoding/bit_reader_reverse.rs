@@ -5,7 +5,10 @@ pub struct BitReaderReversed<'s> {
 
 impl<'s> BitReaderReversed<'s> {
     pub fn new(source: &'s [u8]) -> BitReaderReversed {
-        BitReaderReversed { idx: 0, source: source }
+        BitReaderReversed {
+            idx: source.len() * 8,
+            source: source,
+        }
     }
 
     pub fn return_bits(&mut self, n: usize) {
@@ -47,7 +50,6 @@ impl<'s> BitReaderReversed<'s> {
             self.idx -= bits_left_in_current_byte;
             let mut bit_shift = full_bytes_needed * 8 + bits_in_last_byte_needed;
             value <<= bit_shift;
-
 
             assert!(self.idx % 8 == 0);
 
