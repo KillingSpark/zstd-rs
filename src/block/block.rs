@@ -5,6 +5,18 @@ pub enum BlockType {
     Reserved,
 }
 
+impl std::fmt::Display for BlockType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        match self {
+            BlockType::Compressed => write!(f, "Compressed"),
+            BlockType::Raw => write!(f, "Raw"),
+            BlockType::RLE => write!(f, "RLE"),
+            BlockType::Reserved => write!(f, "Reserverd"),
+        } 
+        
+    }
+}
+
 pub struct BlockHeader {
     pub last_block: bool,
     pub block_type: BlockType,

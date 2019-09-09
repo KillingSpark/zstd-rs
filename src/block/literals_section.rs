@@ -12,6 +12,18 @@ pub enum LiteralsSectionType {
     Treeless,
 }
 
+impl std::fmt::Display for LiteralsSectionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        match self {
+            LiteralsSectionType::Compressed => write!(f, "Compressed"),
+            LiteralsSectionType::Raw => write!(f, "Raw"),
+            LiteralsSectionType::RLE => write!(f, "RLE"),
+            LiteralsSectionType::Treeless => write!(f, "Treeless"),
+        } 
+        
+    }
+}
+
 impl LiteralsSection {
     pub fn new() -> LiteralsSection {
         LiteralsSection{

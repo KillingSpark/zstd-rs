@@ -199,7 +199,7 @@ impl FSETable {
             }
         }
 
-        assert!(probability_counter == probablility_sum, format!("The counter: {} exceeded the expected sum: {}. This means an error or corrupted data", probability_counter, probablility_sum));
+        assert!(probability_counter == probablility_sum, format!("The counter: {} exceeded the expected sum: {}. This means an error or corrupted data \n {:?}", probability_counter, probablility_sum, self.symbol_probablilities));
 
         let bytes_read = if bits_read % 8 == 0 {
             bits_read / 8

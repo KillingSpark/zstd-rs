@@ -24,6 +24,8 @@ impl FrameDecoder {
         
         loop {
             let block_header = block_dec.read_block_header(source).unwrap();
+            println!("");
+            println!("Found {} block with size: {}", block_header.block_type, block_header.content_size);
             block_dec
                 .decode_block_content(&block_header, &mut self.decoder_scratch, source, target)
                 .unwrap();
