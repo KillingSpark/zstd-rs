@@ -8,7 +8,7 @@ pub struct Frame {
 }
 
 pub struct FrameHeader {
-    descriptor: FrameDescriptor,
+    pub descriptor: FrameDescriptor,
     window_descriptor: u8,
     dict_id: Vec<u8>,
     frame_content_size: Vec<u8>,
@@ -17,6 +17,7 @@ pub struct FrameHeader {
 pub struct FrameDescriptor(u8);
 
 impl FrameDescriptor {
+    
     pub fn frame_content_size_flag(&self) -> u8 {
         self.0 >> 6
     }

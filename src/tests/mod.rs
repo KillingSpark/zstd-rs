@@ -12,7 +12,6 @@ fn test_frame_header_reading() {
 #[test]
 fn test_block_header_reading() {
     use crate::block;
-    use crate::decoding::scratch::DecoderScratch;
     use crate::frame;
     use std::fs;
 
@@ -23,8 +22,14 @@ fn test_block_header_reading() {
     let mut block_dec = block::block_decoder::new();
     let block_header = block_dec.read_block_header(&mut content).unwrap();
     let _ = block_header; //TODO validate blockheader in a smart way
+}
 
-    let mut decoder_scratch = DecoderScratch::new(frame.header.window_size().unwrap() as usize);
+#[test]
+fn test_frame_decoder() {
+    use crate::frame_decoder;
+    use std::fs;
+
+    let mut content = fs::File::open("/home/moritz/rust/zstd-rs/test_img.zst").unwrap();
 
     struct NullWriter(());
     impl std::io::Write for NullWriter {
@@ -37,12 +42,6 @@ fn test_block_header_reading() {
     }
     let mut null_target = NullWriter(());
 
-    block_dec
-        .decode_block_content(
-            &block_header,
-            &mut decoder_scratch,
-            &mut content,
-            &mut null_target,
-        )
-        .unwrap();
+    let mut frame_dec = frame_decoder::FrameDecoder::new(&mut content);
+    frame_dec.decode_blocks(&mut content, &mut null_target).unwrap();
 }

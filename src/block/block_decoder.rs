@@ -58,6 +58,8 @@ impl BlockDecoder {
                                 }
                             }
                         }
+
+                        self.internal_state = DecoderState::ReadyToDecodeNextHeader;
                         Ok(())
                     }
                     Err(_) => Err(format!("Error while reading the one RLE byte")),
@@ -89,6 +91,7 @@ impl BlockDecoder {
                     }
                 }
 
+                self.internal_state = DecoderState::ReadyToDecodeNextHeader;
                 Ok(())
             }
 
@@ -100,7 +103,10 @@ impl BlockDecoder {
                 //TODO actually decompress stuff
                 let _ = workspace; //workspace will be used here
                 self.decompress_block(header, workspace, source, target)?;
-                unimplemented!("Decompression is not yet implemented...")
+                //unimplemented!("Decompression is not yet implemented...");
+
+                self.internal_state = DecoderState::ReadyToDecodeNextHeader;
+                Ok(())
             }
         }
     }
@@ -128,8 +134,10 @@ impl BlockDecoder {
         let raw = &raw[bytes_in_header as usize..];
 
         workspace.literals_buffer.clear(); //all literals of the previous block must have been used in the sequence execution anyways. just be defensive here
-        let bytes_used_in_literals_section = decode_literals(section, &mut workspace.huf, raw, &mut workspace.literals_buffer)?;
+        let bytes_used_in_literals_section = decode_literals(&section, &mut workspace.huf, raw, &mut workspace.literals_buffer)?;
         let raw = &raw[bytes_used_in_literals_section as usize..];
+
+        assert!(workspace.literals_buffer.len() == section.regenerated_size as usize);
 
         //TODO decode sequences
         let _ = raw;
@@ -157,7 +165,7 @@ impl BlockDecoder {
             Ok(t) => match t {
                 BlockType::Reserved => {
                     return Err(format!(
-                        "Reserved block occured. This is considered corupted by the documentation"
+                        "Reserved block occured. This is considered corruption by the documentation"
                     ))
                 }
                 _ => t,

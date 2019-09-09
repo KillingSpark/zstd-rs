@@ -2,7 +2,7 @@ use super::literals_section::LiteralsSection;
 use super::literals_section::LiteralsSectionType;
 use super::super::decoding::scratch::HuffmanScratch;
 
-pub fn decode_literals(section: LiteralsSection, scratch: &mut HuffmanScratch, source: &[u8], target: &mut Vec<u8>) -> Result<u32, String> {
+pub fn decode_literals(section: &LiteralsSection, scratch: &mut HuffmanScratch, source: &[u8], target: &mut Vec<u8>) -> Result<u32, String> {
     match section.ls_type {
         LiteralsSectionType::Raw => {
             target.extend(&source[0..section.regenerated_size as usize]);
