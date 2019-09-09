@@ -165,7 +165,7 @@ impl BlockDecoder {
             Err(m) => return Err(m),
         };
 
-        let block_size = self.block_content_size_unchecked();
+        let block_size = self.block_content_size()?;
         let decompressed_size = match btype {
             BlockType::Raw => block_size,
             BlockType::RLE => block_size,
@@ -173,11 +173,8 @@ impl BlockDecoder {
             BlockType::Compressed => 0, //unknown but will be smaller than 128kb (or window_size if that is smaller than 128kb)
         };
         let content_size = match btype {
-            BlockType::Raw => self.block_content_size_unchecked(),
-            BlockType::Compressed => match self.block_content_size() {
-                Ok(s) => s,
-                Err(m) => return Err(m),
-            },
+            BlockType::Raw => block_size,
+            BlockType::Compressed => block_size,
             BlockType::RLE => 1,
             BlockType::Reserved => 0, //should be catched above, this is an error state
         };

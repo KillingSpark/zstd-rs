@@ -34,6 +34,20 @@ fn highest_bit_set(x: u32) -> u32 {
 }
 
 impl HuffmanDecoder {
+    pub fn new() -> HuffmanDecoder {
+        HuffmanDecoder {
+            decode: Vec::new(),
+            state: 0,
+
+            weights: Vec::with_capacity(256),
+            max_num_bits: 0,
+            bits: Vec::with_capacity(256),
+            bit_ranks: Vec::with_capacity(11),
+            rank_indexes: Vec::with_capacity(11),
+            fse_table: FSETable::new(),
+        }
+    }
+
     pub fn build_decoder(&mut self, source: &[u8]) -> Result<u32, String> {
         self.decode.clear();
 

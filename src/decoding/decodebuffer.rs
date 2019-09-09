@@ -5,6 +5,13 @@ pub struct Decodebuffer {
 }
 
 impl Decodebuffer {
+    pub fn new(window_size: usize) -> Decodebuffer {
+        Decodebuffer {
+            buffer: Vec::new(),
+            window_size: window_size,
+        }
+    }
+
     pub fn push(&mut self, data: &[u8]) {
         self.buffer.extend_from_slice(data);
     }
