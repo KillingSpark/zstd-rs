@@ -2,6 +2,7 @@ use super::block::BlockHeader;
 use super::block::BlockType;
 use super::literals_section::LiteralsSection;
 use super::literals_section_decoder::decode_literals;
+use super::sequence_section::SequencesHeader;
 use crate::decoding::scratch::DecoderScratch;
 use std::io::Read;
 use std::io::Write;
@@ -123,28 +124,38 @@ impl BlockDecoder {
             .resize(header.content_size as usize, 0);
 
         match source.read_exact(workspace.block_content_buffer.as_mut_slice()) {
-            Ok(_) => {/* happy */},
+            Ok(_) => { /* happy */ }
             Err(_) => return Err("Error while reading the block content".to_owned()),
         }
 
         let raw = workspace.block_content_buffer.as_slice();
-        
+
         let mut section = LiteralsSection::new();
-        let bytes_in_header = section.parse_from_header(raw)?;
-        let raw = &raw[bytes_in_header as usize..];
+        let bytes_in_literals_header = section.parse_from_header(raw)?;
+        let raw = &raw[bytes_in_literals_header as usize..];
 
         workspace.literals_buffer.clear(); //all literals of the previous block must have been used in the sequence execution anyways. just be defensive here
-        let bytes_used_in_literals_section = decode_literals(&section, &mut workspace.huf, raw, &mut workspace.literals_buffer)?;
+        let bytes_used_in_literals_section = decode_literals(
+            &section,
+            &mut workspace.huf,
+            raw,
+            &mut workspace.literals_buffer,
+        )?;
         let raw = &raw[bytes_used_in_literals_section as usize..];
 
         assert!(workspace.literals_buffer.len() == section.regenerated_size as usize);
 
-        //TODO decode sequences
-        let _ = raw;
-        
+        let mut seq_section = SequencesHeader::new();
+        let bytes_in_sequence_header = seq_section.parse_from_header(raw)?;
+
+        if seq_section.num_sequences != 0 {
+            //TODO decode sequences
+            let raw = &raw[bytes_in_sequence_header as usize..];
+            let _ = raw;
+        }
+
         //TODO execute sequences
         let _ = target;
-
 
         Ok(())
     }
