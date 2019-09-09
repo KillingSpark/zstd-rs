@@ -25,7 +25,6 @@ pub fn decode_literals(
             let source = &source[0..section.compressed_size.unwrap() as usize];
             let mut bytes_read = 0;
 
-            //TODO
             match section.ls_type {
                 LiteralsSectionType::Compressed => {
                     //read Huffman tree description

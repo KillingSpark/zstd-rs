@@ -75,7 +75,6 @@ impl FSETable {
     }
 
     fn build_decoding_table(&mut self) {
-        //TODO build decoding table
         self.decode.clear();
         let table_size = 1 << self.accuracy_log;
         if self.decode.len() < table_size {
