@@ -3,9 +3,8 @@ use super::bit_reader_reverse::BitReaderReversed;
 use super::fse::FSEDecoder;
 use super::fse::FSETable;
 
-pub struct HuffmanDecoder {
+pub struct HuffmanTable {
     decode: Vec<Entry>,
-    state: u64,
 
     weights: Vec<u8>,
     max_num_bits: u8,
@@ -14,6 +13,11 @@ pub struct HuffmanDecoder {
     rank_indexes: Vec<usize>,
 
     fse_table: FSETable,
+}
+
+pub struct HuffmanDecoder<'table> {
+    table: &'table HuffmanTable,
+    state: u64,
 }
 
 #[derive(Copy, Clone)]
@@ -33,11 +37,38 @@ fn highest_bit_set(x: u32) -> u32 {
     num_bits::<u32>() as u32 - x.leading_zeros()
 }
 
-impl HuffmanDecoder {
-    pub fn new() -> HuffmanDecoder {
+impl<'t> HuffmanDecoder<'t> {
+    pub fn new(table: &'t HuffmanTable) -> HuffmanDecoder<'t> {
         HuffmanDecoder {
-            decode: Vec::new(),
+            table: table,
             state: 0,
+        }
+    }
+
+    pub fn reset(mut self, new_table: Option<&'t HuffmanTable>) {
+        self.state = 0;
+        if new_table.is_some() {
+            self.table = new_table.unwrap();
+        }
+    }
+
+    pub fn decode_symbol(&mut self) -> u8 {
+        self.table.decode[self.state as usize].symbol
+    }
+
+    pub fn next_state(&mut self, br: &mut BitReader) -> Result<u8, String> {
+        let num_bits = self.table.decode[self.state as usize].num_bits;
+        let new_bits = br.get_bits(num_bits as usize)?;
+        self.state <<= num_bits;
+        self.state |= new_bits as u64;
+        Ok(num_bits)
+    }
+}
+
+impl HuffmanTable {
+    pub fn new() -> HuffmanTable {
+        HuffmanTable {
+            decode: Vec::new(),
 
             weights: Vec::with_capacity(256),
             max_num_bits: 0,
@@ -54,18 +85,6 @@ impl HuffmanDecoder {
         let bytes_used = self.read_weights(source)?;
         self.build_table_from_weights()?;
         Ok(bytes_used)
-    }
-
-    pub fn decode_symbol(&mut self) -> u8 {
-        self.decode[self.state as usize].symbol
-    }
-
-    pub fn next_state(&mut self, br: &mut BitReader) -> Result<u8, String> {
-        let num_bits = self.decode[self.state as usize].num_bits;
-        let new_bits = br.get_bits(num_bits as usize)?;
-        self.state <<= num_bits;
-        self.state |= new_bits as u64;
-        Ok(num_bits)
     }
 
     fn read_weights(&mut self, source: &[u8]) -> Result<u32, String> {

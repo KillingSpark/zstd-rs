@@ -11,6 +11,10 @@ impl<'s> BitReader<'s> {
         }
     }
 
+    pub fn bits_left(&self) -> usize {
+        self.source.len()*8 - self.idx
+    }
+
     pub fn return_bits(&mut self, n: usize) {
         if n > self.idx {
             panic!("Cant return this many bits");

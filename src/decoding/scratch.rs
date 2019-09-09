@@ -1,6 +1,6 @@
 use super::decodebuffer::Decodebuffer;
 use super::fse::FSETable;
-use super::huff0::HuffmanDecoder;
+use super::huff0::HuffmanTable;
 use super::offset_history::OffsetHist;
 
 pub struct DecoderScratch {
@@ -17,7 +17,7 @@ impl DecoderScratch {
    pub fn new(window_size: usize) -> DecoderScratch {
       DecoderScratch {
          huf: HuffmanScratch {
-            decoder: HuffmanDecoder::new(),
+            table: HuffmanTable::new(),
          },
          fse: FSEScratch {
             offsets: FSETable::new(),
@@ -34,7 +34,7 @@ impl DecoderScratch {
 }
 
 pub struct HuffmanScratch {
-   pub decoder: HuffmanDecoder,
+   pub table: HuffmanTable,
 }
 
 pub struct FSEScratch {
