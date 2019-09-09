@@ -1,6 +1,7 @@
 use super::block::BlockHeader;
 use super::block::BlockType;
 use super::literals_section::LiteralsSection;
+use super::literals_section::LiteralsSectionType;
 use super::literals_section_decoder::decode_literals;
 use super::sequence_section::SequencesHeader;
 use super::sequence_section_decoder::decode_sequences;
@@ -102,8 +103,6 @@ impl BlockDecoder {
             }
 
             BlockType::Compressed => {
-                //TODO actually decompress stuff
-                let _ = workspace; //workspace will be used here
                 self.decompress_block(header, workspace, source, target)?;
                 //unimplemented!("Decompression is not yet implemented...");
 
@@ -135,11 +134,21 @@ impl BlockDecoder {
         let bytes_in_literals_header = section.parse_from_header(raw)?;
         let raw = &raw[bytes_in_literals_header as usize..];
 
+        let upper_limit_for_literals = match section.compressed_size {
+            Some(x) => x as usize,
+            None => match section.ls_type {
+                LiteralsSectionType::RLE => 1,
+                LiteralsSectionType:: Raw => section.regenerated_size as usize,
+                _ => panic!("Bug in this library"),
+            }
+        };
+
+        let raw_literals = &raw[..upper_limit_for_literals];
         workspace.literals_buffer.clear(); //all literals of the previous block must have been used in the sequence execution anyways. just be defensive here
         let bytes_used_in_literals_section = decode_literals(
             &section,
             &mut workspace.huf,
-            raw,
+            raw_literals,
             &mut workspace.literals_buffer,
         )?;
         let raw = &raw[bytes_used_in_literals_section as usize..];

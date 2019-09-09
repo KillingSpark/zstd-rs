@@ -101,6 +101,8 @@ impl HuffmanTable {
 
                 let compressed_start = bytes_used_by_fse_header as usize;
                 let compressed_end = bytes_used_by_fse_header as usize + header as usize;
+
+                
                 let compressed_weights = &fse_stream[compressed_start..compressed_end];
                 let mut br = BitReaderReversed::new(compressed_weights);
 
