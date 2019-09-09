@@ -4,7 +4,7 @@ pub const MAX_WINDOW_SIZE: u64 = (1 << 41) + 7 * (1 << 38);
 
 pub struct Frame {
     magic_num: u32,
-    header: FrameHeader,
+    pub header: FrameHeader,
 }
 
 pub struct FrameHeader {
@@ -105,9 +105,9 @@ impl FrameHeader {
         }
     }
 
-    pub fn dictiornary_id(&self) -> Result<u32, String> {
+    pub fn dictiornary_id(&self) -> Result<Option<u32>, String> {
         if self.descriptor.dict_id_flag() == 0 {
-            Ok(0)
+            Ok(None)
         } else {
             match self.descriptor.dictionary_id_bytes() {
                 Err(m) => Err(m),
@@ -124,7 +124,7 @@ impl FrameHeader {
                             value = (value << 8) | (*x as u32);
                         }
 
-                        Ok(value)
+                        Ok(Some(value))
                     }
                 }
             }
@@ -283,21 +283,25 @@ pub fn read_frame_header(r: &mut Read) -> Result<Frame, ()> {
         window_descriptor: 0,
     };
 
-    if desc.single_segment_flag() {
+    if !desc.single_segment_flag() {
         match r.read_exact(&mut buf[0..1]) {
             Ok(_) => frame_header.window_descriptor = buf[0],
             Err(_) => return Err(()),
         }
     }
 
-    match r.read_exact(&mut frame_header.dict_id.as_mut_slice()) {
-        Ok(_) => {}
-        Err(_) => return Err(()),
+    if frame_header.dict_id.len() > 0 {
+        match r.read_exact(&mut frame_header.dict_id.as_mut_slice()) {
+            Ok(_) => {}
+            Err(_) => return Err(()),
+        }
     }
 
-    match r.read_exact(&mut frame_header.frame_content_size.as_mut_slice()) {
-        Ok(_) => {}
-        Err(_) => return Err(()),
+    if frame_header.frame_content_size.len() > 0 {
+        match r.read_exact(&mut frame_header.frame_content_size.as_mut_slice()) {
+            Ok(_) => {}
+            Err(_) => return Err(()),
+        }
     }
 
     let frame: Frame = Frame {
