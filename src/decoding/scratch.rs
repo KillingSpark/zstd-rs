@@ -1,6 +1,6 @@
 use super::decodebuffer::Decodebuffer;
 use super::offset_history::OffsetHist;
-use super::fse::FSEDecoder;
+use super::fse::FSETable;
 use super::huff0::HuffmanDecoder;
 
 pub struct DecoderScratch {
@@ -15,7 +15,7 @@ pub struct HuffmanScratch {
 }
 
 pub struct FSEScratch {
-   pub offset_decoder: FSEDecoder,
-   pub literal_length_decoder: FSEDecoder,
-   pub match_length_decoder: FSEDecoder,
+   pub offset_decoder: FSETable,
+   pub literal_length_decoder: FSETable,
+   pub match_length_decoder: FSETable,
 }

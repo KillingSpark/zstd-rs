@@ -1,4 +1,7 @@
 use super::bit_reader::BitReader;
+use super::bit_reader_reverse::BitReaderReversed;
+use super::fse::FSEDecoder;
+use super::fse::FSETable;
 
 pub struct HuffmanDecoder {
     decode: Vec<Entry>,
@@ -9,6 +12,8 @@ pub struct HuffmanDecoder {
     bits: Vec<u8>,
     bit_ranks: Vec<u8>,
     rank_indexes: Vec<usize>,
+
+    fse_table: FSETable,
 }
 
 #[derive(Copy, Clone)]
@@ -32,12 +37,9 @@ impl HuffmanDecoder {
     pub fn build_decoder(&mut self, source: &[u8]) -> Result<u32, String> {
         self.decode.clear();
 
-        //TODO read weights
-        let _ = source;
+        let bytes_used = self.read_weights(source)?;
         self.build_table_from_weights()?;
-        Ok(
-            100, /* number of bytes needed while reading the weights */
-        )
+        Ok(bytes_used)
     }
 
     pub fn decode_symbol(&mut self) -> u8 {
@@ -50,6 +52,78 @@ impl HuffmanDecoder {
         self.state <<= num_bits;
         self.state |= new_bits as u64;
         Ok(num_bits)
+    }
+
+    fn read_weights(&mut self, source: &[u8]) -> Result<u32, String> {
+        let header = source[0];
+        let mut bits_read = 8;
+
+        match header {
+            0...127 => {
+                let fse_stream = &source[1..];
+                //fse decompress weights
+                let bytes_used = self.fse_table.build_decoder(fse_stream)?;
+                let mut dec1 = FSEDecoder::new(&self.fse_table);
+                let mut dec2 = FSEDecoder::new(&self.fse_table);
+
+                let compressed_weights =
+                    &fse_stream[bytes_used as usize..bytes_used as usize + header as usize];
+                let mut br = BitReaderReversed::new(compressed_weights);
+
+                self.weights.clear();
+                dec1.update_state(&mut br)?;
+                dec2.update_state(&mut br)?;
+
+                loop {
+                    let w = dec1.decode_symbol();
+                    self.weights.push(w);
+                    dec1.update_state(&mut br)?;
+
+                    if br.bits_remaining() < 0 {
+                        //collect final states
+                        self.weights.push(dec2.decode_symbol());
+                        self.weights.push(dec1.decode_symbol());
+                        break;
+                    }
+
+                    let w = dec2.decode_symbol();
+                    self.weights.push(w);
+                    dec2.update_state(&mut br)?;
+
+                    if br.bits_remaining() < 0 {
+                        //collect final states
+                        self.weights.push(dec1.decode_symbol());
+                        self.weights.push(dec2.decode_symbol());
+                        break;
+                    }
+                }
+
+                //maximum number of weights is 255 because we use u8 symbols
+                assert!(self.weights.len() <= 255);
+            }
+            _ => {
+                // weights are directly encoded
+                let weights_raw = &source[1..];
+                let num_weights = header - 127;
+                self.weights.resize(num_weights as usize, 0);
+
+                for idx in 0..num_weights {
+                    if idx % 2 == 0 {
+                        self.weights[idx as usize] = weights_raw[idx as usize / 2] >> 4;
+                    } else {
+                        self.weights[idx as usize] = weights_raw[idx as usize / 2] & 0xF;
+                    }
+                    bits_read += 4;
+                }
+            }
+        }
+
+        let bytes_read = if bits_read % 8 == 0 {
+            bits_read / 8
+        } else {
+            (bits_read / 8) + 1
+        };
+        Ok(bytes_read)
     }
 
     fn build_table_from_weights(&mut self) -> Result<(), String> {

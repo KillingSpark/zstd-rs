@@ -1,11 +1,16 @@
 use super::bit_reader::BitReader;
+use super::bit_reader_reverse::BitReaderReversed;
 
-pub struct FSEDecoder {
-    state: usize,
+pub struct FSETable {
     decode: Vec<Entry>, //used to decode symbols, and calculate the next state
 
     accuracy_log: u8,
     symbol_probablilities: Vec<i32>, //used while building the decode Vector
+}
+
+pub struct FSEDecoder<'table> {
+    state: usize,
+    table: &'table FSETable,
 }
 
 #[derive(Copy, Clone)]
@@ -26,35 +31,42 @@ fn highest_bit_set(x: u32) -> u32 {
     num_bits::<u32>() as u32 - x.leading_zeros()
 }
 
-impl FSEDecoder {
-    pub fn new() -> FSEDecoder {
+impl<'t> FSEDecoder<'t> {
+    pub fn new(table: &'t FSETable) -> FSEDecoder {
         FSEDecoder {
+            state: 0,
+            table: table,
+        }
+    }
+
+    pub fn decode_symbol(&self) -> u8 {
+        self.table.decode[self.state].symbol
+    }
+
+    pub fn update_state(&mut self, bits: &mut BitReaderReversed) -> Result<(), String> {
+        let add = bits.get_bits(self.table.decode[self.state].num_bits as usize)?;
+        self.state = self.table.decode[self.state].base_line + add as usize;
+        Ok(())
+    }
+}
+
+impl FSETable {
+    pub fn new() -> FSETable {
+        FSETable {
             symbol_probablilities: Vec::with_capacity(256), //will never be more than 256 symbols because u8
             decode: Vec::new(),                             //depending on acc_log.
             accuracy_log: 0,
-            state: 0,
         }
     }
 
     //returns how many BYTEs (not bits) were read while building the decoder
     pub fn build_decoder(&mut self, source: &[u8]) -> Result<usize, String> {
-        self.state = 0;
         self.accuracy_log = 0;
 
         let bytes_read = self.read_probabilities(source)?;
         self.build_decoding_table();
 
         Ok(bytes_read)
-    }
-
-    pub fn decode_symbol(&self) -> u8 {
-        self.decode[self.state].symbol
-    }
-
-    pub fn update_state(&mut self, /* reverse_stream: &mut ReverseBitstream */) {
-        //let add = reverse_stream.read(self.decode[self.state].num_bits)?;
-        //self.state = self.decode[self.state].baseline + add;
-        self.state = self.state
     }
 
     fn build_decoding_table(&mut self) {
@@ -75,7 +87,7 @@ impl FSEDecoder {
         );
 
         let mut negative_idx = table_size; //will point to the highest index with is already occupied by a negative-probability-symbol
-                                           
+
         //first scan for all -1 probabilities and place them at the top of the table
         for symbol in 0..self.symbol_probablilities.len() {
             if self.symbol_probablilities[symbol] == -1 {
@@ -193,7 +205,6 @@ impl FSEDecoder {
         Ok(bytes_read as usize)
     }
 }
-
 
 //utility functions for building the decoding table from probabilities
 fn next_position(mut p: usize, table_size: usize) -> usize {

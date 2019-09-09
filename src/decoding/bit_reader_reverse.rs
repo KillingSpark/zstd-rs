@@ -4,6 +4,10 @@ pub struct BitReaderReversed<'s> {
 }
 
 impl<'s> BitReaderReversed<'s> {
+    pub fn bits_remaining(&self) -> isize {
+        self.idx as isize
+    }
+
     pub fn new(source: &'s [u8]) -> BitReaderReversed {
         BitReaderReversed {
             idx: source.len() * 8,
@@ -20,6 +24,7 @@ impl<'s> BitReaderReversed<'s> {
 
     pub fn get_bits(&mut self, n: usize) -> Result<u64, String> {
         if self.idx < n {
+            //TODO handle correctly. need to fill with 0
             return Err(format!("Cant read n: {} bits. Bits left: {}", n, self.idx));
         }
 
