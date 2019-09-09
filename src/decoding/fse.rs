@@ -4,7 +4,7 @@ use super::bit_reader_reverse::BitReaderReversed;
 pub struct FSETable {
     decode: Vec<Entry>, //used to decode symbols, and calculate the next state
 
-    accuracy_log: u8,
+    pub accuracy_log: u8,
     symbol_probablilities: Vec<i32>, //used while building the decode Vector
 }
 
@@ -41,6 +41,11 @@ impl<'t> FSEDecoder<'t> {
 
     pub fn decode_symbol(&self) -> u8 {
         self.table.decode[self.state].symbol
+    }
+
+    pub fn init_state(&mut self, bits: &mut BitReaderReversed) -> Result<(), String> {
+        self.state = bits.get_bits(self.table.accuracy_log as usize)? as usize;
+        Ok(())
     }
 
     pub fn update_state(&mut self, bits: &mut BitReaderReversed) -> Result<(), String> {

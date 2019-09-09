@@ -3,6 +3,7 @@ use super::block::BlockType;
 use super::literals_section::LiteralsSection;
 use super::literals_section_decoder::decode_literals;
 use super::sequence_section::SequencesHeader;
+use super::sequence_section_decoder::decode_sequences;
 use crate::decoding::scratch::DecoderScratch;
 use std::io::Read;
 use std::io::Write;
@@ -151,7 +152,12 @@ impl BlockDecoder {
         if seq_section.num_sequences != 0 {
             //TODO decode sequences
             let raw = &raw[bytes_in_sequence_header as usize..];
-            let _ = raw;
+            decode_sequences(
+                &seq_section,
+                raw,
+                &mut workspace.fse,
+                &mut workspace.sequences,
+            )?;
         }
 
         //TODO execute sequences

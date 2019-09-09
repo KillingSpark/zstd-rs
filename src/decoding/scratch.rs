@@ -2,6 +2,7 @@ use super::decodebuffer::Decodebuffer;
 use super::fse::FSETable;
 use super::huff0::HuffmanTable;
 use super::offset_history::OffsetHist;
+use super::super::block::sequence_section::Sequence;
 
 pub struct DecoderScratch {
    pub huf: HuffmanScratch,
@@ -10,6 +11,7 @@ pub struct DecoderScratch {
    pub offset_hist: OffsetHist,
 
    pub literals_buffer: Vec<u8>,
+   pub sequences: Vec<Sequence>,
    pub block_content_buffer: Vec<u8>,
 }
 
@@ -28,6 +30,7 @@ impl DecoderScratch {
          offset_hist: OffsetHist::new(),
 
          literals_buffer: Vec::new(),
+         sequences: Vec::new(),
          block_content_buffer: Vec::new(),
       }
    }

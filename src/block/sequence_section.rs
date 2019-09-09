@@ -3,6 +3,14 @@ pub struct SequencesHeader {
     pub modes: Option<CompressionModes>,
 }
 
+#[derive(Clone, Copy)]
+pub struct Sequence {
+    pub ll: u32,
+    pub ml: u32,
+    pub of: u32,
+}
+
+#[derive(Copy, Clone)]
 pub struct CompressionModes(u8);
 pub enum ModeType {
     Predefined,

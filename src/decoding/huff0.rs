@@ -106,9 +106,12 @@ impl HuffmanTable {
 
                 bits_read += (bytes_used_by_fse_header + header as usize) * 8;
 
+                dec1.init_state(&mut br)?;
+                bits_read += self.fse_table.accuracy_log as usize; 
+                dec2.init_state(&mut br)?;
+                bits_read += self.fse_table.accuracy_log as usize; 
+
                 self.weights.clear();
-                dec1.update_state(&mut br)?;
-                dec2.update_state(&mut br)?;
 
                 loop {
                     let w = dec1.decode_symbol();
