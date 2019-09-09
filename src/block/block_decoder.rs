@@ -1,5 +1,7 @@
 use super::block::BlockHeader;
 use super::block::BlockType;
+use super::literals_section::LiteralsSection;
+use super::literals_section_decoder::decode_literals;
 use crate::decoding::scratch::DecoderScratch;
 use std::io::Read;
 use std::io::Write;
@@ -12,7 +14,8 @@ pub struct BlockDecoder {
 enum DecoderState {
     ReadyToDecodeNextHeader,
     ReadyToDecodeNextBody,
-    #[allow(dead_code)]Failed, //TODO put "self.internal_state = DecoderState::Failed;" everywhere a unresolveable error occurs
+    #[allow(dead_code)]
+    Failed, //TODO put "self.internal_state = DecoderState::Failed;" everywhere a unresolveable error occurs
 }
 
 pub fn new() -> BlockDecoder {
@@ -37,7 +40,7 @@ impl BlockDecoder {
             DecoderState::Failed => return Err(format!("Cant decode next block if failed along the way. Results will be nonsense")),
             DecoderState::ReadyToDecodeNextHeader => return Err(format!("Cant decode next block body, while expecting to decode the header of the previous block. Results will be nonsense")),
         }
-        
+
         match header.block_type {
             BlockType::RLE => {
                 //TODO batch that into a sensible amount of bytes at once. Maybe a buffer of size 512b?
@@ -96,9 +99,46 @@ impl BlockDecoder {
             BlockType::Compressed => {
                 //TODO actually decompress stuff
                 let _ = workspace; //workspace will be used here
+                self.decompress_block(header, workspace, source, target)?;
                 unimplemented!("Decompression is not yet implemented...")
             }
         }
+    }
+
+    fn decompress_block(
+        &mut self,
+        header: &BlockHeader,
+        workspace: &mut DecoderScratch, //reuse this as often as possible. Not only if the trees are reused but also reuse the allocations when building new trees
+        source: &mut Read,
+        target: &mut Write,
+    ) -> Result<(), String> {
+        workspace
+            .block_content_buffer
+            .resize(header.content_size as usize, 0);
+
+        match source.read_exact(workspace.block_content_buffer.as_mut_slice()) {
+            Ok(_) => {/* happy */},
+            Err(_) => return Err("Error while reading the block content".to_owned()),
+        }
+
+        let raw = workspace.block_content_buffer.as_slice();
+        
+        let mut section = LiteralsSection::new();
+        let bytes_in_header = section.parse_from_header(raw)?;
+        let raw = &raw[bytes_in_header as usize..];
+
+        workspace.literals_buffer.clear(); //all literals of the previous block must have been used in the sequence execution anyways. just be defensive here
+        let bytes_used_in_literals_section = decode_literals(section, &mut workspace.huf, raw, &mut workspace.literals_buffer)?;
+        let raw = &raw[bytes_used_in_literals_section as usize..];
+
+        //TODO decode sequences
+        let _ = raw;
+        
+        //TODO execute sequences
+        let _ = target;
+
+
+        Ok(())
     }
 
     pub fn read_block_header(&mut self, r: &mut Read) -> Result<BlockHeader, String> {

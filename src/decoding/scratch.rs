@@ -4,10 +4,13 @@ use super::fse::FSETable;
 use super::huff0::HuffmanDecoder;
 
 pub struct DecoderScratch {
-   huf: HuffmanScratch,
-   fse: FSEScratch,
-   buffer: Decodebuffer,
-   offset_hist: OffsetHist,
+   pub huf: HuffmanScratch,
+   pub fse: FSEScratch,
+   pub buffer: Decodebuffer,
+   pub offset_hist: OffsetHist,
+
+   pub literals_buffer: Vec<u8>,
+   pub block_content_buffer: Vec<u8>,
 }
 
 pub struct HuffmanScratch {

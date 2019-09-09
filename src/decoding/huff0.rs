@@ -62,13 +62,16 @@ impl HuffmanDecoder {
             0...127 => {
                 let fse_stream = &source[1..];
                 //fse decompress weights
-                let bytes_used = self.fse_table.build_decoder(fse_stream)?;
+                let bytes_used_by_fse_header = self.fse_table.build_decoder(fse_stream)?;
                 let mut dec1 = FSEDecoder::new(&self.fse_table);
                 let mut dec2 = FSEDecoder::new(&self.fse_table);
 
-                let compressed_weights =
-                    &fse_stream[bytes_used as usize..bytes_used as usize + header as usize];
+                let compressed_start = bytes_used_by_fse_header as usize;
+                let compressed_end = bytes_used_by_fse_header as usize + header as usize;
+                let compressed_weights = &fse_stream[compressed_start..compressed_end];
                 let mut br = BitReaderReversed::new(compressed_weights);
+
+                bits_read += (bytes_used_by_fse_header + header as usize) * 8;
 
                 self.weights.clear();
                 dec1.update_state(&mut br)?;
@@ -123,7 +126,7 @@ impl HuffmanDecoder {
         } else {
             (bits_read / 8) + 1
         };
-        Ok(bytes_read)
+        Ok(bytes_read as u32)
     }
 
     fn build_table_from_weights(&mut self) -> Result<(), String> {

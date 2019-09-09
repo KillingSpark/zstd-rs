@@ -13,8 +13,67 @@ pub enum LiteralsSectionType {
 }
 
 impl LiteralsSection {
+    pub fn new() -> LiteralsSection {
+        LiteralsSection{
+            regenerated_size: 0,
+            compressed_size: None,
+            num_streams: None,
+            ls_type: LiteralsSectionType::Raw,
+        }
+    }
+
+    pub fn header_bytes_needed(&self, first_byte: u8) -> Result<u8, String> {
+        let ls_type = Self::section_type(first_byte)?;
+        let size_format = (first_byte >> 2) & 0x3;
+        match ls_type {
+            LiteralsSectionType::RLE | LiteralsSectionType::Raw => {
+                match size_format {
+                    0 | 2 => {
+                        //size_format actually only uses one bit
+                        //regenerated_size uses 5 bits
+                        Ok(1)
+                    }
+                    1 => {
+                        //size_format uses 2 bit
+                        //regenerated_size uses 12 bits
+                        Ok(2)
+                    }
+                    3 => {
+                        //size_format uses 2 bit
+                        //regenerated_size uses 20 bits
+                        Ok(3)
+                    }
+                    _ => panic!(
+                        "This is a bug in the program. There should only be values between 0..3"
+                    ),
+                }
+            }
+            LiteralsSectionType::Compressed | LiteralsSectionType::Treeless => {
+                match size_format {
+                    0 | 1 => {
+                        //Only differ in num_streams
+                        //both regenerated and compressed sizes use 10 bit
+                        Ok(3)
+                    }
+                    2 => {
+                        //both regenerated and compressed sizes use 14 bit
+                        Ok(4)
+                    }
+                    3 => {
+                        //both regenerated and compressed sizes use 18 bit
+                        Ok(5)
+                    }
+
+                    _ => panic!(
+                        "This is a bug in the program. There should only be values between 0..3"
+                    ),
+                }
+            }
+        }
+    }
+
     pub fn parse_from_header(&mut self, raw: &[u8]) -> Result<u8, String> {
-        self.ls_type = Self::section_type(raw)?;
+        self.ls_type = Self::section_type(raw[0])?;
         let size_format = (raw[0] >> 2) & 0x3;
         match self.ls_type {
             LiteralsSectionType::RLE | LiteralsSectionType::Raw => {
@@ -105,8 +164,8 @@ impl LiteralsSection {
         }
     }
 
-    fn section_type(raw: &[u8]) -> Result<LiteralsSectionType, String> {
-        let t = raw[0] & 0x3;
+    fn section_type(raw: u8) -> Result<LiteralsSectionType, String> {
+        let t = raw & 0x3;
         match t {
             0 => Ok(LiteralsSectionType::Raw),
             1 => Ok(LiteralsSectionType::RLE),
