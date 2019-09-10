@@ -14,7 +14,7 @@ pub fn decode_sequences(
     let (bytes_read, ll_rle_byte, of_rle_byte, ml_rle_byte) =
         maybe_update_fse_tables(section, source, scratch)?;
 
-    println!("Updated tables, reading {} bytes", bytes_read);
+    println!("Updating tables used {} bytes", bytes_read);
 
     if ll_rle_byte.is_some() || of_rle_byte.is_some() || ml_rle_byte.is_some() {
         //TODO
@@ -55,15 +55,15 @@ pub fn decode_sequences(
         let ml_code = ml_dec.decode_symbol();
         let of_code = of_dec.decode_symbol();
 
+        let (ll_value, ll_num_bits) = lookup_ll_code(ll_code);
+        let (ml_value, ml_num_bits) = lookup_ml_code(ml_code);
+
         let offset = br.get_bits(of_code as usize)? + (1 << of_code);
         let offset_value = if offset > 3 {
             offset as u32 - 3
         } else {
             offset as u32
         };
-
-        let (ll_value, ll_num_bits) = lookup_ll_code(ll_code);
-        let (ml_value, ml_num_bits) = lookup_ml_code(ml_code);
 
         let ml_add = br.get_bits(ml_num_bits as usize)?;
         let ll_add = br.get_bits(ll_num_bits as usize)?;
@@ -73,12 +73,24 @@ pub fn decode_sequences(
             ml: ml_value as u32 + ml_add as u32,
             of: offset_value,
         });
+
+        if target.len() < section.num_sequences as usize {
+            println!(
+                "Bits left: {} ({} bytes)",
+                br.bits_remaining(),
+                br.bits_remaining() / 8,
+            );
+            ll_dec.update_state(&mut br)?;
+            ml_dec.update_state(&mut br)?;
+            of_dec.update_state(&mut br)?;
+        }
     }
 
     if br.bits_remaining() > 0 {
         Err(format!(
-            "Did not use full bitstream. Bits left: {}",
-            br.bits_remaining()
+            "Did not use full bitstream. Bits left: {} ({} bytes)",
+            br.bits_remaining(),
+            br.bits_remaining() / 8,
         ))
     } else {
         Ok(())
@@ -158,7 +170,8 @@ fn maybe_update_fse_tables(
             bytes_read += 1;
             Some(source[0])
         }
-        _ => {
+        ModeType::Predefined => unimplemented!("Predefined tables not yet implemented"),
+        ModeType::Repeat => {
             /* Nothing to do */
             None
         }
@@ -176,7 +189,8 @@ fn maybe_update_fse_tables(
             bytes_read += 1;
             Some(of_source[0])
         }
-        _ => {
+        ModeType::Predefined => unimplemented!("Predefined tables not yet implemented"),
+        ModeType::Repeat => {
             /* Nothing to do */
             None
         }
@@ -194,7 +208,8 @@ fn maybe_update_fse_tables(
             bytes_read += 1;
             Some(ml_source[0])
         }
-        _ => {
+        ModeType::Predefined => unimplemented!("Predefined tables not yet implemented"),
+        ModeType::Repeat => {
             /* Nothing to do */
             None
         }

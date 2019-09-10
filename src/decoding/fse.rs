@@ -46,12 +46,15 @@ impl<'t> FSEDecoder<'t> {
 
     pub fn init_state(&mut self, bits: &mut BitReaderReversed) -> Result<(), String> {
         self.state = bits.get_bits(self.table.accuracy_log as usize)? as usize;
+        assert!(self.state < self.table.decode.len(), format!("state: {}, acclog: {} ,table_len: {}", self.state, self.table.accuracy_log, self.table.decode.len()));
         Ok(())
     }
 
     pub fn update_state(&mut self, bits: &mut BitReaderReversed) -> Result<(), String> {
         let add = bits.get_bits(self.table.decode[self.state].num_bits as usize)?;
-        self.state = self.table.decode[self.state].base_line + add as usize;
+        let new_state = self.table.decode[self.state].base_line + add as usize;
+        assert!(new_state < self.table.decode.len());
+        self.state = new_state;
         Ok(())
     }
 }
@@ -155,9 +158,7 @@ impl FSETable {
     }
 
     fn read_probabilities(&mut self, source: &[u8]) -> Result<usize, String> {
-        self.symbol_probablilities.clear(); //just clear, we will fill a probability for each entry anyways. Non eed to force new allocs here
-
-        let mut bits_read = 0; //keep track of all bits read
+        self.symbol_probablilities.clear(); //just clear, we will fill a probability for each entry anyways. No need to force new allocs here
 
         let mut br = BitReader::new(source);
         self.accuracy_log = ACC_LOG_OFFSET + (br.get_bits(4)? as u8);
@@ -170,8 +171,7 @@ impl FSETable {
             let bits_to_read = highest_bit_set(max_remaining_value);
 
             let unchecked_value = br.get_bits(bits_to_read as usize)? as u32;
-            bits_read += bits_to_read;
-
+            
             let low_threshold = ((1 << bits_to_read) - 1) - (max_remaining_value as u32);
             let middle = (1 << bits_to_read) / 2;
             let high_threshold = middle + low_threshold;
@@ -179,13 +179,11 @@ impl FSETable {
             let value = if unchecked_value < low_threshold {
                 //value is fine but need to push back one bit (which was a zero)
                 br.return_bits(1);
-                bits_read -= 1;
                 unchecked_value
             } else {
                 if unchecked_value < high_threshold {
                     //value is actually smaller, we read a '1' bit accidentally
                     br.return_bits(1);
-                    bits_read -= 1;
                     let small_value = unchecked_value & (1 << bits_to_read - 1) - 1; //delete highest bit, which got pushed back to the br
                     small_value
                 } else {
@@ -208,8 +206,7 @@ impl FSETable {
                 //fast skip further zero probabilities
                 loop {
                     let skip_amount = br.get_bits(2)?;
-                    bits_read += 2;
-
+                    
                     for _ in 0..skip_amount {
                         self.symbol_probablilities.push(0);
                     }
@@ -222,10 +219,10 @@ impl FSETable {
 
         assert!(probability_counter == probablility_sum, format!("The counter: {} exceeded the expected sum: {}. This means an error or corrupted data \n {:?}", probability_counter, probablility_sum, self.symbol_probablilities));
 
-        let bytes_read = if bits_read % 8 == 0 {
-            bits_read / 8
+        let bytes_read = if br.bits_read() % 8 == 0 {
+            br.bits_read() / 8
         } else {
-            bits_read / 8 + 1
+            br.bits_read() / 8 + 1
         };
         Ok(bytes_read as usize)
     }

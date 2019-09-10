@@ -163,10 +163,11 @@ impl BlockDecoder {
         let mut seq_section = SequencesHeader::new();
         let bytes_in_sequence_header = seq_section.parse_from_header(raw)?;
         let raw = &raw[bytes_in_sequence_header as usize..];
+        println!("Found sequencessection with sequences: {} and size: {}", seq_section.num_sequences, raw.len());
 
         assert!(bytes_in_literals_header as u32 + bytes_used_in_literals_section + bytes_in_sequence_header as u32 + raw.len() as u32 == header.content_size);
+        println!("Slice for sequences: {}", raw.len());
 
-        println!("Found sequencessection with sequences: {} and size: {}", seq_section.num_sequences, raw.len());
 
         if seq_section.num_sequences != 0 {
             decode_sequences(
