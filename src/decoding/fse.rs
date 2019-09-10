@@ -6,7 +6,7 @@ pub struct FSETable {
 
     pub accuracy_log: u8,
     symbol_probablilities: Vec<i32>, //used while building the decode Vector
-    symbol_counter: Vec<u8>,
+    symbol_counter: Vec<u32>,
 }
 
 pub struct FSEDecoder<'table> {
