@@ -14,6 +14,8 @@ pub fn decode_sequences(
     let (bytes_read, ll_rle_byte, of_rle_byte, ml_rle_byte) =
         maybe_update_fse_tables(section, source, scratch)?;
 
+    println!("Updated tables, reading {} bytes", bytes_read);
+
     if ll_rle_byte.is_some() || of_rle_byte.is_some() || ml_rle_byte.is_some() {
         //TODO
         unimplemented!("RLE symbols for sequences not yet implemented");
@@ -148,6 +150,7 @@ fn maybe_update_fse_tables(
 
     let ll_rle_byte = match modes.ll_mode() {
         ModeType::FSECompressed => {
+            println!("Updating ll table");
             bytes_read += scratch.literal_lengths.build_decoder(source)?;
             None
         }
@@ -161,16 +164,17 @@ fn maybe_update_fse_tables(
         }
     };
 
-    let source = &source[bytes_read..];
+    let of_source = &source[bytes_read..];
 
     let of_rle_byte = match modes.of_mode() {
         ModeType::FSECompressed => {
-            bytes_read += scratch.offsets.build_decoder(source)?;
+            println!("Updating of table");
+            bytes_read += scratch.offsets.build_decoder(of_source)?;
             None
         }
         ModeType::RLE => {
             bytes_read += 1;
-            Some(source[0])
+            Some(of_source[0])
         }
         _ => {
             /* Nothing to do */
@@ -178,16 +182,17 @@ fn maybe_update_fse_tables(
         }
     };
 
-    let source = &source[bytes_read..];
+    let ml_source = &source[bytes_read..];
 
     let ml_rle_byte = match modes.ml_mode() {
         ModeType::FSECompressed => {
-            bytes_read += scratch.match_lengths.build_decoder(source)?;
+            println!("Updating ml table");
+            bytes_read += scratch.match_lengths.build_decoder(ml_source)?;
             None
         }
         ModeType::RLE => {
             bytes_read += 1;
-            Some(source[0])
+            Some(ml_source[0])
         }
         _ => {
             /* Nothing to do */

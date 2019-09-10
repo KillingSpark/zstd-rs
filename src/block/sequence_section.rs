@@ -27,11 +27,11 @@ impl CompressionModes {
             2 => ModeType::FSECompressed,
             3 => ModeType::Repeat,
             _ => panic!("This can never happen"),
-        } 
+        }
     }
 
     pub fn ll_mode(&self) -> ModeType {
-        Self::decode_mode(self.0 >> 6) 
+        Self::decode_mode(self.0 >> 6)
     }
 
     pub fn of_mode(&self) -> ModeType {
@@ -58,7 +58,7 @@ impl SequencesHeader {
                 self.num_sequences = 0;
                 return Ok(1);
             }
-            1 ... 127 => {
+            1...127 => {
                 self.num_sequences = source[0] as u32;
                 bytes_read += 1;
                 &source[1..]
@@ -69,7 +69,7 @@ impl SequencesHeader {
                 &source[2..]
             }
             255 => {
-                self.num_sequences = source[1] as u32 + ((source[2] as u32) <<8) + 0x7F00;
+                self.num_sequences = source[1] as u32 + ((source[2] as u32) << 8) + 0x7F00;
                 bytes_read += 3;
                 &source[3..]
             }
@@ -80,4 +80,43 @@ impl SequencesHeader {
 
         Ok(bytes_read)
     }
+}
+
+const ll_default_acc_log: u8 = 6;
+const literalsLength_default_distribution: [i32; 36] = [
+    4, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 1, 1, 1, 1, 1,
+    -1, -1, -1, -1,
+];
+
+#[test]
+fn test_ll_default() {
+    let mut table = crate::decoding::fse::FSETable::new();
+    table.build_from_probabilities(ll_default_acc_log, &Vec::from(&literalsLength_default_distribution[..]));
+
+    //for idx in 0..table.decode.len() {
+    //    println!("{:3}: {:3} {:3} {:3}", idx, table.decode[idx].symbol, table.decode[idx].num_bits, table.decode[idx].base_line);
+    //}
+
+    assert!(table.decode.len() == 64);
+
+    //just test a few values. TODO test all values
+    assert!(table.decode[0].symbol == 0);
+    assert!(table.decode[0].num_bits == 4);
+    assert!(table.decode[0].base_line == 0);
+
+    assert!(table.decode[19].symbol == 27);
+    assert!(table.decode[19].num_bits == 6);
+    assert!(table.decode[19].base_line == 0);
+    
+    assert!(table.decode[39].symbol == 25);
+    assert!(table.decode[39].num_bits == 4);
+    assert!(table.decode[39].base_line == 16);
+
+    assert!(table.decode[60].symbol == 35);
+    assert!(table.decode[60].num_bits == 6);
+    assert!(table.decode[60].base_line == 0);
+
+    assert!(table.decode[59].symbol == 24);
+    assert!(table.decode[59].num_bits == 5);
+    assert!(table.decode[59].base_line == 32);
 }

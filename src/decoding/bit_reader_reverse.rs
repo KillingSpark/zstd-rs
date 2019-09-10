@@ -10,7 +10,7 @@ impl<'s> BitReaderReversed<'s> {
 
     pub fn new(source: &'s [u8]) -> BitReaderReversed {
         BitReaderReversed {
-            idx: source.len() * 8,
+            idx: source.len() * 8 - 1,
             source: source,
         }
     }
@@ -60,7 +60,7 @@ impl<'s> BitReaderReversed<'s> {
 
             //collect full bytes
             for _ in 0..full_bytes_needed {
-                value |= (self.source[self.idx / 8] << bit_shift) as u64;
+                value |= ((self.source[self.idx / 8] as u64) << bit_shift);
                 self.idx -= 8;
                 bit_shift -= 8;
             }
@@ -77,7 +77,7 @@ impl<'s> BitReaderReversed<'s> {
     }
 
     pub fn reset(&mut self, new_source: &'s [u8]) {
-        self.idx = new_source.len() * 8;
+        self.idx = new_source.len() * 8-1;
         self.source = new_source;
     }
 }

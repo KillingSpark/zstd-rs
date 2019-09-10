@@ -2,10 +2,11 @@ use super::bit_reader::BitReader;
 use super::bit_reader_reverse::BitReaderReversed;
 
 pub struct FSETable {
-    decode: Vec<Entry>, //used to decode symbols, and calculate the next state
+    pub decode: Vec<Entry>, //used to decode symbols, and calculate the next state
 
     pub accuracy_log: u8,
     symbol_probablilities: Vec<i32>, //used while building the decode Vector
+    symbol_counter: Vec<u8>,
 }
 
 pub struct FSEDecoder<'table> {
@@ -14,10 +15,10 @@ pub struct FSEDecoder<'table> {
 }
 
 #[derive(Copy, Clone)]
-struct Entry {
-    base_line: usize,
-    num_bits: u8,
-    symbol: u8,
+pub struct Entry {
+    pub base_line: usize,
+    pub num_bits: u8,
+    pub symbol: u8,
 }
 
 const ACC_LOG_OFFSET: u8 = 5;
@@ -59,7 +60,8 @@ impl FSETable {
     pub fn new() -> FSETable {
         FSETable {
             symbol_probablilities: Vec::with_capacity(256), //will never be more than 256 symbols because u8
-            decode: Vec::new(),                             //depending on acc_log.
+            symbol_counter: Vec::with_capacity(256), //will never be more than 256 symbols because u8
+            decode: Vec::new(),                      //depending on acc_log.
             accuracy_log: 0,
         }
     }
@@ -74,8 +76,15 @@ impl FSETable {
         Ok(bytes_read)
     }
 
+    pub fn build_from_probabilities(&mut self, acc_log: u8, probs: &Vec<i32>) {
+        self.symbol_probablilities = probs.clone();
+        self.accuracy_log = acc_log;
+        self.build_decoding_table();
+    }
+
     fn build_decoding_table(&mut self) {
         self.decode.clear();
+
         let table_size = 1 << self.accuracy_log;
         if self.decode.len() < table_size {
             self.decode.reserve(table_size as usize - self.decode.len());
@@ -113,23 +122,35 @@ impl FSETable {
 
             //for each probability point the symbol gets on slot
             let prob = self.symbol_probablilities[idx];
-            for state_number_for_symbol in 0..prob {
-                while position < negative_idx {
-                    //everything above negative_idx is already taken
-                    position = next_position(position, table_size);
-                }
-                let entry = &mut self.decode[negative_idx];
+            for _ in 0..prob {
+                let entry = &mut self.decode[position];
                 entry.symbol = symbol as u8;
 
-                let (bl, nb) = calc_baseline_and_numbits(
-                    table_size as u32,
-                    prob as u32,
-                    state_number_for_symbol as u32,
-                );
-
-                entry.base_line = bl;
-                entry.num_bits = nb;
+                position = next_position(position, table_size);
+                while position >= negative_idx {
+                    position = next_position(position, table_size);
+                    //everything above negative_idx is already taken
+                }
             }
+        }
+
+        // baselines and num_bits can only be caluclated when all symbols have been spread
+        self.symbol_counter
+            .resize(self.symbol_probablilities.len(), 0);
+        for idx in 0..negative_idx {
+            let entry = &mut self.decode[idx];
+            let symbol = entry.symbol;
+            let prob = self.symbol_probablilities[symbol as usize];
+
+            let symbol_count = self.symbol_counter[symbol as usize];
+            self.symbol_counter[symbol as usize] += 1;
+            let (bl, nb) =
+                calc_baseline_and_numbits(table_size as u32, prob as u32, symbol_count as u32);
+
+            assert!(nb <= self.accuracy_log);
+
+            entry.base_line = bl;
+            entry.num_bits = nb;
         }
     }
 
@@ -222,22 +243,22 @@ fn calc_baseline_and_numbits(
     num_states_symbol: u32,
     state_number: u32,
 ) -> (usize, u8) {
-    let num_state_slices = 1 << highest_bit_set(num_states_symbol); //always power of two
+    let num_state_slices = if num_states_symbol % 2 == 0 {
+        num_states_symbol
+    } else {
+        1 << (highest_bit_set(num_states_symbol))
+    }; //always power of two
 
     let num_double_width_state_slices = num_state_slices - num_states_symbol; //leftovers to the powerof two need to be distributed
-    let num_single_width_state_slices = num_state_slices - num_double_width_state_slices; //these will not receive a double width slice of states
+    let num_single_width_state_slices = num_states_symbol - num_double_width_state_slices; //these will not receive a double width slice of states
     let slice_width = num_states_total / num_state_slices; //size of a single width slice of states
-    let num_bits = highest_bit_set(slice_width); //number of bits needed to read for one slice
+    let num_bits = highest_bit_set(slice_width) - 1; //number of bits needed to read for one slice
 
     if state_number < num_double_width_state_slices {
-        //all single width
         let baseline = num_single_width_state_slices * slice_width + state_number * slice_width * 2;
-        (baseline as usize, (num_bits + 1) as u8)
+        (baseline as usize, num_bits as u8 + 1)
     } else {
-        let index_in_single_width = state_number - num_double_width_state_slices;
-        (
-            (slice_width * index_in_single_width) as usize,
-            num_bits as u8,
-        )
+        let index_shifted = state_number - num_double_width_state_slices;
+        ((index_shifted * slice_width) as usize, num_bits as u8)
     }
 }

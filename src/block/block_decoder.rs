@@ -133,8 +133,8 @@ impl BlockDecoder {
         let mut section = LiteralsSection::new();
         let bytes_in_literals_header = section.parse_from_header(raw)?;
         let raw = &raw[bytes_in_literals_header as usize..];
-
         println!("Found {} literalssection with regenerated size: {}, and compressed size: {:?}", section.ls_type, section.regenerated_size, section.compressed_size);
+
 
         let upper_limit_for_literals = match section.compressed_size {
             Some(x) => x as usize,
@@ -146,6 +146,8 @@ impl BlockDecoder {
         };
 
         let raw_literals = &raw[..upper_limit_for_literals];
+        println!("Slice for literals: {}", raw_literals.len());
+
         workspace.literals_buffer.clear(); //all literals of the previous block must have been used in the sequence execution anyways. just be defensive here
         let bytes_used_in_literals_section = decode_literals(
             &section,
@@ -153,9 +155,10 @@ impl BlockDecoder {
             raw_literals,
             &mut workspace.literals_buffer,
         )?;
-        let raw = &raw[bytes_used_in_literals_section as usize..];
+        assert!(bytes_used_in_literals_section == upper_limit_for_literals as u32);
+        assert!(section.regenerated_size == workspace.literals_buffer.len() as u32);
 
-        assert!(workspace.literals_buffer.len() == section.regenerated_size as usize);
+        let raw = &raw[upper_limit_for_literals..];
 
         let mut seq_section = SequencesHeader::new();
         let bytes_in_sequence_header = seq_section.parse_from_header(raw)?;
@@ -166,7 +169,6 @@ impl BlockDecoder {
         println!("Found sequencessection with sequences: {} and size: {}", seq_section.num_sequences, raw.len());
 
         if seq_section.num_sequences != 0 {
-            //TODO decode sequences
             decode_sequences(
                 &seq_section,
                 raw,
@@ -182,11 +184,11 @@ impl BlockDecoder {
     }
 
     pub fn read_block_header(&mut self, r: &mut Read) -> Result<BlockHeader, String> {
-        match self.internal_state {
-            DecoderState::ReadyToDecodeNextHeader => {/* Happy :) */},
-            DecoderState::Failed => return Err(format!("Cant decode next block if failed along the way. Results will be nonsense")),
-            DecoderState::ReadyToDecodeNextBody => return Err(format!("Cant decode next block header, while expecting to decode the body of the previous block. Results will be nonsense")),
-        }
+        //match self.internal_state {
+        //    DecoderState::ReadyToDecodeNextHeader => {/* Happy :) */},
+        //    DecoderState::Failed => return Err(format!("Cant decode next block if failed along the way. Results will be nonsense")),
+        //    DecoderState::ReadyToDecodeNextBody => return Err(format!("Cant decode next block header, while expecting to decode the body of the previous block. Results will be nonsense")),
+        //}
 
         match r.read_exact(&mut self.header_buffer[0..3]) {
             Ok(_) => {}

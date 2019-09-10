@@ -26,12 +26,21 @@ impl FrameDecoder {
             let block_header = block_dec.read_block_header(source).unwrap();
             println!("");
             println!("Found {} block with size: {}", block_header.block_type, block_header.content_size);
+
             block_dec
                 .decode_block_content(&block_header, &mut self.decoder_scratch, source, target)
                 .unwrap();
             
             if block_header.last_block {
                 //TODO flush buffer
+                if self.frame.header.descriptor.content_checksum_flag() {
+                    let rest: Vec<_> = source.bytes().collect();
+                    assert!(rest.len() == 4);
+                    println!("\n Checksum found: {:?}", rest);
+                }else{
+                    let rest: Vec<_> = source.bytes().collect();
+                    assert!(rest.len() == 0);
+                }
                 break;
             }
         }
