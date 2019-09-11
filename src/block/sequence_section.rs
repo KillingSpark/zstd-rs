@@ -12,7 +12,7 @@ pub struct Sequence {
 
 impl std::fmt::Display for Sequence {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        write!(f, "LL: {}, ML: {}, OF: {}", self.ll, self.ml, self.of) 
+        write!(f, "LL: {}, ML: {}, OF: {}", self.ll, self.ml, self.of)
     }
 }
 
@@ -88,16 +88,19 @@ impl SequencesHeader {
     }
 }
 
-const ll_default_acc_log: u8 = 6;
-const literalsLength_default_distribution: [i32; 36] = [
-    4, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 1, 1, 1, 1, 1,
-    -1, -1, -1, -1,
-];
-
 #[test]
 fn test_ll_default() {
+    const LL_DEFAULT_ACC_LOG: u8 = 6;
+    const LITERALS_LENGTH_DEFAULT_DISTRIBUTION: [i32; 36] = [
+        4, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 1, 1, 1,
+        1, 1, -1, -1, -1, -1,
+    ];
+
     let mut table = crate::decoding::fse::FSETable::new();
-    table.build_from_probabilities(ll_default_acc_log, &Vec::from(&literalsLength_default_distribution[..]));
+    table.build_from_probabilities(
+        LL_DEFAULT_ACC_LOG,
+        &Vec::from(&LITERALS_LENGTH_DEFAULT_DISTRIBUTION[..]),
+    );
 
     //for idx in 0..table.decode.len() {
     //    println!("{:3}: {:3} {:3} {:3}", idx, table.decode[idx].symbol, table.decode[idx].num_bits, table.decode[idx].base_line);
@@ -113,7 +116,7 @@ fn test_ll_default() {
     assert!(table.decode[19].symbol == 27);
     assert!(table.decode[19].num_bits == 6);
     assert!(table.decode[19].base_line == 0);
-    
+
     assert!(table.decode[39].symbol == 25);
     assert!(table.decode[39].num_bits == 4);
     assert!(table.decode[39].base_line == 16);
