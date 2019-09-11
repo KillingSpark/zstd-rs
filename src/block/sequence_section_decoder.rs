@@ -59,15 +59,14 @@ pub fn decode_sequences(
         let (ml_value, ml_num_bits) = lookup_ml_code(ml_code);
 
         let offset = br.get_bits(of_code as usize)? + (1 << of_code);
+        let ml_add = br.get_bits(ml_num_bits as usize)?;
+        let ll_add = br.get_bits(ll_num_bits as usize)?;
+
         let offset_value = if offset > 3 {
             offset as u32 - 3
         } else {
             offset as u32
         };
-
-        let ml_add = br.get_bits(ml_num_bits as usize)?;
-        let ll_add = br.get_bits(ll_num_bits as usize)?;
-
         target.push(Sequence {
             ll: ll_value as u32 + ll_add as u32,
             ml: ml_value as u32 + ml_add as u32,
@@ -152,6 +151,10 @@ fn lookup_ml_code(code: u8) -> (u32, u8) {
     }
 }
 
+const LL_MAX_LOG: u8 = 9;
+const ML_MAX_LOG: u8 = 9;
+const OF_MAX_LOG: u8 = 8;
+
 fn maybe_update_fse_tables(
     section: &SequencesHeader,
     source: &[u8],
@@ -163,7 +166,7 @@ fn maybe_update_fse_tables(
     let ll_rle_byte = match modes.ll_mode() {
         ModeType::FSECompressed => {
             println!("Updating ll table");
-            bytes_read += scratch.literal_lengths.build_decoder(source)?;
+            bytes_read += scratch.literal_lengths.build_decoder(source, LL_MAX_LOG)?;
             None
         }
         ModeType::RLE => {
@@ -182,7 +185,7 @@ fn maybe_update_fse_tables(
     let of_rle_byte = match modes.of_mode() {
         ModeType::FSECompressed => {
             println!("Updating of table");
-            bytes_read += scratch.offsets.build_decoder(of_source)?;
+            bytes_read += scratch.offsets.build_decoder(of_source, OF_MAX_LOG)?;
             None
         }
         ModeType::RLE => {
@@ -201,7 +204,7 @@ fn maybe_update_fse_tables(
     let ml_rle_byte = match modes.ml_mode() {
         ModeType::FSECompressed => {
             println!("Updating ml table");
-            bytes_read += scratch.match_lengths.build_decoder(ml_source)?;
+            bytes_read += scratch.match_lengths.build_decoder(ml_source, ML_MAX_LOG)?;
             None
         }
         ModeType::RLE => {

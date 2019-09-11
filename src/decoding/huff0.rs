@@ -95,7 +95,7 @@ impl HuffmanTable {
             0...127 => {
                 let fse_stream = &source[1..];
                 //fse decompress weights
-                let bytes_used_by_fse_header = self.fse_table.build_decoder(fse_stream)?;
+                let bytes_used_by_fse_header = self.fse_table.build_decoder(fse_stream, /*TODO find actual max*/100)?;
                 let mut dec1 = FSEDecoder::new(&self.fse_table);
                 let mut dec2 = FSEDecoder::new(&self.fse_table);
 

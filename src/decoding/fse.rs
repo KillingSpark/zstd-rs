@@ -70,10 +70,10 @@ impl FSETable {
     }
 
     //returns how many BYTEs (not bits) were read while building the decoder
-    pub fn build_decoder(&mut self, source: &[u8]) -> Result<usize, String> {
+    pub fn build_decoder(&mut self, source: &[u8], max_log: u8) -> Result<usize, String> {
         self.accuracy_log = 0;
 
-        let bytes_read = self.read_probabilities(source)?;
+        let bytes_read = self.read_probabilities(source, max_log)?;
         self.build_decoding_table();
 
         Ok(bytes_read)
@@ -157,11 +157,12 @@ impl FSETable {
         }
     }
 
-    fn read_probabilities(&mut self, source: &[u8]) -> Result<usize, String> {
+    fn read_probabilities(&mut self, source: &[u8], max_log: u8) -> Result<usize, String> {
         self.symbol_probablilities.clear(); //just clear, we will fill a probability for each entry anyways. No need to force new allocs here
 
         let mut br = BitReader::new(source);
         self.accuracy_log = ACC_LOG_OFFSET + (br.get_bits(4)? as u8);
+        assert!(self.accuracy_log <= max_log);
 
         let probablility_sum = 1 << self.accuracy_log;
         let mut probability_counter = 0;
@@ -218,11 +219,12 @@ impl FSETable {
         }
 
         assert!(probability_counter == probablility_sum, format!("The counter: {} exceeded the expected sum: {}. This means an error or corrupted data \n {:?}", probability_counter, probablility_sum, self.symbol_probablilities));
+        assert!(self.symbol_probablilities.len() <= 256, "There are too many symbols in this distribution: {}. Max: 256", self.symbol_probablilities.len());
 
         let bytes_read = if br.bits_read() % 8 == 0 {
             br.bits_read() / 8
         } else {
-            br.bits_read() / 8 + 1
+            (br.bits_read() / 8) + 1
         };
         Ok(bytes_read as usize)
     }
