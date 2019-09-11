@@ -24,8 +24,14 @@ impl<'s> BitReaderReversed<'s> {
             return Ok(0);
         }
         if self.idx < n {
+            if self.idx <= 0 {
+                return Ok(0);
+            }
             //TODO handle correctly. need to fill with 0
-            return Err(format!("Cant read n: {} bits. Bits left: {}", n, self.idx));
+            let emulated_read_shift = n - self.bits_remaining() as usize; 
+            let v = self.get_bits(self.bits_remaining() as usize)?;
+            let value = v << emulated_read_shift;
+            return Ok(value);
         }
 
         let mut value: u64;

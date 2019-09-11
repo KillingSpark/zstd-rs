@@ -57,15 +57,15 @@ pub fn decode_sequences(
         let (ll_value, ll_num_bits) = lookup_ll_code(ll_code);
         let (ml_value, ml_num_bits) = lookup_ml_code(ml_code);
 
-        println!("of stat: {}", of_dec.state);
-        println!("of Code: {}", of_code);
-        println!("ll stat: {}", ll_dec.state);
-        println!("ll bits: {}", ll_num_bits);
-        println!("ll Code: {}", ll_value);
-        println!("ml stat: {}", ml_dec.state);
-        println!("ml bits: {}", ml_num_bits);
-        println!("ml Code: {}", ml_value);
-        println!("");
+        //println!("of stat: {}", of_dec.state);
+        //println!("of Code: {}", of_code);
+        //println!("ll stat: {}", ll_dec.state);
+        //println!("ll bits: {}", ll_num_bits);
+        //println!("ll Code: {}", ll_value);
+        //println!("ml stat: {}", ml_dec.state);
+        //println!("ml bits: {}", ml_num_bits);
+        //println!("ml Code: {}", ml_value);
+        //println!("");
 
         let offset = br.get_bits(of_code as usize)? + (1 << of_code);
         let ml_add = br.get_bits(ml_num_bits as usize)?;

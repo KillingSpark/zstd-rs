@@ -61,7 +61,6 @@ impl<'t> FSEDecoder<'t> {
     pub fn update_state(&mut self, bits: &mut BitReaderReversed) -> Result<(), String> {
         let num_bits = self.table.decode[self.state].num_bits as usize;
         let add = bits.get_bits(num_bits)?;
-        println!("Add: {}, bits: {}", add, num_bits);
         let new_state = self.table.decode[self.state].base_line + add as usize;
         assert!(new_state < self.table.decode.len());
         self.state = new_state;
@@ -160,8 +159,6 @@ impl FSETable {
             let (bl, nb) =
                 calc_baseline_and_numbits(table_size as u32, prob as u32, symbol_count as u32);
 
-            println!("sy {}, bl {}, nb {}", symbol, bl, nb);
-
             assert!(nb <= self.accuracy_log);
 
             entry.base_line = bl;
@@ -200,10 +197,7 @@ impl FSETable {
             };
 
             let prob = (value as i32) - 1;
-            println!(
-                "val {:3}, checked_val {:3}, prob {:3}",
-                unchecked_value, value, prob
-            );
+           
             self.symbol_probablilities.push(prob);
             if prob != 0 {
                 if prob > 0 {

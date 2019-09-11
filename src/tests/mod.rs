@@ -45,3 +45,5 @@ fn test_frame_decoder() {
     let mut frame_dec = frame_decoder::FrameDecoder::new(&mut content);
     frame_dec.decode_blocks(&mut content, &mut null_target).unwrap();
 }
+
+pub mod decode_corpus;
