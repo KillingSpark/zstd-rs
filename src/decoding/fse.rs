@@ -5,12 +5,12 @@ pub struct FSETable {
     pub decode: Vec<Entry>, //used to decode symbols, and calculate the next state
 
     pub accuracy_log: u8,
-    symbol_probablilities: Vec<i32>, //used while building the decode Vector
+    pub symbol_probablilities: Vec<i32>, //used while building the decode Vector
     symbol_counter: Vec<u32>,
 }
 
 pub struct FSEDecoder<'table> {
-    state: usize,
+    pub state: usize,
     table: &'table FSETable,
 }
 
@@ -168,32 +168,27 @@ impl FSETable {
         let mut probability_counter = 0;
 
         while probability_counter < probablility_sum {
-            let max_remaining_value = probablility_sum - probability_counter + 1; // '+ 1' because values are proabilities + 1
+            let max_remaining_value = probablility_sum - probability_counter + 1;
             let bits_to_read = highest_bit_set(max_remaining_value);
-
-            let unchecked_value = br.get_bits(bits_to_read as usize)? as u32;
             
+            let unchecked_value = br.get_bits(bits_to_read as usize)? as u32;
             let low_threshold = ((1 << bits_to_read) - 1) - (max_remaining_value as u32);
-            let middle = (1 << bits_to_read) / 2;
-            let high_threshold = middle + low_threshold;
+            let mask = (1 << (bits_to_read - 1)) - 1;
+            let small_value = unchecked_value & mask;
 
-            let value = if unchecked_value < low_threshold {
-                //value is fine but need to push back one bit (which was a zero)
+            let value = if small_value < low_threshold {
                 br.return_bits(1);
-                unchecked_value
+                small_value
             } else {
-                if unchecked_value < high_threshold {
-                    //value is actually smaller, we read a '1' bit accidentally
-                    br.return_bits(1);
-                    let small_value = unchecked_value & (1 << bits_to_read - 1) - 1; //delete highest bit, which got pushed back to the br
-                    small_value
-                } else {
-                    //value is fine, its just big
+                if unchecked_value > mask {
+                    unchecked_value - low_threshold
+                }else{
                     unchecked_value
                 }
             };
 
             let prob = (value as i32) - 1;
+            println!("val {:3}, checked_val {:3}, prob {:3}", unchecked_value, value, prob);
             self.symbol_probablilities.push(prob);
             if prob != 0 {
                 if prob > 0 {

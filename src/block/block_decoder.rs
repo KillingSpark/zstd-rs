@@ -159,6 +159,7 @@ impl BlockDecoder {
         assert!(section.regenerated_size == workspace.literals_buffer.len() as u32);
 
         let raw = &raw[upper_limit_for_literals..];
+        println!("Slice for sequences with headers: {}", raw.len());
 
         let mut seq_section = SequencesHeader::new();
         let bytes_in_sequence_header = seq_section.parse_from_header(raw)?;

@@ -50,13 +50,25 @@ pub fn decode_sequences(
     target.clear();
     target.reserve(section.num_sequences as usize);
 
-    for _ in 0..section.num_sequences {
+    for i in 0..section.num_sequences {
+        if i == 10 {
+            panic!("A");
+        }
         let ll_code = ll_dec.decode_symbol();
         let ml_code = ml_dec.decode_symbol();
         let of_code = of_dec.decode_symbol();
-
         let (ll_value, ll_num_bits) = lookup_ll_code(ll_code);
         let (ml_value, ml_num_bits) = lookup_ml_code(ml_code);
+
+        println!("of stat: {}", of_dec.state);
+        println!("of Code: {}", of_code);
+        println!("ll stat: {}", ll_dec.state);
+        println!("ll bits: {}", ll_num_bits);
+        println!("ll Code: {}", ll_code);
+        println!("ml stat: {}", ml_dec.state);
+        println!("ml bits: {}", ml_num_bits);
+        println!("ml Code: {}", ml_code);
+        println!("");
 
         let offset = br.get_bits(of_code as usize)? + (1 << of_code);
         let ml_add = br.get_bits(ml_num_bits as usize)?;
@@ -74,11 +86,11 @@ pub fn decode_sequences(
         });
 
         if target.len() < section.num_sequences as usize {
-            println!(
-                "Bits left: {} ({} bytes)",
-                br.bits_remaining(),
-                br.bits_remaining() / 8,
-            );
+            //println!(
+            //    "Bits left: {} ({} bytes)",
+            //    br.bits_remaining(),
+            //    br.bits_remaining() / 8,
+            //);
             ll_dec.update_state(&mut br)?;
             ml_dec.update_state(&mut br)?;
             of_dec.update_state(&mut br)?;
@@ -166,7 +178,11 @@ fn maybe_update_fse_tables(
     let ll_rle_byte = match modes.ll_mode() {
         ModeType::FSECompressed => {
             println!("Updating ll table");
-            bytes_read += scratch.literal_lengths.build_decoder(source, LL_MAX_LOG)?;
+            let size = scratch.literal_lengths.build_decoder(source, LL_MAX_LOG)?;
+            bytes_read += size;
+            println!("LL Size: {}", size);
+            println!("LL Acc_Log: {}", scratch.literal_lengths.accuracy_log);
+            
             None
         }
         ModeType::RLE => {
