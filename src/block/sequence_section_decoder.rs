@@ -51,9 +51,6 @@ pub fn decode_sequences(
     target.reserve(section.num_sequences as usize);
 
     for i in 0..section.num_sequences {
-        if i == 10 {
-            panic!("A");
-        }
         let ll_code = ll_dec.decode_symbol();
         let ml_code = ml_dec.decode_symbol();
         let of_code = of_dec.decode_symbol();
@@ -64,10 +61,10 @@ pub fn decode_sequences(
         println!("of Code: {}", of_code);
         println!("ll stat: {}", ll_dec.state);
         println!("ll bits: {}", ll_num_bits);
-        println!("ll Code: {}", ll_code);
+        println!("ll Code: {}", ll_value);
         println!("ml stat: {}", ml_dec.state);
         println!("ml bits: {}", ml_num_bits);
-        println!("ml Code: {}", ml_code);
+        println!("ml Code: {}", ml_value);
         println!("");
 
         let offset = br.get_bits(of_code as usize)? + (1 << of_code);

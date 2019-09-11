@@ -102,9 +102,9 @@ fn test_ll_default() {
         &Vec::from(&LITERALS_LENGTH_DEFAULT_DISTRIBUTION[..]),
     );
 
-    //for idx in 0..table.decode.len() {
-    //    println!("{:3}: {:3} {:3} {:3}", idx, table.decode[idx].symbol, table.decode[idx].num_bits, table.decode[idx].base_line);
-    //}
+    for idx in 0..table.decode.len() {
+        println!("{:3}: {:3} {:3} {:3}", idx, table.decode[idx].symbol, table.decode[idx].num_bits, table.decode[idx].base_line);
+    }
 
     assert!(table.decode.len() == 64);
 

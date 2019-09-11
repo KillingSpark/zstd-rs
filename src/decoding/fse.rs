@@ -46,12 +46,22 @@ impl<'t> FSEDecoder<'t> {
 
     pub fn init_state(&mut self, bits: &mut BitReaderReversed) -> Result<(), String> {
         self.state = bits.get_bits(self.table.accuracy_log as usize)? as usize;
-        assert!(self.state < self.table.decode.len(), format!("state: {}, acclog: {} ,table_len: {}", self.state, self.table.accuracy_log, self.table.decode.len()));
+        assert!(
+            self.state < self.table.decode.len(),
+            format!(
+                "state: {}, acclog: {} ,table_len: {}",
+                self.state,
+                self.table.accuracy_log,
+                self.table.decode.len()
+            )
+        );
         Ok(())
     }
 
     pub fn update_state(&mut self, bits: &mut BitReaderReversed) -> Result<(), String> {
-        let add = bits.get_bits(self.table.decode[self.state].num_bits as usize)?;
+        let num_bits = self.table.decode[self.state].num_bits as usize;
+        let add = bits.get_bits(num_bits)?;
+        println!("Add: {}, bits: {}", add, num_bits);
         let new_state = self.table.decode[self.state].base_line + add as usize;
         assert!(new_state < self.table.decode.len());
         self.state = new_state;
@@ -150,6 +160,8 @@ impl FSETable {
             let (bl, nb) =
                 calc_baseline_and_numbits(table_size as u32, prob as u32, symbol_count as u32);
 
+            println!("sy {}, bl {}, nb {}", symbol, bl, nb);
+
             assert!(nb <= self.accuracy_log);
 
             entry.base_line = bl;
@@ -170,7 +182,7 @@ impl FSETable {
         while probability_counter < probablility_sum {
             let max_remaining_value = probablility_sum - probability_counter + 1;
             let bits_to_read = highest_bit_set(max_remaining_value);
-            
+
             let unchecked_value = br.get_bits(bits_to_read as usize)? as u32;
             let low_threshold = ((1 << bits_to_read) - 1) - (max_remaining_value as u32);
             let mask = (1 << (bits_to_read - 1)) - 1;
@@ -182,13 +194,16 @@ impl FSETable {
             } else {
                 if unchecked_value > mask {
                     unchecked_value - low_threshold
-                }else{
+                } else {
                     unchecked_value
                 }
             };
 
             let prob = (value as i32) - 1;
-            println!("val {:3}, checked_val {:3}, prob {:3}", unchecked_value, value, prob);
+            println!(
+                "val {:3}, checked_val {:3}, prob {:3}",
+                unchecked_value, value, prob
+            );
             self.symbol_probablilities.push(prob);
             if prob != 0 {
                 if prob > 0 {
@@ -202,7 +217,7 @@ impl FSETable {
                 //fast skip further zero probabilities
                 loop {
                     let skip_amount = br.get_bits(2)?;
-                    
+
                     for _ in 0..skip_amount {
                         self.symbol_probablilities.push(0);
                     }
@@ -214,7 +229,11 @@ impl FSETable {
         }
 
         assert!(probability_counter == probablility_sum, format!("The counter: {} exceeded the expected sum: {}. This means an error or corrupted data \n {:?}", probability_counter, probablility_sum, self.symbol_probablilities));
-        assert!(self.symbol_probablilities.len() <= 256, "There are too many symbols in this distribution: {}. Max: 256", self.symbol_probablilities.len());
+        assert!(
+            self.symbol_probablilities.len() <= 256,
+            "There are too many symbols in this distribution: {}. Max: 256",
+            self.symbol_probablilities.len()
+        );
 
         let bytes_read = if br.bits_read() % 8 == 0 {
             br.bits_read() / 8
@@ -237,7 +256,7 @@ fn calc_baseline_and_numbits(
     num_states_symbol: u32,
     state_number: u32,
 ) -> (usize, u8) {
-    let num_state_slices = if num_states_symbol % 2 == 0 {
+    let num_state_slices = if 1 << (highest_bit_set(num_states_symbol) - 1) == num_states_symbol {
         num_states_symbol
     } else {
         1 << (highest_bit_set(num_states_symbol))

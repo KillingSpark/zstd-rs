@@ -15,13 +15,6 @@ impl<'s> BitReaderReversed<'s> {
         }
     }
 
-    pub fn return_bits(&mut self, n: usize) {
-        if n > self.idx {
-            panic!("Cant return this many bits");
-        }
-        self.idx -= n;
-    }
-
     fn byte_idx(&self) -> usize {
         ((self.idx - 1) / 8)
     }
@@ -86,6 +79,7 @@ impl<'s> BitReaderReversed<'s> {
 
             //collect full bytes
             for _ in 0..full_bytes_needed {
+                assert!(bit_shift >= 8);
                 //make space in shift for 8 more bits
                 bit_shift -= 8;
 
