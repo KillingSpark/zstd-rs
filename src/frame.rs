@@ -88,7 +88,7 @@ impl FrameHeader {
 
             let window_size = window_base + window_add;
 
-            if window_size > MIN_WINDOW_SIZE {
+            if window_size >= MIN_WINDOW_SIZE {
                 if window_size < MAX_WINDOW_SIZE {
                     Ok(window_size)
                 } else {
