@@ -122,11 +122,9 @@ impl LiteralsSection {
             LiteralsSectionType::Compressed | LiteralsSectionType::Treeless => {
                 match size_format {
                     0 => {
-                        println!("1 stream");
                         self.num_streams = Some(1);
                     }
                     1 | 2 | 3 => {
-                        println!("4 streams");
                         self.num_streams = Some(4);
                     }
                     _ => panic!(

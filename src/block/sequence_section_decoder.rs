@@ -13,7 +13,9 @@ pub fn decode_sequences(
 ) -> Result<(), String> {
     let bytes_read = maybe_update_fse_tables(section, source, scratch)?;
 
-    println!("Updating tables used {} bytes", bytes_read);
+    if crate::VERBOSE {
+        println!("Updating tables used {} bytes", bytes_read);
+    }
 
     if scratch.ll_rle.is_some() || scratch.of_rle.is_some() || scratch.ml_rle.is_some() {
         //TODO
@@ -195,19 +197,25 @@ fn maybe_update_fse_tables(
 
     match modes.ll_mode() {
         ModeType::FSECompressed => {
-            println!("Updating ll table");
             let bytes = scratch.literal_lengths.build_decoder(source, LL_MAX_LOG)?;
             bytes_read += bytes;
-            println!("Used bytes: {}", bytes);
+            if crate::VERBOSE {
+                println!("Updating ll table");
+                println!("Used bytes: {}", bytes);
+            }
             scratch.ll_rle = None;
         }
         ModeType::RLE => {
-            println!("Use RLE ll table");
+            if crate::VERBOSE {
+                println!("Use RLE ll table");
+            }
             bytes_read += 1;
             scratch.ll_rle = Some(source[0]);
         }
         ModeType::Predefined => {
-            println!("Use predefined ll table");
+            if crate::VERBOSE {
+                println!("Use predefined ll table");
+            }
             scratch.literal_lengths.build_from_probabilities(
                 LL_DEFAULT_ACC_LOG,
                 &Vec::from(&LITERALS_LENGTH_DEFAULT_DISTRIBUTION[..]),
@@ -215,7 +223,9 @@ fn maybe_update_fse_tables(
             scratch.ll_rle = None;
         }
         ModeType::Repeat => {
-            println!("Repeat ll table");
+            if crate::VERBOSE {
+                println!("Repeat ll table");
+            }
             /* Nothing to do */
         }
     };
@@ -224,19 +234,25 @@ fn maybe_update_fse_tables(
 
     match modes.of_mode() {
         ModeType::FSECompressed => {
-            println!("Updating of table");
             let bytes = scratch.offsets.build_decoder(of_source, OF_MAX_LOG)?;
-            println!("Used bytes: {}", bytes);
+            if crate::VERBOSE {
+                println!("Updating of table");
+                println!("Used bytes: {}", bytes);
+            }
             bytes_read += bytes;
             scratch.of_rle = None;
         }
         ModeType::RLE => {
-            println!("Use RLE of table");
+            if crate::VERBOSE {
+                println!("Use RLE of table");
+            }
             bytes_read += 1;
             scratch.of_rle = Some(of_source[0]);
         }
         ModeType::Predefined => {
-            println!("Use predefined of table");
+            if crate::VERBOSE {
+                println!("Use predefined of table");
+            }
             scratch.offsets.build_from_probabilities(
                 OF_DEFAULT_ACC_LOG,
                 &Vec::from(&OFFSET_DEFAULT_DISTRIBUTION[..]),
@@ -244,7 +260,9 @@ fn maybe_update_fse_tables(
             scratch.of_rle = None;
         }
         ModeType::Repeat => {
-            println!("Repeat of table");
+            if crate::VERBOSE {
+                println!("Repeat of table");
+            }
             /* Nothing to do */
         }
     };
@@ -253,24 +271,36 @@ fn maybe_update_fse_tables(
 
     match modes.ml_mode() {
         ModeType::FSECompressed => {
-            println!("Updating ml table");
             let bytes = scratch.match_lengths.build_decoder(ml_source, ML_MAX_LOG)?;
-            bytes_read += bytes; 
-            println!("Used bytes: {}", bytes);
+            bytes_read += bytes;
+            if crate::VERBOSE {
+                println!("Updating ml table");
+                println!("Used bytes: {}", bytes);
+            }
             scratch.ml_rle = None;
         }
         ModeType::RLE => {
+            if crate::VERBOSE {
+                println!("Use RLE ml table");
+            }
             bytes_read += 1;
             scratch.ml_rle = Some(ml_source[0]);
         }
         ModeType::Predefined => {
+            if crate::VERBOSE {
+                println!("Use predefined ml table");
+            }
             scratch.match_lengths.build_from_probabilities(
                 ML_DEFAULT_ACC_LOG,
                 &Vec::from(&MATCH_LENGTH_DEFAULT_DISTRIBUTION[..]),
             );
             scratch.ml_rle = None;
         }
-        ModeType::Repeat => { /* Nothing to do */ }
+        ModeType::Repeat => {
+            if crate::VERBOSE {
+                println!("Repeat ml table");
+            } /* Nothing to do */
+        }
     };
 
     Ok(bytes_read)

@@ -116,10 +116,12 @@ impl BlockDecoder {
         let mut section = LiteralsSection::new();
         let bytes_in_literals_header = section.parse_from_header(raw)?;
         let raw = &raw[bytes_in_literals_header as usize..];
-        println!(
-            "Found {} literalssection with regenerated size: {}, and compressed size: {:?}",
-            section.ls_type, section.regenerated_size, section.compressed_size
-        );
+        if crate::VERBOSE {
+            println!(
+                "Found {} literalssection with regenerated size: {}, and compressed size: {:?}",
+                section.ls_type, section.regenerated_size, section.compressed_size
+            );
+        }
 
         let upper_limit_for_literals = match section.compressed_size {
             Some(x) => x as usize,
@@ -131,7 +133,9 @@ impl BlockDecoder {
         };
 
         let raw_literals = &raw[..upper_limit_for_literals];
-        println!("Slice for literals: {}", raw_literals.len());
+        if crate::VERBOSE {
+            println!("Slice for literals: {}", raw_literals.len());
+        }
 
         workspace.literals_buffer.clear(); //all literals of the previous block must have been used in the sequence execution anyways. just be defensive here
         let bytes_used_in_literals_section = decode_literals(
@@ -149,16 +153,20 @@ impl BlockDecoder {
         assert!(bytes_used_in_literals_section == upper_limit_for_literals as u32);
 
         let raw = &raw[upper_limit_for_literals..];
-        println!("Slice for sequences with headers: {}", raw.len());
+        if crate::VERBOSE {
+            println!("Slice for sequences with headers: {}", raw.len());
+        }
 
         let mut seq_section = SequencesHeader::new();
         let bytes_in_sequence_header = seq_section.parse_from_header(raw)?;
         let raw = &raw[bytes_in_sequence_header as usize..];
-        println!(
-            "Found sequencessection with sequences: {} and size: {}",
-            seq_section.num_sequences,
-            raw.len()
-        );
+        if crate::VERBOSE {
+            println!(
+                "Found sequencessection with sequences: {} and size: {}",
+                seq_section.num_sequences,
+                raw.len()
+            );
+        }
 
         assert!(
             bytes_in_literals_header as u32
@@ -167,7 +175,9 @@ impl BlockDecoder {
                 + raw.len() as u32
                 == header.content_size
         );
-        println!("Slice for sequences: {}", raw.len());
+        if crate::VERBOSE {
+            println!("Slice for sequences: {}", raw.len());
+        }
 
         if seq_section.num_sequences != 0 {
             decode_sequences(

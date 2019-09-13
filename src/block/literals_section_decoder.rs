@@ -42,9 +42,10 @@ fn decompress_literals(
     match section.ls_type {
         LiteralsSectionType::Compressed => {
             //read Huffman tree description
-            println!("Need to build huffman table");
             bytes_read += scratch.table.build_decoder(source)?;
-            println!("Built huffman table using {} bytes", bytes_read);
+            if crate::VERBOSE {
+                println!("Built huffman table using {} bytes", bytes_read);
+            }
         }
         _ => { /* nothing to do, huffman tree has been provided by previous block */ }
     }

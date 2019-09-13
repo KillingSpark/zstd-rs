@@ -159,8 +159,6 @@ impl HuffmanTable {
                     }
                 }
 
-                println!("Num weights: {}", self.weights.len());
-
                 //maximum number of weights is 255 because we use u8 symbols
                 assert!(self.weights.len() <= 255);
             }
@@ -180,7 +178,6 @@ impl HuffmanTable {
                 }
             }
         }
-        println!("byte read {}", bits_read/8);
 
         let bytes_read = if bits_read % 8 == 0 {
             bits_read / 8
@@ -198,7 +195,6 @@ impl HuffmanTable {
         for w in &self.weights {
             weight_sum += if *w > 0 { (1 as u32) << (*w - 1) } else { 0 };
         }
-        println!("Weightsum: {}", weight_sum);
 
         let max_bits = highest_bit_set(weight_sum) as u8;
         let left_over = ((1 as u32) << max_bits) - weight_sum;
