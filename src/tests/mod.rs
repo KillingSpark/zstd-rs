@@ -46,4 +46,60 @@ fn test_frame_decoder() {
     frame_dec.decode_blocks(&mut content).unwrap();
 }
 
+#[test]
+fn test_specific_file() {
+    use crate::frame_decoder;
+    use std::fs;
+    use std::io::Read;
+
+    let mut content = fs::File::open("./decodecorpus_files/z000030.zst").unwrap();
+
+    struct NullWriter(());
+    impl std::io::Write for NullWriter {
+        fn write(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> Result<(), std::io::Error> {
+            Ok(())
+        }
+    }
+    let mut _null_target = NullWriter(());
+
+    let mut frame_dec = frame_decoder::FrameDecoder::new(&mut content);
+    frame_dec.decode_blocks(&mut content).unwrap();
+    let result = frame_dec.drain_buffer_completely();
+
+    let original_f = fs::File::open("./decodecorpus_files/z000030").unwrap();
+    let original: Vec<u8> = original_f.bytes().map(|x| x.unwrap()).collect();
+
+    println!("Results for file:");
+
+    if original.len() != result.len() {
+        println!(
+            "Result has wrong length: {}, should be: {}",
+            result.len(),
+            original.len()
+        );
+    }
+
+    let mut counter = 0;
+    let min = if original.len() < result.len() {
+        original.len()
+    } else {
+        result.len()
+    };
+    for idx in 0..min {
+        if original[idx] != result[idx] {
+            counter += 1;
+            println!(
+                "Original {} not equal to result {} at byte: {}",
+                original[idx], result[idx], idx,
+            );
+        }
+    }
+    if counter > 0 {
+        println!("Result differs in at least {} bytes from original", counter);
+    }
+}
+
 pub mod decode_corpus;

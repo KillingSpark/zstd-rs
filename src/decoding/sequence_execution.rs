@@ -3,7 +3,9 @@ use super::scratch::DecoderScratch;
 pub fn execute_sequences(scratch: &mut DecoderScratch) {
     let mut literals_copy_counter = 0;
     for seq in &scratch.sequences {
-        //println!("{}", seq);
+        if crate::VERBOSE {
+            //println!("{}", seq);
+        }
         if seq.ll > 0 {
             let literals = &scratch.literals_buffer
                 [literals_copy_counter..literals_copy_counter + seq.ll as usize];
@@ -61,7 +63,7 @@ fn do_offset_history(offset_value: u32, lit_len: u32, scratch: &mut [u32; 3]) ->
                 scratch[0] = actual_offset;
             }
         }
-    }else{
+    } else {
         match offset_value {
             1 => {
                 scratch[0] = scratch[1];
