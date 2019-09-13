@@ -12,7 +12,7 @@ impl<'s> BitReader<'s> {
     }
 
     pub fn bits_left(&self) -> usize {
-        self.source.len()*8 - self.idx
+        self.source.len() * 8 - self.idx
     }
 
     pub fn bits_read(&self) -> usize {
@@ -36,7 +36,6 @@ impl<'s> BitReader<'s> {
         }
 
         let old_idx = self.idx;
-
 
         let mut value: u64;
 
@@ -69,15 +68,19 @@ impl<'s> BitReader<'s> {
 
             //collect full bytes
             for _ in 0..full_bytes_needed {
-                value |= (self.source[self.idx / 8] << bit_shift) as u64;
+                value |= (self.source[self.idx / 8] as u64) << bit_shift;
                 self.idx += 8;
                 bit_shift += 8;
             }
 
-            let val_las_byte =
-                (self.source[self.idx / 8] as u64) & ((1 << bits_in_last_byte_needed) - 1);
-            value |= val_las_byte << bit_shift;
-            self.idx += bits_in_last_byte_needed;
+            assert!(n - bit_shift == bits_in_last_byte_needed);
+
+            if bits_in_last_byte_needed > 0 {
+                let val_las_byte =
+                    (self.source[self.idx / 8] as u64) & ((1 << bits_in_last_byte_needed) - 1);
+                value |= val_las_byte << bit_shift;
+                self.idx += bits_in_last_byte_needed;
+            }
         }
 
         assert!(self.idx == old_idx + n);

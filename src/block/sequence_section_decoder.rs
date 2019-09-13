@@ -201,8 +201,9 @@ fn maybe_update_fse_tables(
     match modes.ll_mode() {
         ModeType::FSECompressed => {
             println!("Updating ll table");
-            let size = scratch.literal_lengths.build_decoder(source, LL_MAX_LOG)?;
-            bytes_read += size;
+            let bytes = scratch.literal_lengths.build_decoder(source, LL_MAX_LOG)?;
+            bytes_read += bytes;
+            println!("Used bytes: {}", bytes);
             scratch.ll_rle = None;
         }
         ModeType::RLE => {
@@ -229,7 +230,9 @@ fn maybe_update_fse_tables(
     match modes.of_mode() {
         ModeType::FSECompressed => {
             println!("Updating of table");
-            bytes_read += scratch.offsets.build_decoder(of_source, OF_MAX_LOG)?;
+            let bytes = scratch.offsets.build_decoder(of_source, OF_MAX_LOG)?;
+            println!("Used bytes: {}", bytes);
+            bytes_read += bytes;
             scratch.of_rle = None;
         }
         ModeType::RLE => {
@@ -256,7 +259,9 @@ fn maybe_update_fse_tables(
     match modes.ml_mode() {
         ModeType::FSECompressed => {
             println!("Updating ml table");
-            bytes_read += scratch.match_lengths.build_decoder(ml_source, ML_MAX_LOG)?;
+            let bytes = scratch.match_lengths.build_decoder(ml_source, ML_MAX_LOG)?;
+            bytes_read += bytes; 
+            println!("Used bytes: {}", bytes);
             scratch.ml_rle = None;
         }
         ModeType::RLE => {

@@ -55,7 +55,6 @@ impl<'t> FSEDecoder<'t> {
                 self.table.decode.len()
             )
         );
-        println!("Initstate: {}", self.state);
         Ok(())
     }
 
@@ -178,7 +177,7 @@ impl FSETable {
 
         let mut br = BitReader::new(source);
         self.accuracy_log = ACC_LOG_OFFSET + (br.get_bits(4)? as u8);
-        assert!(self.accuracy_log <= max_log);
+        assert!(self.accuracy_log <= max_log, "Found FSE acc_log: {} bigger than allowed maximum in this case: {}", self.accuracy_log, max_log);
 
         let probablility_sum = 1 << self.accuracy_log;
         let mut probability_counter = 0;
@@ -188,8 +187,7 @@ impl FSETable {
             let bits_to_read = highest_bit_set(max_remaining_value);
 
             let unchecked_value = br.get_bits(bits_to_read as usize)? as u32;
-
-            //println!("{}, {}", self.symbol_probablilities.len(), unchecked_value);
+            
 
             let low_threshold = ((1 << bits_to_read) - 1) - (max_remaining_value as u32);
             let mask = (1 << (bits_to_read - 1)) - 1;
@@ -205,6 +203,8 @@ impl FSETable {
                     unchecked_value
                 }
             };
+            //println!("{}, {}, {}", self.symbol_probablilities.len(), unchecked_value, value);
+
 
             let prob = (value as i32) - 1;
            
@@ -221,7 +221,7 @@ impl FSETable {
                 //fast skip further zero probabilities
                 loop {
                     let skip_amount = br.get_bits(2)?;
-
+                    
                     for _ in 0..skip_amount {
                         self.symbol_probablilities.push(0);
                     }
