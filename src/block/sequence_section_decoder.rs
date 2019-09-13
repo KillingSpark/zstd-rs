@@ -91,15 +91,10 @@ pub fn decode_sequences(
         let ml_add = br.get_bits(ml_num_bits as usize)?;
         let ll_add = br.get_bits(ll_num_bits as usize)?;
 
-        let offset_value = if offset > 3 {
-            offset as u32 - 3
-        } else {
-            offset as u32
-        };
         target.push(Sequence {
             ll: ll_value as u32 + ll_add as u32,
             ml: ml_value as u32 + ml_add as u32,
-            of: offset_value,
+            of: offset as u32,
         });
 
         if target.len() < section.num_sequences as usize {

@@ -1,14 +1,13 @@
 use super::decodebuffer::Decodebuffer;
 use super::fse::FSETable;
 use super::huff0::HuffmanTable;
-use super::offset_history::OffsetHist;
 use super::super::block::sequence_section::Sequence;
 
 pub struct DecoderScratch {
    pub huf: HuffmanScratch,
    pub fse: FSEScratch,
    pub buffer: Decodebuffer,
-   pub offset_hist: OffsetHist,
+   pub offset_hist: [u32;3],
 
    pub literals_buffer: Vec<u8>,
    pub sequences: Vec<Sequence>,
@@ -30,11 +29,11 @@ impl DecoderScratch {
             ml_rle: None,
          },
          buffer: Decodebuffer::new(window_size),
-         offset_hist: OffsetHist::new(),
+         offset_hist: [1,4,8],
 
+         block_content_buffer: Vec::new(),
          literals_buffer: Vec::new(),
          sequences: Vec::new(),
-         block_content_buffer: Vec::new(),
       }
    }
 }

@@ -7,7 +7,7 @@ use super::sequence_section::SequencesHeader;
 use super::sequence_section_decoder::decode_sequences;
 use crate::decoding::scratch::DecoderScratch;
 use std::io::Read;
-use std::io::Write;
+use crate::decoding::sequence_execution::execute_sequences;
 
 pub struct BlockDecoder {
     header_buffer: [u8; 3],
@@ -36,7 +36,6 @@ impl BlockDecoder {
         header: &BlockHeader,
         workspace: &mut DecoderScratch, //reuse this as often as possible. Not only if the trees are reused but also reuse the allocations when building new trees
         source: &mut Read,
-        target: &mut Write,
     ) -> Result<(), String> {
         match self.internal_state {
             DecoderState::ReadyToDecodeNextBody => {/* Happy :) */},
@@ -50,16 +49,8 @@ impl BlockDecoder {
                 let mut buf = [0u8; 1];
                 match source.read_exact(&mut buf[0..1]) {
                     Ok(_) => {
-                        for written in 0..header.decompressed_size {
-                            match target.write_all(&buf[0..1]) {
-                                Ok(_) => {}
-                                Err(_) => {
-                                    return Err(format!(
-                                        "Error while writing byte: {} out of {}",
-                                        written, header.decompressed_size
-                                    ))
-                                }
-                            }
+                        for _ in 0..header.decompressed_size {
+                            workspace.buffer.push(&buf[0..1]);
                         }
 
                         self.internal_state = DecoderState::ReadyToDecodeNextHeader;
@@ -75,15 +66,8 @@ impl BlockDecoder {
                     match source.read_exact(&mut buf[0..1]) {
                         Ok(_) => {
                             //TODO batch that into a sensible amount of bytes at once. Maybe a buffer of size 512b?
-                            match target.write_all(&buf[0..1]) {
-                                Ok(_) => {}
-                                Err(_) => {
-                                    return Err(format!(
-                                        "Error while writing byte: {} out of {}",
-                                        written, header.decompressed_size
-                                    ))
-                                }
-                            }
+                            workspace.buffer.push(&buf[0..1]);
+                        
                         }
                         Err(_) => {
                             return Err(format!(
@@ -103,7 +87,7 @@ impl BlockDecoder {
             }
 
             BlockType::Compressed => {
-                self.decompress_block(header, workspace, source, target)?;
+                self.decompress_block(header, workspace, source)?;
                 //unimplemented!("Decompression is not yet implemented...");
 
                 self.internal_state = DecoderState::ReadyToDecodeNextHeader;
@@ -117,7 +101,6 @@ impl BlockDecoder {
         header: &BlockHeader,
         workspace: &mut DecoderScratch, //reuse this as often as possible. Not only if the trees are reused but also reuse the allocations when building new trees
         source: &mut Read,
-        target: &mut Write,
     ) -> Result<(), String> {
         workspace
             .block_content_buffer
@@ -133,16 +116,18 @@ impl BlockDecoder {
         let mut section = LiteralsSection::new();
         let bytes_in_literals_header = section.parse_from_header(raw)?;
         let raw = &raw[bytes_in_literals_header as usize..];
-        println!("Found {} literalssection with regenerated size: {}, and compressed size: {:?}", section.ls_type, section.regenerated_size, section.compressed_size);
-
+        println!(
+            "Found {} literalssection with regenerated size: {}, and compressed size: {:?}",
+            section.ls_type, section.regenerated_size, section.compressed_size
+        );
 
         let upper_limit_for_literals = match section.compressed_size {
             Some(x) => x as usize,
             None => match section.ls_type {
                 LiteralsSectionType::RLE => 1,
-                LiteralsSectionType:: Raw => section.regenerated_size as usize,
+                LiteralsSectionType::Raw => section.regenerated_size as usize,
                 _ => panic!("Bug in this library"),
-            }
+            },
         };
 
         let raw_literals = &raw[..upper_limit_for_literals];
@@ -155,7 +140,12 @@ impl BlockDecoder {
             raw_literals,
             &mut workspace.literals_buffer,
         )?;
-        assert!(section.regenerated_size == workspace.literals_buffer.len() as u32, "Wrong number of literals: {}, Should have been: {}", workspace.literals_buffer.len(), section.regenerated_size);
+        assert!(
+            section.regenerated_size == workspace.literals_buffer.len() as u32,
+            "Wrong number of literals: {}, Should have been: {}",
+            workspace.literals_buffer.len(),
+            section.regenerated_size
+        );
         assert!(bytes_used_in_literals_section == upper_limit_for_literals as u32);
 
         let raw = &raw[upper_limit_for_literals..];
@@ -164,11 +154,20 @@ impl BlockDecoder {
         let mut seq_section = SequencesHeader::new();
         let bytes_in_sequence_header = seq_section.parse_from_header(raw)?;
         let raw = &raw[bytes_in_sequence_header as usize..];
-        println!("Found sequencessection with sequences: {} and size: {}", seq_section.num_sequences, raw.len());
+        println!(
+            "Found sequencessection with sequences: {} and size: {}",
+            seq_section.num_sequences,
+            raw.len()
+        );
 
-        assert!(bytes_in_literals_header as u32 + bytes_used_in_literals_section + bytes_in_sequence_header as u32 + raw.len() as u32 == header.content_size);
+        assert!(
+            bytes_in_literals_header as u32
+                + bytes_used_in_literals_section
+                + bytes_in_sequence_header as u32
+                + raw.len() as u32
+                == header.content_size
+        );
         println!("Slice for sequences: {}", raw.len());
-
 
         if seq_section.num_sequences != 0 {
             decode_sequences(
@@ -177,10 +176,11 @@ impl BlockDecoder {
                 &mut workspace.fse,
                 &mut workspace.sequences,
             )?;
+            execute_sequences(workspace);
+        }else{
+            workspace.sequences.clear();
         }
 
-        //TODO execute sequences
-        let _ = target;
 
         Ok(())
     }

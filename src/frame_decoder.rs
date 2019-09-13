@@ -35,7 +35,7 @@ impl FrameDecoder {
             );
 
             block_dec
-                .decode_block_content(&block_header, &mut self.decoder_scratch, source, target)
+                .decode_block_content(&block_header, &mut self.decoder_scratch, source)
                 .unwrap();
 
             if block_header.last_block {
