@@ -13,7 +13,7 @@ This is currently just a work in progress project that I might never finish. Use
 1. Output anything useful
 
 ## Roadmap
-1. Implement sequence execution
+1. Implement sequence execution (and with that usable output of decompressed data, enabling verification of the output against the files in /decodecorpus_files)
 1. Find more bugs
 1. Make a nice API maybe io::Read based, maybe not, we'll see
 1. More tests (especially unit-tests for the bitreaders) to find even more bugs
