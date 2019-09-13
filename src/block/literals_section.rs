@@ -1,3 +1,5 @@
+use super::super::decoding::bit_reader::BitReader;
+
 pub struct LiteralsSection {
     pub regenerated_size: u32,
     pub compressed_size: Option<u32>,
@@ -85,8 +87,10 @@ impl LiteralsSection {
     }
 
     pub fn parse_from_header(&mut self, raw: &[u8]) -> Result<u8, String> {
-        self.ls_type = Self::section_type(raw[0])?;
-        let size_format = (raw[0] >> 2) & 0x3;
+        let mut br = BitReader::new(raw);
+        let t = br.get_bits(2)? as u8;
+        self.ls_type = Self::section_type(t)?;
+        let size_format = br.get_bits(2)? as u8;
         match self.ls_type {
             LiteralsSectionType::RLE | LiteralsSectionType::Raw => {
                 self.compressed_size = None;
@@ -118,9 +122,11 @@ impl LiteralsSection {
             LiteralsSectionType::Compressed | LiteralsSectionType::Treeless => {
                 match size_format {
                     0 => {
+                        println!("1 stream");
                         self.num_streams = Some(1);
                     }
                     1 | 2 | 3 => {
+                        println!("4 streams");
                         self.num_streams = Some(4);
                     }
                     _ => panic!(
@@ -132,13 +138,13 @@ impl LiteralsSection {
                     0 | 1 => {
                         //Differ in num_streams see above
                         //both regenerated and compressed sizes use 10 bit
-
+                        
                         //4 from the first, six from the second byte
                         self.regenerated_size =
                             (raw[0] as u32 >> 4) + ((raw[1] as u32 & 0x3f) << 4);
-
+                        
                         // 2 from the second, full last byte
-                        self.compressed_size = Some((raw[1] as u32 >> 6) + ((raw[2] as u32) << 2));
+                        self.compressed_size = Some(((raw[1] >> 6) as u32) + ((raw[2] as u32) << 2));
                         Ok(3)
                     }
                     2 => {

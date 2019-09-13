@@ -27,7 +27,7 @@ impl<'s> BitReader<'s> {
     }
 
     pub fn get_bits(&mut self, n: usize) -> Result<u64, String> {
-        if (self.idx + n) / 8 >= self.source.len() {
+        if self.bits_left() < n {
             return Err(format!(
                 "Cant read n: {} bits. Bits left: {}",
                 n,

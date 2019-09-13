@@ -1,5 +1,5 @@
 pub struct BitReaderReversed<'s> {
-    idx: usize, //index counts bits already read
+    idx: isize, //index counts bits already read
     source: &'s [u8],
 }
 
@@ -10,27 +10,33 @@ impl<'s> BitReaderReversed<'s> {
 
     pub fn new(source: &'s [u8]) -> BitReaderReversed {
         BitReaderReversed {
-            idx: source.len() * 8,
+            idx: source.len() as isize * 8,
             source: source,
         }
     }
 
     fn byte_idx(&self) -> usize {
-        ((self.idx - 1) / 8)
+        ((self.idx as usize - 1) / 8)
     }
 
     pub fn get_bits(&mut self, n: usize) -> Result<u64, String> {
         if n == 0 {
             return Ok(0);
         }
-        if self.idx < n {
-            if self.idx <= 0 {
-                return Ok(0);
-            }
+
+        let n = n as isize;
+
+        if self.bits_remaining() < 0 {
+            self.idx -= n;
+            return Ok(0);
+        }
+
+        if self.bits_remaining() < n {
             //TODO handle correctly. need to fill with 0
-            let emulated_read_shift = n - self.bits_remaining() as usize; 
+            let emulated_read_shift = n - self.bits_remaining();
             let v = self.get_bits(self.bits_remaining() as usize)?;
             let value = v << emulated_read_shift;
+            self.idx -= n as isize;
             return Ok(value);
         }
 
@@ -118,7 +124,7 @@ impl<'s> BitReaderReversed<'s> {
     }
 
     pub fn reset(&mut self, new_source: &'s [u8]) {
-        self.idx = new_source.len() * 8;
+        self.idx = new_source.len() as isize * 8;
         self.source = new_source;
     }
 }

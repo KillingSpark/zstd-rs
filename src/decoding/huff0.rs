@@ -1,4 +1,3 @@
-use super::bit_reader::BitReader;
 use super::bit_reader_reverse::BitReaderReversed;
 use super::fse::FSEDecoder;
 use super::fse::FSETable;
@@ -7,7 +6,7 @@ pub struct HuffmanTable {
     decode: Vec<Entry>,
 
     weights: Vec<u8>,
-    max_num_bits: u8,
+    pub max_num_bits: u8,
     bits: Vec<u8>,
     bit_ranks: Vec<u8>,
     rank_indexes: Vec<usize>,
@@ -56,10 +55,18 @@ impl<'t> HuffmanDecoder<'t> {
         self.table.decode[self.state as usize].symbol
     }
 
-    pub fn next_state(&mut self, br: &mut BitReader) -> Result<u8, String> {
+    pub fn init_state(&mut self, br: &mut BitReaderReversed) -> Result<u8, String>  {
+        let num_bits = self.table.max_num_bits;
+        let new_bits = br.get_bits(num_bits as usize)?;
+        self.state = new_bits as u64;
+        Ok(num_bits)
+    }
+
+    pub fn next_state(&mut self, br: &mut BitReaderReversed) -> Result<u8, String> {
         let num_bits = self.table.decode[self.state as usize].num_bits;
         let new_bits = br.get_bits(num_bits as usize)?;
         self.state <<= num_bits;
+        self.state &= self.table.decode.len() as u64 - 1;
         self.state |= new_bits as u64;
         Ok(num_bits)
     }
@@ -95,24 +102,39 @@ impl HuffmanTable {
             0...127 => {
                 let fse_stream = &source[1..];
                 //fse decompress weights
-                let bytes_used_by_fse_header = self.fse_table.build_decoder(fse_stream, /*TODO find actual max*/100)?;
+                let bytes_used_by_fse_header = self
+                    .fse_table
+                    .build_decoder(fse_stream, /*TODO find actual max*/ 100)?;
                 let mut dec1 = FSEDecoder::new(&self.fse_table);
                 let mut dec2 = FSEDecoder::new(&self.fse_table);
 
                 let compressed_start = bytes_used_by_fse_header as usize;
-                let compressed_end = bytes_used_by_fse_header as usize + header as usize;
+                let compressed_length = header as usize - bytes_used_by_fse_header as usize;
+                //TODO check size of compressed weights
 
-                
-                let compressed_weights = &fse_stream[compressed_start..compressed_end];
+                let compressed_weights = &fse_stream[compressed_start..];
+                let compressed_weights = &compressed_weights[..compressed_length];
                 let mut br = BitReaderReversed::new(compressed_weights);
 
-                bits_read += (bytes_used_by_fse_header + header as usize) * 8;
+                bits_read += (bytes_used_by_fse_header + compressed_length) * 8;
+
+                //skip the 0 padding at the end of the last byte of the bit stream and throw away the first 1 found
+                let mut skipped_bits = 0;
+                loop {
+                    let val = br.get_bits(1)?;
+                    skipped_bits += 1;
+                    if val == 1 {
+                        break;
+                    }
+                }
+                if skipped_bits > 8 {
+                    //if more than 7 bits are 0, this is not the correct end of the bitstream. Either a bug or corrupted data
+                    return Err(format!("Padding at the end of the sequence_section was more than a byte long: {}. Probably cause by data corruption", skipped_bits));
+                }
 
                 dec1.init_state(&mut br)?;
-                bits_read += self.fse_table.accuracy_log as usize; 
                 dec2.init_state(&mut br)?;
-                bits_read += self.fse_table.accuracy_log as usize; 
-
+                
                 self.weights.clear();
 
                 loop {
@@ -120,10 +142,9 @@ impl HuffmanTable {
                     self.weights.push(w);
                     dec1.update_state(&mut br)?;
 
-                    if br.bits_remaining() < 0 {
+                    if br.bits_remaining() <= -1 {
                         //collect final states
                         self.weights.push(dec2.decode_symbol());
-                        self.weights.push(dec1.decode_symbol());
                         break;
                     }
 
@@ -131,13 +152,14 @@ impl HuffmanTable {
                     self.weights.push(w);
                     dec2.update_state(&mut br)?;
 
-                    if br.bits_remaining() < 0 {
+                    if br.bits_remaining() <= -1 {
                         //collect final states
                         self.weights.push(dec1.decode_symbol());
-                        self.weights.push(dec2.decode_symbol());
                         break;
                     }
                 }
+
+                println!("Num weights: {}", self.weights.len());
 
                 //maximum number of weights is 255 because we use u8 symbols
                 assert!(self.weights.len() <= 255);
@@ -158,6 +180,7 @@ impl HuffmanTable {
                 }
             }
         }
+        println!("byte read {}", bits_read/8);
 
         let bytes_read = if bits_read % 8 == 0 {
             bits_read / 8
@@ -174,6 +197,7 @@ impl HuffmanTable {
         for w in &self.weights {
             weight_sum += if *w > 0 { (1 as u32) << (*w - 1) } else { 0 };
         }
+        println!("Weightsum: {}", weight_sum);
 
         let max_bits = highest_bit_set(weight_sum) as u8;
         let left_over = ((1 as u32) << max_bits) - weight_sum;
@@ -219,12 +243,18 @@ impl HuffmanTable {
         self.rank_indexes.resize((max_bits + 1) as usize, 0);
 
         self.rank_indexes[max_bits as usize] = 0;
-        for bits in (1..max_bits).rev() {
+        for bits in (1..self.rank_indexes.len() as u8).rev() {
             self.rank_indexes[bits as usize - 1] = self.rank_indexes[bits as usize]
                 + self.bit_ranks[bits as usize] as usize * (1 << (max_bits - bits));
         }
 
-        assert!(self.rank_indexes[0] as usize == self.decode.len());
+        assert!(
+            self.rank_indexes[0] == self.decode.len(),
+            format!(
+                "rank_idx[0]: {} should be: {}",
+                self.rank_indexes[0], self.decode.len()
+            )
+        );
 
         for symbol in 0..self.bits.len() {
             let bits_for_symbol = self.bits[symbol];
