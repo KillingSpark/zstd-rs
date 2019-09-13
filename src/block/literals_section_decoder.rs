@@ -67,7 +67,8 @@ fn decompress_literals(
 
         let streams: [&[u8]; 4] = [stream1, stream2, stream3, stream4];
 
-        for stream in &streams[..] {
+        for i in 0..4 {
+            let stream = &streams[i];
             let mut decoder = HuffmanDecoder::new(&scratch.table);
             let mut br = BitReaderReversed::new(stream);
             //skip the 0 padding at the end of the last byte of the bit stream and throw away the first 1 found
@@ -88,6 +89,7 @@ fn decompress_literals(
                 target.push(decoder.decode_symbol());
                 decoder.next_state(&mut br)?;
             }
+            assert_eq!(br.bits_remaining(), -(scratch.table.max_num_bits as isize));
         }
 
         bytes_read += source.len() as u32;

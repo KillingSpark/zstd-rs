@@ -8,7 +8,7 @@ pub struct HuffmanTable {
     weights: Vec<u8>,
     pub max_num_bits: u8,
     bits: Vec<u8>,
-    bit_ranks: Vec<u8>,
+    bit_ranks: Vec<u32>,
     rank_indexes: Vec<usize>,
 
     fse_table: FSETable,
@@ -16,7 +16,7 @@ pub struct HuffmanTable {
 
 pub struct HuffmanDecoder<'table> {
     table: &'table HuffmanTable,
-    state: u64,
+    pub state: u64,
 }
 
 #[derive(Copy, Clone)]
@@ -191,6 +191,7 @@ impl HuffmanTable {
     }
 
     fn build_table_from_weights(&mut self) -> Result<(), String> {
+        self.bits.clear();
         self.bits.resize(self.weights.len() + 1, 0);
 
         let mut weight_sum: u32 = 0;
@@ -225,6 +226,7 @@ impl HuffmanTable {
             ));
         }
 
+        self.bit_ranks.clear();
         self.bit_ranks.resize((max_bits + 1) as usize, 0);
         for num_bits in &self.bits {
             self.bit_ranks[(*num_bits) as usize] += 1;
@@ -240,7 +242,9 @@ impl HuffmanTable {
         );
 
         //starting codes for each rank
+        self.rank_indexes.clear();
         self.rank_indexes.resize((max_bits + 1) as usize, 0);
+
 
         self.rank_indexes[max_bits as usize] = 0;
         for bits in (1..self.rank_indexes.len() as u8).rev() {

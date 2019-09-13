@@ -26,7 +26,7 @@ impl<'s> BitReaderReversed<'s> {
 
         let n = n as isize;
 
-        if self.bits_remaining() < 0 {
+        if self.bits_remaining() <= 0 {
             self.idx -= n;
             return Ok(0);
         }
@@ -36,7 +36,7 @@ impl<'s> BitReaderReversed<'s> {
             let emulated_read_shift = n - self.bits_remaining();
             let v = self.get_bits(self.bits_remaining() as usize)?;
             let value = v << emulated_read_shift;
-            self.idx -= n as isize;
+            self.idx -= emulated_read_shift;
             return Ok(value);
         }
 
