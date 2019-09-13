@@ -5,10 +5,23 @@ It is NOT a compressor. I dont plan on implementing that part either, at least n
 
 This is currently just a work in progress project that I might never finish. Use/fork at own risk ;)
 
-## What you might notice
+# Current Status
+## Can do:
+1. Parse all files in /decodecorpus_files. These were generated with [decodecorpus](https://github.com/facebook/zstd/tree/dev/tests) by the original zstd developers
+
+## Cannot do
+1. Output anything useful
+
+## Roadmap
+1. Implement sequence execution
+1. Find more bugs
+1. Make a nice API maybe io::Read based, maybe not, we'll see
+1. More tests (especially unit-tests for the bitreaders) to find even more bugs
+
+# What you might notice
 I already have done a decoder for zstd in golang. [here](https://github.com/KillingSpark/sparkzstd). This was a first try and it turned out very inperformant. I could have tried to rewrite it to use less allocations while decoding etc etc but that seemed dull (and unecessary since klauspost has done a way better golang implementation can compress too [here](https://github.com/klauspost/compress/tree/master/zstd))
 
-### Why another one
+## Why another one
 Well I wanted to show myself that I am actually able to learn from my mistakes. This implementation should be way more performant since I from the get go focussed on reusing allocated space instead of reallocating all the decoding tables etc.
 
 Also this time I did most of the work without looking at the original source nor the [educational decoder](https://github.com/facebook/zstd/tree/dev/doc/educational_decoder).
