@@ -55,15 +55,19 @@ impl<'t> FSEDecoder<'t> {
                 self.table.decode.len()
             )
         );
+        println!("Initstate: {}", self.state);
         Ok(())
     }
 
     pub fn update_state(&mut self, bits: &mut BitReaderReversed) -> Result<(), String> {
         let num_bits = self.table.decode[self.state].num_bits as usize;
         let add = bits.get_bits(num_bits)?;
-        let new_state = self.table.decode[self.state].base_line + add as usize;
+        let base_line = self.table.decode[self.state].base_line;
+        let new_state =  base_line + add as usize;
         assert!(new_state < self.table.decode.len());
         self.state = new_state;
+
+        //println!("Update: {}, {} -> {}", base_line, add,  self.state);
         Ok(())
     }
 }
@@ -147,6 +151,7 @@ impl FSETable {
         }
 
         // baselines and num_bits can only be caluclated when all symbols have been spread
+        self.symbol_counter.clear();
         self.symbol_counter
             .resize(self.symbol_probablilities.len(), 0);
         for idx in 0..negative_idx {
@@ -155,11 +160,13 @@ impl FSETable {
             let prob = self.symbol_probablilities[symbol as usize];
 
             let symbol_count = self.symbol_counter[symbol as usize];
-            self.symbol_counter[symbol as usize] += 1;
             let (bl, nb) =
                 calc_baseline_and_numbits(table_size as u32, prob as u32, symbol_count as u32);
 
+            //println!("symbol: {:2}, table: {}, prob: {:3}, count: {:3}, bl: {:3}, nb: {:2}", symbol, table_size, prob, symbol_count, bl, nb);
+
             assert!(nb <= self.accuracy_log);
+            self.symbol_counter[symbol as usize] += 1;
 
             entry.base_line = bl;
             entry.num_bits = nb;
@@ -181,6 +188,9 @@ impl FSETable {
             let bits_to_read = highest_bit_set(max_remaining_value);
 
             let unchecked_value = br.get_bits(bits_to_read as usize)? as u32;
+
+            //println!("{}, {}", self.symbol_probablilities.len(), unchecked_value);
+
             let low_threshold = ((1 << bits_to_read) - 1) - (max_remaining_value as u32);
             let mask = (1 << (bits_to_read - 1)) - 1;
             let small_value = unchecked_value & mask;

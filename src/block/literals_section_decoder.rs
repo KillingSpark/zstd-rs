@@ -94,13 +94,26 @@ fn decompress_literals(
     } else {
         //just decode the one stream
         assert!(section.num_streams.unwrap() == 1);
-        let mut br = BitReaderReversed::new(source);
         let mut decoder = HuffmanDecoder::new(&scratch.table);
+        let mut br = BitReaderReversed::new(source);
+        let mut skipped_bits = 0;
+        loop {
+            let val = br.get_bits(1)?;
+            skipped_bits += 1;
+            if val == 1 {
+                break;
+            }
+        }
+        if skipped_bits > 8 {
+            //if more than 7 bits are 0, this is not the correct end of the bitstream. Either a bug or corrupted data
+            return Err(format!("Padding at the end of the sequence_section was more than a byte long: {}. Probably cause by data corruption", skipped_bits));
+        }
         decoder.init_state(&mut br)?;
         while br.bits_remaining() > -(scratch.table.max_num_bits as isize) {
             target.push(decoder.decode_symbol());
             decoder.next_state(&mut br)?;
         }
+        bytes_read += source.len() as u32;
     }
 
     Ok(bytes_read)

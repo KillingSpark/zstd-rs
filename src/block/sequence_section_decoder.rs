@@ -57,6 +57,7 @@ pub fn decode_sequences(
         let (ll_value, ll_num_bits) = lookup_ll_code(ll_code);
         let (ml_value, ml_num_bits) = lookup_ml_code(ml_code);
 
+        //println!("Sequence: {}", i);
         //println!("of stat: {}", of_dec.state);
         //println!("of Code: {}", of_code);
         //println!("ll stat: {}", ll_dec.state);
@@ -177,16 +178,16 @@ fn maybe_update_fse_tables(
             println!("Updating ll table");
             let size = scratch.literal_lengths.build_decoder(source, LL_MAX_LOG)?;
             bytes_read += size;
-            println!("LL Size: {}", size);
-            println!("LL Acc_Log: {}", scratch.literal_lengths.accuracy_log);
 
             None
         }
         ModeType::RLE => {
+            println!("Use RLE ll table");
             bytes_read += 1;
             Some(source[0])
         }
         ModeType::Predefined => {
+            println!("Use predefined ll table");
             scratch.literal_lengths.build_from_probabilities(
                 LL_DEFAULT_ACC_LOG,
                 &Vec::from(&LITERALS_LENGTH_DEFAULT_DISTRIBUTION[..]),
@@ -194,6 +195,7 @@ fn maybe_update_fse_tables(
             None
         }
         ModeType::Repeat => {
+            println!("Repeat ll table");
             /* Nothing to do */
             None
         }
@@ -208,10 +210,12 @@ fn maybe_update_fse_tables(
             None
         }
         ModeType::RLE => {
+            println!("Use RLE of table");
             bytes_read += 1;
             Some(of_source[0])
         }
         ModeType::Predefined => {
+            println!("Use predefined of table");
             scratch.offsets.build_from_probabilities(
                 OF_DEFAULT_ACC_LOG,
                 &Vec::from(&OFFSET_DEFAULT_DISTRIBUTION[..]),
@@ -219,6 +223,7 @@ fn maybe_update_fse_tables(
             None
         }
         ModeType::Repeat => {
+            println!("Repeat of table");
             /* Nothing to do */
             None
         }
