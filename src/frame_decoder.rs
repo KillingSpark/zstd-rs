@@ -19,7 +19,7 @@ impl FrameDecoder {
         }
     }
 
-    pub fn decode_blocks(&mut self, source: &mut Read, target: &mut Write) -> Result<(), String> {
+    pub fn decode_blocks(&mut self, source: &mut Read) -> Result<(), String> {
         let mut block_dec = block::block_decoder::new();
 
         let mut block_counter = 0;
@@ -54,5 +54,9 @@ impl FrameDecoder {
         }
 
         Ok(())
+    }
+
+    pub fn drain_buffer_completely(&mut self) -> Vec<u8> {
+        self.decoder_scratch.buffer.drain()
     }
 }

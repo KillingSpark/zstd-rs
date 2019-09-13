@@ -40,10 +40,10 @@ fn test_frame_decoder() {
             Ok(())
         }
     }
-    let mut null_target = NullWriter(());
+    let mut _null_target = NullWriter(());
 
     let mut frame_dec = frame_decoder::FrameDecoder::new(&mut content);
-    frame_dec.decode_blocks(&mut content, &mut null_target).unwrap();
+    frame_dec.decode_blocks(&mut content).unwrap();
 }
 
 pub mod decode_corpus;
