@@ -100,7 +100,6 @@ fn decompress_literals(
         while br.bits_remaining() > -(scratch.table.max_num_bits as isize) {
             target.push(decoder.decode_symbol());
             decoder.next_state(&mut br)?;
-            println!("{}", target.last().unwrap());
         }
     }
 

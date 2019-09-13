@@ -179,14 +179,20 @@ fn maybe_update_fse_tables(
             bytes_read += size;
             println!("LL Size: {}", size);
             println!("LL Acc_Log: {}", scratch.literal_lengths.accuracy_log);
-            
+
             None
         }
         ModeType::RLE => {
             bytes_read += 1;
             Some(source[0])
         }
-        ModeType::Predefined => unimplemented!("Predefined tables not yet implemented"),
+        ModeType::Predefined => {
+            scratch.literal_lengths.build_from_probabilities(
+                LL_DEFAULT_ACC_LOG,
+                &Vec::from(&LITERALS_LENGTH_DEFAULT_DISTRIBUTION[..]),
+            );
+            None
+        }
         ModeType::Repeat => {
             /* Nothing to do */
             None
@@ -205,7 +211,13 @@ fn maybe_update_fse_tables(
             bytes_read += 1;
             Some(of_source[0])
         }
-        ModeType::Predefined => unimplemented!("Predefined tables not yet implemented"),
+        ModeType::Predefined => {
+            scratch.offsets.build_from_probabilities(
+                OF_DEFAULT_ACC_LOG,
+                &Vec::from(&OFFSET_DEFAULT_DISTRIBUTION[..]),
+            );
+            None
+        }
         ModeType::Repeat => {
             /* Nothing to do */
             None
@@ -224,7 +236,13 @@ fn maybe_update_fse_tables(
             bytes_read += 1;
             Some(ml_source[0])
         }
-        ModeType::Predefined => unimplemented!("Predefined tables not yet implemented"),
+        ModeType::Predefined => {
+            scratch.match_lengths.build_from_probabilities(
+                ML_DEFAULT_ACC_LOG,
+                &Vec::from(&MATCH_LENGTH_DEFAULT_DISTRIBUTION[..]),
+            );
+            None
+        }
         ModeType::Repeat => {
             /* Nothing to do */
             None
@@ -232,4 +250,60 @@ fn maybe_update_fse_tables(
     };
 
     Ok((bytes_read, ll_rle_byte, of_rle_byte, ml_rle_byte))
+}
+
+const LL_DEFAULT_ACC_LOG: u8 = 6;
+const LITERALS_LENGTH_DEFAULT_DISTRIBUTION: [i32; 36] = [
+    4, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 1, 1, 1, 1, 1,
+    -1, -1, -1, -1,
+];
+
+const ML_DEFAULT_ACC_LOG: u8 = 6;
+const MATCH_LENGTH_DEFAULT_DISTRIBUTION: [i32; 53] = [
+    1, 4, 3, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1, -1, -1,
+];
+
+const OF_DEFAULT_ACC_LOG: u8 = 5;
+const OFFSET_DEFAULT_DISTRIBUTION: [i32; 29] = [
+    1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1,
+];
+
+#[test]
+fn test_ll_default() {
+    let mut table = crate::decoding::fse::FSETable::new();
+    table.build_from_probabilities(
+        LL_DEFAULT_ACC_LOG,
+        &Vec::from(&LITERALS_LENGTH_DEFAULT_DISTRIBUTION[..]),
+    );
+
+    for idx in 0..table.decode.len() {
+        println!(
+            "{:3}: {:3} {:3} {:3}",
+            idx, table.decode[idx].symbol, table.decode[idx].num_bits, table.decode[idx].base_line
+        );
+    }
+
+    assert!(table.decode.len() == 64);
+
+    //just test a few values. TODO test all values
+    assert!(table.decode[0].symbol == 0);
+    assert!(table.decode[0].num_bits == 4);
+    assert!(table.decode[0].base_line == 0);
+
+    assert!(table.decode[19].symbol == 27);
+    assert!(table.decode[19].num_bits == 6);
+    assert!(table.decode[19].base_line == 0);
+
+    assert!(table.decode[39].symbol == 25);
+    assert!(table.decode[39].num_bits == 4);
+    assert!(table.decode[39].base_line == 16);
+
+    assert!(table.decode[60].symbol == 35);
+    assert!(table.decode[60].num_bits == 6);
+    assert!(table.decode[60].base_line == 0);
+
+    assert!(table.decode[59].symbol == 24);
+    assert!(table.decode[59].num_bits == 5);
+    assert!(table.decode[59].base_line == 32);
 }
