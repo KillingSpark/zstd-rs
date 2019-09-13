@@ -55,7 +55,7 @@ pub fn decode_sequences(
     target.clear();
     target.reserve(section.num_sequences as usize);
 
-    for i in 0..section.num_sequences {
+    for _seq_idx in 0..section.num_sequences {
         //get the codes from either the RLE byte or from the decoder
         let ll_code = if scratch.ll_rle.is_some() {
             scratch.ll_rle.unwrap()
