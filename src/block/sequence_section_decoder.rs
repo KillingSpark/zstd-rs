@@ -11,14 +11,13 @@ pub fn decode_sequences(
     scratch: &mut FSEScratch,
     target: &mut Vec<Sequence>,
 ) -> Result<(), String> {
-    let (bytes_read, ll_rle_byte, of_rle_byte, ml_rle_byte) =
-        maybe_update_fse_tables(section, source, scratch)?;
+    let bytes_read = maybe_update_fse_tables(section, source, scratch)?;
 
     println!("Updating tables used {} bytes", bytes_read);
 
-    if ll_rle_byte.is_some() || of_rle_byte.is_some() || ml_rle_byte.is_some() {
+    if scratch.ll_rle.is_some() || scratch.of_rle.is_some() || scratch.ml_rle.is_some() {
         //TODO
-        unimplemented!("RLE symbols for sequences not yet implemented");
+        //unimplemented!("RLE symbols for sequences not yet implemented");
     }
 
     let bit_stream = &source[bytes_read..];
@@ -43,17 +42,37 @@ pub fn decode_sequences(
     let mut ml_dec = FSEDecoder::new(&scratch.match_lengths);
     let mut of_dec = FSEDecoder::new(&scratch.offsets);
 
-    ll_dec.init_state(&mut br)?;
-    of_dec.init_state(&mut br)?;
-    ml_dec.init_state(&mut br)?;
+    if scratch.ll_rle.is_none() {
+        ll_dec.init_state(&mut br)?;
+    }
+    if scratch.of_rle.is_none() {
+        of_dec.init_state(&mut br)?;
+    }
+    if scratch.ml_rle.is_none() {
+        ml_dec.init_state(&mut br)?;
+    }
 
     target.clear();
     target.reserve(section.num_sequences as usize);
 
     for i in 0..section.num_sequences {
-        let ll_code = ll_dec.decode_symbol();
-        let ml_code = ml_dec.decode_symbol();
-        let of_code = of_dec.decode_symbol();
+        //get the codes from either the RLE byte or from the decoder
+        let ll_code = if scratch.ll_rle.is_some() {
+            scratch.ll_rle.unwrap()
+        } else {
+            ll_dec.decode_symbol()
+        };
+        let ml_code = if scratch.ml_rle.is_some() {
+            scratch.ml_rle.unwrap()
+        } else {
+            ml_dec.decode_symbol()
+        };
+        let of_code = if scratch.of_rle.is_some() {
+            scratch.of_rle.unwrap()
+        } else {
+            of_dec.decode_symbol()
+        };
+
         let (ll_value, ll_num_bits) = lookup_ll_code(ll_code);
         let (ml_value, ml_num_bits) = lookup_ml_code(ml_code);
 
@@ -89,9 +108,15 @@ pub fn decode_sequences(
             //    br.bits_remaining(),
             //    br.bits_remaining() / 8,
             //);
-            ll_dec.update_state(&mut br)?;
-            ml_dec.update_state(&mut br)?;
-            of_dec.update_state(&mut br)?;
+            if scratch.ll_rle.is_none() {
+                ll_dec.update_state(&mut br)?;
+            }
+            if scratch.ml_rle.is_none() {
+                ml_dec.update_state(&mut br)?;
+            }
+            if scratch.of_rle.is_none() {
+                of_dec.update_state(&mut br)?;
+            }
         }
     }
 
@@ -169,22 +194,21 @@ fn maybe_update_fse_tables(
     section: &SequencesHeader,
     source: &[u8],
     scratch: &mut FSEScratch,
-) -> Result<(usize, Option<u8>, Option<u8>, Option<u8>), String> {
+) -> Result<usize, String> {
     let modes = section.modes.unwrap();
     let mut bytes_read = 0;
 
-    let ll_rle_byte = match modes.ll_mode() {
+    match modes.ll_mode() {
         ModeType::FSECompressed => {
             println!("Updating ll table");
             let size = scratch.literal_lengths.build_decoder(source, LL_MAX_LOG)?;
             bytes_read += size;
-
-            None
+            scratch.ll_rle = None;
         }
         ModeType::RLE => {
             println!("Use RLE ll table");
             bytes_read += 1;
-            Some(source[0])
+            scratch.ll_rle = Some(source[0]);
         }
         ModeType::Predefined => {
             println!("Use predefined ll table");
@@ -192,27 +216,26 @@ fn maybe_update_fse_tables(
                 LL_DEFAULT_ACC_LOG,
                 &Vec::from(&LITERALS_LENGTH_DEFAULT_DISTRIBUTION[..]),
             );
-            None
+            scratch.ll_rle = None;
         }
         ModeType::Repeat => {
             println!("Repeat ll table");
             /* Nothing to do */
-            None
         }
     };
 
     let of_source = &source[bytes_read..];
 
-    let of_rle_byte = match modes.of_mode() {
+    match modes.of_mode() {
         ModeType::FSECompressed => {
             println!("Updating of table");
             bytes_read += scratch.offsets.build_decoder(of_source, OF_MAX_LOG)?;
-            None
+            scratch.of_rle = None;
         }
         ModeType::RLE => {
             println!("Use RLE of table");
             bytes_read += 1;
-            Some(of_source[0])
+            scratch.of_rle = Some(of_source[0]);
         }
         ModeType::Predefined => {
             println!("Use predefined of table");
@@ -220,41 +243,37 @@ fn maybe_update_fse_tables(
                 OF_DEFAULT_ACC_LOG,
                 &Vec::from(&OFFSET_DEFAULT_DISTRIBUTION[..]),
             );
-            None
+            scratch.of_rle = None;
         }
         ModeType::Repeat => {
             println!("Repeat of table");
             /* Nothing to do */
-            None
         }
     };
 
     let ml_source = &source[bytes_read..];
 
-    let ml_rle_byte = match modes.ml_mode() {
+    match modes.ml_mode() {
         ModeType::FSECompressed => {
             println!("Updating ml table");
             bytes_read += scratch.match_lengths.build_decoder(ml_source, ML_MAX_LOG)?;
-            None
+            scratch.ml_rle = None;
         }
         ModeType::RLE => {
             bytes_read += 1;
-            Some(ml_source[0])
+            scratch.ml_rle = Some(ml_source[0]);
         }
         ModeType::Predefined => {
             scratch.match_lengths.build_from_probabilities(
                 ML_DEFAULT_ACC_LOG,
                 &Vec::from(&MATCH_LENGTH_DEFAULT_DISTRIBUTION[..]),
             );
-            None
+            scratch.ml_rle = None;
         }
-        ModeType::Repeat => {
-            /* Nothing to do */
-            None
-        }
+        ModeType::Repeat => { /* Nothing to do */ }
     };
 
-    Ok((bytes_read, ll_rle_byte, of_rle_byte, ml_rle_byte))
+    Ok(bytes_read)
 }
 
 const LL_DEFAULT_ACC_LOG: u8 = 6;

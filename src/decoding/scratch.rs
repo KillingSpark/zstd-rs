@@ -23,8 +23,11 @@ impl DecoderScratch {
          },
          fse: FSEScratch {
             offsets: FSETable::new(),
+            of_rle: None,
             literal_lengths: FSETable::new(),
+            ll_rle: None,
             match_lengths: FSETable::new(),
+            ml_rle: None,
          },
          buffer: Decodebuffer::new(window_size),
          offset_hist: OffsetHist::new(),
@@ -42,6 +45,9 @@ pub struct HuffmanScratch {
 
 pub struct FSEScratch {
    pub offsets: FSETable,
+   pub of_rle: Option<u8>,
    pub literal_lengths: FSETable,
+   pub ll_rle: Option<u8>,
    pub match_lengths: FSETable,
+   pub ml_rle: Option<u8>,
 }
