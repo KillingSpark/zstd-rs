@@ -49,14 +49,7 @@ impl FrameDecoder {
             if block_header.last_block {
                 //TODO flush buffer
                 if self.frame.header.descriptor.content_checksum_flag() {
-                    let rest: Vec<_> = source.bytes().collect();
-                    assert!(rest.len() == 4);
-                    if crate::VERBOSE {
-                        println!("\n Checksum found: {:?}", rest);
-                    }
-                } else {
-                    let rest: Vec<_> = source.bytes().collect();
-                    assert!(rest.len() == 0);
+                //TODO checksum
                 }
                 break;
             }
