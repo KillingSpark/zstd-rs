@@ -12,8 +12,12 @@ fn test_decode_corpus_files() {
 
     let mut speeds = Vec::new();
 
-    for file in fs::read_dir("./decodecorpus_files").unwrap() {
+    let mut files: Vec<_> = fs::read_dir("./decodecorpus_files").unwrap().collect();
+    if fs::read_dir("./local_corpus_files").is_ok() {
+        files.extend(fs::read_dir("./local_corpus_files").unwrap());
+    }
 
+    for file in files {
         let f = file.unwrap();
 
         let p = String::from(f.path().to_str().unwrap());
@@ -48,7 +52,6 @@ fn test_decode_corpus_files() {
         let original_f = fs::File::open(original_p).unwrap();
         let original: Vec<u8> = original_f.bytes().map(|x| x.unwrap()).collect();
 
-
         println!("Results for file: {}", p.clone());
         let mut success = true;
 
@@ -77,7 +80,7 @@ fn test_decode_corpus_files() {
                 //);
             }
         }
-        
+
         if counter > 0 {
             println!("Result differs in at least {} bytes from original", counter);
             success = false;
@@ -90,7 +93,7 @@ fn test_decode_corpus_files() {
             failed.push(p.clone().to_string());
         }
         total_counter += 1;
-        
+
         let dur = end_time.as_micros() as usize;
         let speed = result.len() / if dur == 0 { 1 } else { dur };
         println!("SPEED: {}", speed);

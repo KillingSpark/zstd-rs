@@ -8,7 +8,8 @@ This is currently just a work in progress project that I might never finish. Use
 # Current Status
 ## Can do:
 1. Parse all files in /decodecorpus_files. These were generated with [decodecorpus](https://github.com/facebook/zstd/tree/dev/tests) by the original zstd developers
-2. Decode all of them correctly into the output buffer
+1. Decode all of them correctly into the output buffer
+1. Decode all the decode_corpus files (1000+) I created locally 
 
 ## Cannot do
 2. decode frames partially so a user can use it as a stream rather than load the whole frame into memory at once
@@ -30,4 +31,4 @@ I used it to understand the huffman-decoding process and the process of how to e
 After having written most of the code I used my golang implementation for debugging purposes (known 'good' results of the different steps).
 
 ## Known bugs:
-1. Currently none. This means nothing though.
+1. Currently none. This means nothing though the fuzzer still finds possibilities to crash the library so there are most likely still some bad ones around

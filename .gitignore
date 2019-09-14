@@ -1,3 +1,5 @@
 /target
 **/*.rs.bk
 Cargo.lock
+/local_corpus_files
+/orig-zstd
