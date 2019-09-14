@@ -13,9 +13,9 @@ pub fn execute_sequences(scratch: &mut DecoderScratch) {
             scratch.buffer.push(literals);
         }
 
+        let actual_offset = do_offset_history(seq.of, seq.ll, &mut scratch.offset_hist);
         if seq.ml > 0 {
             assert!(seq.of > 0);
-            let actual_offset = do_offset_history(seq.of, seq.ll, &mut scratch.offset_hist);
             scratch
                 .buffer
                 .repeat(actual_offset as usize, seq.ml as usize);
@@ -54,7 +54,7 @@ fn do_offset_history(offset_value: u32, lit_len: u32, scratch: &mut [u32; 3]) ->
                 //nothing
             }
             2 => {
-                scratch[0] = scratch[1];
+                scratch[1] = scratch[0];
                 scratch[0] = actual_offset;
             }
             _ => {
@@ -66,7 +66,7 @@ fn do_offset_history(offset_value: u32, lit_len: u32, scratch: &mut [u32; 3]) ->
     } else {
         match offset_value {
             1 => {
-                scratch[0] = scratch[1];
+                scratch[1] = scratch[0];
                 scratch[0] = actual_offset;
             }
             2 => {
