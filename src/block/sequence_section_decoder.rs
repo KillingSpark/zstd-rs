@@ -89,14 +89,18 @@ pub fn decode_sequences(
         //println!("ml Code: {}", ml_value);
         //println!("");
 
-        let offset = br.get_bits(of_code as usize)? + (1 << of_code);
+        let offset = (br.get_bits(of_code as usize)? + (1 << of_code)) as u32;
         let ml_add = br.get_bits(ml_num_bits as usize)?;
         let ll_add = br.get_bits(ll_num_bits as usize)?;
+
+        if offset == 0 {
+            return Err("Read an offset == 0. That is an illegal value for offsets".to_owned());
+        }
 
         target.push(Sequence {
             ll: ll_value as u32 + ll_add as u32,
             ml: ml_value as u32 + ml_add as u32,
-            of: offset as u32,
+            of: offset,
         });
 
         if target.len() < section.num_sequences as usize {

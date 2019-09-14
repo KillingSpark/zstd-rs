@@ -29,9 +29,9 @@ pub fn execute_sequences(scratch: &mut DecoderScratch) -> Result<(), String> {
             scratch.buffer.push(literals);
         }
 
+        assert!(seq.of > 0);
         let actual_offset = do_offset_history(seq.of, seq.ll, &mut scratch.offset_hist);
         if seq.ml > 0 {
-            assert!(seq.of > 0);
             scratch
                 .buffer
                 .repeat(actual_offset as usize, seq.ml as usize)?;
