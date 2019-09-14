@@ -10,7 +10,10 @@ fn test_decode_corpus_files() {
     let mut total_counter = 0;
     let mut failed: Vec<String> = Vec::new();
 
+    let mut speeds = Vec::new();
+
     for file in fs::read_dir("./decodecorpus_files").unwrap() {
+
         let f = file.unwrap();
 
         let p = String::from(f.path().to_str().unwrap());
@@ -33,14 +36,18 @@ fn test_decode_corpus_files() {
         let mut _null_target = NullWriter(());
 
         let mut frame_dec = frame_decoder::FrameDecoder::new(&mut content);
-        frame_dec.decode_blocks(&mut content).unwrap();
 
+        let start_time = std::time::Instant::now();
+        /////DECODING
+        frame_dec.decode_blocks(&mut content).unwrap();
         let result = frame_dec.drain_buffer_completely();
+        let end_time = start_time.elapsed();
 
         let mut original_p = p.clone();
         original_p.truncate(original_p.len() - 4);
         let original_f = fs::File::open(original_p).unwrap();
         let original: Vec<u8> = original_f.bytes().map(|x| x.unwrap()).collect();
+
 
         println!("Results for file: {}", p.clone());
         let mut success = true;
@@ -70,6 +77,7 @@ fn test_decode_corpus_files() {
                 //);
             }
         }
+        
         if counter > 0 {
             println!("Result differs in at least {} bytes from original", counter);
             success = false;
@@ -78,19 +86,39 @@ fn test_decode_corpus_files() {
 
         if success {
             success_counter += 1;
-        }else{
+        } else {
             failed.push(p.clone().to_string());
         }
         total_counter += 1;
+        
+        let dur = end_time.as_micros() as usize;
+        let speed = result.len() / if dur == 0 { 1 } else { dur };
+        println!("SPEED: {}", speed);
+        speeds.push(speed);
     }
 
     println!("###################");
     println!("Summary:");
     println!("###################");
-    println!("Total: {}, Success: {}, WrongSize: {}, Diffs: {}", total_counter, success_counter, fail_counter_size, fail_counter_diff);
+    println!(
+        "Total: {}, Success: {}, WrongSize: {}, Diffs: {}",
+        total_counter, success_counter, fail_counter_size, fail_counter_diff
+    );
     println!("Failed files: ");
     for f in failed {
         println!("{}", f);
     }
-
+    let speed_len = speeds.len();
+    let sum_speed: usize = speeds.into_iter().sum();
+    let avg_speed = sum_speed / speed_len;
+    let avg_speed_bps = avg_speed * 1000000;
+    if avg_speed_bps < 1000 {
+        println!("Average speed: {} B/s", avg_speed_bps);
+    } else {
+        if avg_speed_bps < 1000000 {
+            println!("Average speed: {} KB/s", avg_speed_bps / 1000);
+        } else {
+            println!("Average speed: {} MB/s", avg_speed_bps / 1000000);
+        }
+    }
 }
