@@ -9,14 +9,14 @@ pub struct FrameDecoder {
 }
 
 impl FrameDecoder {
-    pub fn new(source: &mut Read) -> FrameDecoder {
-        let frame = frame::read_frame_header(source).unwrap();
-        let window_size = frame.header.window_size().unwrap();
-        frame.check_valid().unwrap();
-        FrameDecoder {
+    pub fn new(source: &mut Read) -> Result<FrameDecoder, String> {
+        let frame = frame::read_frame_header(source)?;
+        let window_size = frame.header.window_size()?;
+        frame.check_valid()?;
+        Ok(FrameDecoder {
             frame: frame,
             decoder_scratch: DecoderScratch::new(window_size as usize),
-        }
+        })
     }
 
     pub fn decode_blocks(&mut self, source: &mut Read) -> Result<(), String> {
@@ -29,7 +29,7 @@ impl FrameDecoder {
                 println!("Next Block: {}", block_counter);
                 println!("################");
             }
-            let block_header = block_dec.read_block_header(source).unwrap();
+            let block_header = block_dec.read_block_header(source)?;
             if crate::VERBOSE {
                 println!("");
                 println!(
@@ -40,9 +40,7 @@ impl FrameDecoder {
                 );
             }
 
-            block_dec
-                .decode_block_content(&block_header, &mut self.decoder_scratch, source)
-                .unwrap();
+            block_dec.decode_block_content(&block_header, &mut self.decoder_scratch, source)?;
 
             if crate::VERBOSE {
                 println!("Output: {}", self.decoder_scratch.buffer.len());

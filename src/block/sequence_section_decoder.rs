@@ -192,7 +192,11 @@ fn maybe_update_fse_tables(
     source: &[u8],
     scratch: &mut FSEScratch,
 ) -> Result<usize, String> {
-    let modes = section.modes.unwrap();
+    let modes = match section.modes {
+        Some(m) => m,
+        None => return Err("compression modes are none but they must be set to something".to_owned()),
+    };
+
     let mut bytes_read = 0;
 
     match modes.ll_mode() {

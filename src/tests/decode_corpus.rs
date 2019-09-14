@@ -35,7 +35,7 @@ fn test_decode_corpus_files() {
         }
         let mut _null_target = NullWriter(());
 
-        let mut frame_dec = frame_decoder::FrameDecoder::new(&mut content);
+        let mut frame_dec = frame_decoder::FrameDecoder::new(&mut content).unwrap();
 
         let start_time = std::time::Instant::now();
         /////DECODING

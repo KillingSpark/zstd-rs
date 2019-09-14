@@ -42,7 +42,7 @@ fn test_frame_decoder() {
     }
     let mut _null_target = NullWriter(());
 
-    let mut frame_dec = frame_decoder::FrameDecoder::new(&mut content);
+    let mut frame_dec = frame_decoder::FrameDecoder::new(&mut content).unwrap();
     frame_dec.decode_blocks(&mut content).unwrap();
 }
 
@@ -65,7 +65,7 @@ fn test_specific_file() {
     }
     let mut _null_target = NullWriter(());
 
-    let mut frame_dec = frame_decoder::FrameDecoder::new(&mut content);
+    let mut frame_dec = frame_decoder::FrameDecoder::new(&mut content).unwrap();
     frame_dec.decode_blocks(&mut content).unwrap();
     let result = frame_dec.drain_buffer_completely();
 

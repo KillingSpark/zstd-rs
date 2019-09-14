@@ -34,8 +34,14 @@ fn decompress_literals(
     source: &[u8],
     target: &mut Vec<u8>,
 ) -> Result<u32, String> {
-    target.reserve(section.regenerated_size as usize);
+    if section.compressed_size.is_none() {
+        return Err("compressed size was none even though it must be set to something for compressed literals".to_owned())
+    }
+    if section.num_streams.is_none() {
+        return Err("num_streams was none even though it must be set to something (1 or 4) for compressed literals".to_owned())
+    }
 
+    target.reserve(section.regenerated_size as usize);
     let source = &source[0..section.compressed_size.unwrap() as usize];
     let mut bytes_read = 0;
 

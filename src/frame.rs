@@ -242,7 +242,7 @@ impl Frame {
 }
 
 use std::io::Read;
-pub fn read_frame_header(r: &mut Read) -> Result<Frame, ()> {
+pub fn read_frame_header(r: &mut Read) -> Result<Frame, String> {
     let mut buf = [0u8; 4];
     let magic_num: u32 = match r.read_exact(&mut buf[0..4]) {
         Ok(_) => {
@@ -251,12 +251,12 @@ pub fn read_frame_header(r: &mut Read) -> Result<Frame, ()> {
                 | ((buf[2] as u32) << 16)
                 | ((buf[3] as u32) << 24)
         }
-        Err(_) => return Err(()),
+        Err(_) => return Err("Error while reading magic number".to_owned()),
     };
 
     let desc: FrameDescriptor = match r.read_exact(&mut buf[0..1]) {
         Ok(_) => FrameDescriptor(buf[0]),
-        Err(_) => return Err(()),
+        Err(_) => return Err("Error while reading frame descriptor".to_owned()),
     };
 
     let mut frame_header = FrameHeader {
@@ -269,7 +269,7 @@ pub fn read_frame_header(r: &mut Read) -> Result<Frame, ()> {
                 }
                 v
             }
-            Err(_) => return Err(()),
+            Err(m) => return Err(m),
         },
         frame_content_size: match desc.frame_content_size_bytes() {
             Ok(bytes) => {
@@ -279,7 +279,7 @@ pub fn read_frame_header(r: &mut Read) -> Result<Frame, ()> {
                 }
                 v
             }
-            Err(_) => return Err(()),
+            Err(m) => return Err(m),
         },
         window_descriptor: 0,
     };
@@ -287,21 +287,21 @@ pub fn read_frame_header(r: &mut Read) -> Result<Frame, ()> {
     if !desc.single_segment_flag() {
         match r.read_exact(&mut buf[0..1]) {
             Ok(_) => frame_header.window_descriptor = buf[0],
-            Err(_) => return Err(()),
+            Err(_) => return Err("Error while reading window descriptor".to_owned()),
         }
     }
 
     if frame_header.dict_id.len() > 0 {
         match r.read_exact(&mut frame_header.dict_id.as_mut_slice()) {
             Ok(_) => {}
-            Err(_) => return Err(()),
+            Err(_) => return Err("Error while reading dcitionary id".to_owned()),
         }
     }
 
     if frame_header.frame_content_size.len() > 0 {
         match r.read_exact(&mut frame_header.frame_content_size.as_mut_slice()) {
             Ok(_) => {}
-            Err(_) => return Err(()),
+            Err(_) => return Err("Error while reading frame content size".to_owned()),
         }
     }
 

@@ -10,9 +10,6 @@ pub fn execute_sequences(scratch: &mut DecoderScratch) {
         if crate::VERBOSE {
         }
         //println!("{}: {}", idx, seq);
-        if seq.ll == 4423 && seq.of == 83091 && seq.ml == 138 && idx == 26 {
-            panic!("Found");
-        }
 
         if seq.ll > 0 {
             let literals = &scratch.literals_buffer
