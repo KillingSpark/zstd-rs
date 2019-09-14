@@ -23,6 +23,9 @@ impl<'s> BitReaderReversed<'s> {
         if n == 0 {
             return Ok(0);
         }
+        if n > 64 {
+            return Err("Cant serve this request. The reader is limited to 64bit".to_owned());
+        }
 
         let n = n as isize;
 
@@ -35,7 +38,7 @@ impl<'s> BitReaderReversed<'s> {
             //TODO handle correctly. need to fill with 0
             let emulated_read_shift = n - self.bits_remaining();
             let v = self.get_bits(self.bits_remaining() as usize)?;
-            let value = v << emulated_read_shift;
+            let value = (v as u64) << emulated_read_shift;
             self.idx -= emulated_read_shift;
             return Ok(value);
         }

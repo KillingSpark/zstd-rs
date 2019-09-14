@@ -27,6 +27,9 @@ impl<'s> BitReader<'s> {
     }
 
     pub fn get_bits(&mut self, n: usize) -> Result<u64, String> {
+        if n > 64 {
+            return Err("Cant serve this request. The reader is limited to 64bit".to_owned());
+        }
         if self.bits_left() < n {
             return Err(format!(
                 "Cant read n: {} bits. Bits left: {}",
