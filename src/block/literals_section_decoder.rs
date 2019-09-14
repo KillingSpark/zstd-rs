@@ -53,6 +53,11 @@ fn decompress_literals(
                 println!("Built huffman table using {} bytes", bytes_read);
             }
         }
+        LiteralsSectionType::Treeless => {
+            if scratch.table.max_num_bits == 0 {
+                return Err("Tried to reuse huffman table but it was never initialized".to_owned());
+            }
+        }
         _ => { /* nothing to do, huffman tree has been provided by previous block */ }
     }
 
