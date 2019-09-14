@@ -1,21 +1,19 @@
 # What is this
-A decoder for the zstd compression format as defined in: [This document](https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#appendix-a---decoding-tables-for-predefined-codes). Currently it is not working correctly.
+A decoder for the zstd compression format as defined in: [This document](https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#appendix-a---decoding-tables-for-predefined-codes).
 
 It is NOT a compressor. I dont plan on implementing that part either, at least not in the near future. (If someone is motivated enough I will of course accept a pull-request!)
 
-This is currently just a work in progress project that I might never finish. Use/fork at own risk ;)
+This is currently just a work in progress project that I might never finish. Use/fork at own risk ;) It does work correctly at least for the test-set of files I used, YMMV.
 
 # Current Status
 ## Can do:
 1. Parse all files in /decodecorpus_files. These were generated with [decodecorpus](https://github.com/facebook/zstd/tree/dev/tests) by the original zstd developers
-2. Decode 48 of them correctly into the output buffer
+2. Decode all of them correctly into the output buffer
 
 ## Cannot do
-1. Output anything useful reliably
-2. Decode 52 of the /decodecorpus_files correctly (6 have wrong size, 52 have differing bytes. I suspect that I have a flaw in my offset-history. Will need to compare those to my other implementation)
+2. decode frames partially so a user can use it as a stream rather than load the whole frame into memory at once
 
 ## Roadmap
-1. Fix known bugs
 1. Find more bugs
 1. Make a nice API maybe io::Read based, maybe not, we'll see
 1. More tests (especially unit-tests for the bitreaders) to find even more bugs
@@ -32,7 +30,4 @@ I used it to understand the huffman-decoding process and the process of how to e
 After having written most of the code I used my golang implementation for debugging purposes (known 'good' results of the different steps).
 
 ## Known bugs:
-#### file z00000035.zst triggers a bug in the sequence execution. 
-1. I confirmed the sequences are correct by comparing the list of sequences to my go implementation
-1. I confirmed the used offsets are correct after applying the offset_history
-1. I confirmed the literals are correct by comparing the used literals to my go implementation
+1. Currently none. This means nothing though.
