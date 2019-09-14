@@ -60,11 +60,18 @@ fn decompress_literals(
 
     if section.num_streams.unwrap() == 4 {
         //build jumptable
+        if source.len() < 6 {
+            return Err("Need 6 byte to decode jump header".to_owned());
+        }
         let jump1 = source[0] as u16 + ((source[1] as u16) << 8);
         let jump2 = jump1 + source[2] as u16 + ((source[3] as u16) << 8);
         let jump3 = jump2 + source[4] as u16 + ((source[5] as u16) << 8);
         bytes_read += 6;
         let source = &source[6..];
+
+        if source.len() < (jump1+jump2+jump3) as usize {
+            return Err(format!("Need at least {} byte to decode literals", jump1+jump2+jump3));
+        }
 
         //decode 4 streams
         let stream1 = &source[..jump1 as usize];
