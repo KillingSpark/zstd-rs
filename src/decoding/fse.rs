@@ -45,16 +45,11 @@ impl<'t> FSEDecoder<'t> {
     }
 
     pub fn init_state(&mut self, bits: &mut BitReaderReversed) -> Result<(), String> {
+        if self.table.accuracy_log == 0 {
+            return Err("Tried to use an unitizialized table!".to_owned());
+        }
         self.state = bits.get_bits(self.table.accuracy_log as usize)? as usize;
-        assert!(
-            self.state < self.table.decode.len(),
-            format!(
-                "state: {}, acclog: {} ,table_len: {}",
-                self.state,
-                self.table.accuracy_log,
-                self.table.decode.len()
-            )
-        );
+        
         Ok(())
     }
 

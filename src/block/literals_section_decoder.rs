@@ -74,8 +74,8 @@ fn decompress_literals(
         bytes_read += 6;
         let source = &source[6..];
 
-        if source.len() < (jump1+jump2+jump3) as usize {
-            return Err(format!("Need at least {} byte to decode literals", jump1+jump2+jump3));
+        if source.len() < jump3 as usize {
+            return Err(format!("Need at least {} byte to decode literals. Have: {}", jump3, source.len()));
         }
 
         //decode 4 streams

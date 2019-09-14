@@ -235,9 +235,6 @@ fn maybe_update_fse_tables(
             if crate::VERBOSE {
                 println!("Repeat ll table");
             }
-            if scratch.literal_lengths.accuracy_log == 0 {
-                return Err("ll table should be repeated but has not been initialized validly yet".to_owned());
-            }
             /* Nothing to do */
         }
     };
@@ -277,9 +274,6 @@ fn maybe_update_fse_tables(
         ModeType::Repeat => {
             if crate::VERBOSE {
                 println!("Repeat of table");
-            }
-            if scratch.offsets.accuracy_log == 0 {
-                return Err("of table should be repeated but has not been initialized validly yet".to_owned());
             }
             /* Nothing to do */
         }
@@ -321,9 +315,6 @@ fn maybe_update_fse_tables(
             if crate::VERBOSE {
                 println!("Repeat ml table");
             } 
-            if scratch.match_lengths.accuracy_log == 0 {
-                return Err("ml table should be repeated but has not been initialized validly yet".to_owned());
-            }
             /* Nothing to do */
         }
     };
