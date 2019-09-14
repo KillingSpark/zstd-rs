@@ -210,6 +210,10 @@ impl HuffmanTable {
             weight_sum += if *w > 0 { (1 as u32) << (*w - 1) } else { 0 };
         }
 
+        if weight_sum == 0 {
+            return Err("Cant build huffman table without any weights".to_owned());
+        }
+
         let max_bits = highest_bit_set(weight_sum) as u8;
         let left_over = ((1 as u32) << max_bits) - weight_sum;
 
