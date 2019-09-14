@@ -1,25 +1,31 @@
 use super::scratch::DecoderScratch;
 
-pub fn execute_sequences(scratch: &mut DecoderScratch) {
+pub fn execute_sequences(scratch: &mut DecoderScratch) -> Result<(), String> {
     let mut literals_copy_counter = 0;
     let old_buffer_size = scratch.buffer.len();
     let mut seq_sum = 0;
 
     for idx in 0..scratch.sequences.len() {
         let seq = scratch.sequences[idx];
-        if crate::VERBOSE {
-        }
+        if crate::VERBOSE {}
         //println!("{}: {}", idx, seq);
 
         if seq.ll > 0 {
-            let literals = &scratch.literals_buffer
-                [literals_copy_counter..literals_copy_counter + seq.ll as usize];
+            let high = literals_copy_counter + seq.ll as usize;
+            if high > scratch.literals_buffer.len() {
+                return Err(format!(
+                    "Sequence wants to copy up to byte {}. Bytes in literalsbuffer: {}",
+                    high,
+                    scratch.literals_buffer.len()
+                ));
+            }
+            let literals = &scratch.literals_buffer[literals_copy_counter..high];
             literals_copy_counter += seq.ll as usize;
 
             //for x in literals {
             //    println!("{}", x);
             //}
-           
+
             scratch.buffer.push(literals);
         }
 
@@ -28,9 +34,9 @@ pub fn execute_sequences(scratch: &mut DecoderScratch) {
             assert!(seq.of > 0);
             scratch
                 .buffer
-                .repeat(actual_offset as usize, seq.ml as usize);
+                .repeat(actual_offset as usize, seq.ml as usize)?;
         }
-        
+
         seq_sum += seq.ml;
         seq_sum += seq.ll;
     }
@@ -47,6 +53,7 @@ pub fn execute_sequences(scratch: &mut DecoderScratch) {
         seq_sum,
         diff
     );
+    Ok(())
 }
 
 fn do_offset_history(offset_value: u32, lit_len: u32, scratch: &mut [u32; 3]) -> u32 {

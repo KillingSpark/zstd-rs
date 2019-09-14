@@ -20,15 +20,28 @@ impl Decodebuffer {
         self.buffer.extend_from_slice(data);
     }
 
-    pub fn repeat(&mut self, offset: usize, match_length: usize) {
-        assert!(offset <= self.window_size, "offset: {} bigger than windowsize: {}", offset, self.window_size);
-        assert!(offset <= self.buffer.len(), "offset: {} bigger than buffer: {}", offset, self.buffer.len());
+    pub fn repeat(&mut self, offset: usize, match_length: usize) -> Result<(), String> {
+        if offset > self.window_size {
+            return Err(format!(
+                "offset: {} bigger than windowsize: {}",
+                offset, self.window_size
+            ));
+        }
+        if offset > self.buffer.len() {
+            return Err(format!(
+                "offset: {} bigger than buffer: {}",
+                offset,
+                self.buffer.len()
+            ));
+        }
 
         let start_idx = self.buffer.len() - offset;
         self.buffer.reserve(match_length);
         for x in 0..match_length {
             self.buffer.push(self.buffer[start_idx + x]);
         }
+
+        Ok(())
     }
 
     // Check if and how many bytes can currently be drawn from the buffer
