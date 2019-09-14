@@ -34,7 +34,9 @@ impl FrameDecoder {
                 println!("");
                 println!(
                     "Found {} block with size: {}, which will be of size: {}",
-                    block_header.block_type, block_header.content_size, block_header.decompressed_size
+                    block_header.block_type,
+                    block_header.content_size,
+                    block_header.decompressed_size
                 );
             }
 
@@ -42,8 +44,8 @@ impl FrameDecoder {
                 .decode_block_content(&block_header, &mut self.decoder_scratch, source)
                 .unwrap();
 
-            if self.decoder_scratch.buffer.len() >= 29060 {
-                //panic!("A");
+            if crate::VERBOSE {
+                println!("Output: {}", self.decoder_scratch.buffer.len());
             }
 
             if block_header.last_block {

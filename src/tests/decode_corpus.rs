@@ -8,6 +8,7 @@ fn test_decode_corpus_files() {
     let mut fail_counter_diff = 0;
     let mut fail_counter_size = 0;
     let mut total_counter = 0;
+    let mut failed: Vec<String> = Vec::new();
 
     for file in fs::read_dir("./decodecorpus_files").unwrap() {
         let f = file.unwrap();
@@ -77,6 +78,8 @@ fn test_decode_corpus_files() {
 
         if success {
             success_counter += 1;
+        }else{
+            failed.push(p.clone().to_string());
         }
         total_counter += 1;
     }
@@ -85,4 +88,9 @@ fn test_decode_corpus_files() {
     println!("Summary:");
     println!("###################");
     println!("Total: {}, Success: {}, WrongSize: {}, Diffs: {}", total_counter, success_counter, fail_counter_size, fail_counter_diff);
+    println!("Failed files: ");
+    for f in failed {
+        println!("{}", f);
+    }
+
 }

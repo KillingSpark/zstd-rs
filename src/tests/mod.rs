@@ -52,7 +52,7 @@ fn test_specific_file() {
     use std::fs;
     use std::io::Read;
 
-    let mut content = fs::File::open("./decodecorpus_files/z000035.zst").unwrap();
+    let mut content = fs::File::open("./decodecorpus_files/z000088.zst").unwrap();
 
     struct NullWriter(());
     impl std::io::Write for NullWriter {
@@ -69,7 +69,7 @@ fn test_specific_file() {
     frame_dec.decode_blocks(&mut content).unwrap();
     let result = frame_dec.drain_buffer_completely();
 
-    let original_f = fs::File::open("./decodecorpus_files/z000035").unwrap();
+    let original_f = fs::File::open("./decodecorpus_files/z000088").unwrap();
     let original: Vec<u8> = original_f.bytes().map(|x| x.unwrap()).collect();
 
     println!("Results for file:");
@@ -91,11 +91,10 @@ fn test_specific_file() {
     for idx in 0..min {
         if original[idx] != result[idx] {
             counter += 1;
-            println!(
-                "Original {} not equal to result {} at byte: {}",
-                original[idx], result[idx], idx,
-            );
-            panic!("A");
+            //println!(
+            //    "Original {:3} not equal to result {:3} at byte: {}",
+            //    original[idx], result[idx], idx,
+            //);
         }
     }
     if counter > 0 {

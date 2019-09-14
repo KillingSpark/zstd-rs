@@ -8,13 +8,20 @@ pub fn execute_sequences(scratch: &mut DecoderScratch) {
     for idx in 0..scratch.sequences.len() {
         let seq = scratch.sequences[idx];
         if crate::VERBOSE {
+        }
         //println!("{}: {}", idx, seq);
+        if seq.ll == 4423 && seq.of == 83091 && seq.ml == 138 && idx == 26 {
+            panic!("Found");
         }
 
         if seq.ll > 0 {
             let literals = &scratch.literals_buffer
                 [literals_copy_counter..literals_copy_counter + seq.ll as usize];
             literals_copy_counter += seq.ll as usize;
+
+            //for x in literals {
+            //    println!("{}", x);
+            //}
            
             scratch.buffer.push(literals);
         }
@@ -26,7 +33,7 @@ pub fn execute_sequences(scratch: &mut DecoderScratch) {
                 .buffer
                 .repeat(actual_offset as usize, seq.ml as usize);
         }
-        //println!("Output: {}", scratch.buffer.len());
+        
         seq_sum += seq.ml;
         seq_sum += seq.ll;
     }
