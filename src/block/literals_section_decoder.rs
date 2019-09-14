@@ -86,6 +86,7 @@ fn decompress_literals(
                 return Err(format!("Padding at the end of the sequence_section was more than a byte long: {}. Probably cause by data corruption", skipped_bits));
             }
             decoder.init_state(&mut br)?;
+            
             while br.bits_remaining() > -(scratch.table.max_num_bits as isize) {
                 target.push(decoder.decode_symbol());
                 decoder.next_state(&mut br)?;

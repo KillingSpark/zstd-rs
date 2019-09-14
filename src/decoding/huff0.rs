@@ -55,7 +55,7 @@ impl<'t> HuffmanDecoder<'t> {
         self.table.decode[self.state as usize].symbol
     }
 
-    pub fn init_state(&mut self, br: &mut BitReaderReversed) -> Result<u8, String>  {
+    pub fn init_state(&mut self, br: &mut BitReaderReversed) -> Result<u8, String> {
         let num_bits = self.table.max_num_bits;
         let new_bits = br.get_bits(num_bits as usize)?;
         self.state = new_bits as u64;
@@ -105,6 +105,13 @@ impl HuffmanTable {
                 let bytes_used_by_fse_header = self
                     .fse_table
                     .build_decoder(fse_stream, /*TODO find actual max*/ 100)?;
+
+                if crate::VERBOSE {
+                    println!(
+                        "Building fse table for huffman weights used: {}",
+                        bytes_used_by_fse_header
+                    );
+                }
                 let mut dec1 = FSEDecoder::new(&self.fse_table);
                 let mut dec2 = FSEDecoder::new(&self.fse_table);
 
@@ -134,7 +141,7 @@ impl HuffmanTable {
 
                 dec1.init_state(&mut br)?;
                 dec2.init_state(&mut br)?;
-                
+
                 self.weights.clear();
 
                 loop {
@@ -203,6 +210,7 @@ impl HuffmanTable {
         assert!(left_over & (left_over - 1) == 0);
         let last_weight = highest_bit_set(left_over) as u8;
 
+
         for symbol in 0..self.weights.len() {
             let bits = if self.weights[symbol] > 0 {
                 max_bits + 1 - self.weights[symbol]
@@ -241,7 +249,6 @@ impl HuffmanTable {
         self.rank_indexes.clear();
         self.rank_indexes.resize((max_bits + 1) as usize, 0);
 
-
         self.rank_indexes[max_bits as usize] = 0;
         for bits in (1..self.rank_indexes.len() as u8).rev() {
             self.rank_indexes[bits as usize - 1] = self.rank_indexes[bits as usize]
@@ -252,7 +259,8 @@ impl HuffmanTable {
             self.rank_indexes[0] == self.decode.len(),
             format!(
                 "rank_idx[0]: {} should be: {}",
-                self.rank_indexes[0], self.decode.len()
+                self.rank_indexes[0],
+                self.decode.len()
             )
         );
 

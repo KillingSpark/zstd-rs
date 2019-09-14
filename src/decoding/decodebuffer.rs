@@ -12,6 +12,10 @@ impl Decodebuffer {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.buffer.len()
+    }
+
     pub fn push(&mut self, data: &[u8]) {
         self.buffer.extend_from_slice(data);
     }

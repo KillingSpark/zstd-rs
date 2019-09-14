@@ -4,4 +4,4 @@ pub mod block;
 pub mod decoding;
 mod tests;
 
-pub const VERBOSE: bool = true;
+pub const VERBOSE: bool = false;

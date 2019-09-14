@@ -30,3 +30,9 @@ Also this time I did most of the work without looking at the original source nor
 So it is somewhat uninfluenced by those. (But I carried over some memories from the golang implementation). 
 I used it to understand the huffman-decoding process and the process of how to exactly distribute baseline/num_bits in the fse tables on which the documentation is somewhat ambigous. 
 After having written most of the code I used my golang implementation for debugging purposes (known 'good' results of the different steps).
+
+## Known bugs:
+#### file z00000035.zst triggers a bug in the sequence execution. 
+1. I confirmed the sequences are correct by comparing the list of sequences to my go implementation
+1. I confirmed the used offsets are correct after applying the offset_history
+1. I confirmed the literals are correct by comparing the used literals to my go implementation

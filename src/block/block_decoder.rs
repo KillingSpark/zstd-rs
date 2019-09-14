@@ -188,6 +188,7 @@ impl BlockDecoder {
             )?;
             execute_sequences(workspace);
         }else{
+            workspace.buffer.push(&workspace.literals_buffer);
             workspace.sequences.clear();
         }
 
