@@ -35,10 +35,10 @@ fn decompress_literals(
     target: &mut Vec<u8>,
 ) -> Result<u32, String> {
     if section.compressed_size.is_none() {
-        return Err("compressed size was none even though it must be set to something for compressed literals".to_owned())
+        return Err("compressed size was none even though it must be set to something for compressed literals".to_owned());
     }
     if section.num_streams.is_none() {
-        return Err("num_streams was none even though it must be set to something (1 or 4) for compressed literals".to_owned())
+        return Err("num_streams was none even though it must be set to something (1 or 4) for compressed literals".to_owned());
     }
 
     target.reserve(section.regenerated_size as usize);
@@ -83,7 +83,7 @@ fn decompress_literals(
             loop {
                 let val = br.get_bits(1)?;
                 skipped_bits += 1;
-                if val == 1 {
+                if val == 1 || skipped_bits > 8 {
                     break;
                 }
             }
@@ -92,7 +92,7 @@ fn decompress_literals(
                 return Err(format!("Padding at the end of the sequence_section was more than a byte long: {}. Probably cause by data corruption", skipped_bits));
             }
             decoder.init_state(&mut br)?;
-            
+
             while br.bits_remaining() > -(scratch.table.max_num_bits as isize) {
                 target.push(decoder.decode_symbol());
                 decoder.next_state(&mut br)?;
@@ -110,7 +110,7 @@ fn decompress_literals(
         loop {
             let val = br.get_bits(1)?;
             skipped_bits += 1;
-            if val == 1 {
+            if val == 1 || skipped_bits > 8 {
                 break;
             }
         }

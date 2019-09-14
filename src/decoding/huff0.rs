@@ -130,7 +130,7 @@ impl HuffmanTable {
                 loop {
                     let val = br.get_bits(1)?;
                     skipped_bits += 1;
-                    if val == 1 {
+                    if val == 1 || skipped_bits > 8 {
                         break;
                     }
                 }
@@ -209,7 +209,6 @@ impl HuffmanTable {
         //left_over must be power of two
         assert!(left_over & (left_over - 1) == 0);
         let last_weight = highest_bit_set(left_over) as u8;
-
 
         for symbol in 0..self.weights.len() {
             let bits = if self.weights[symbol] > 0 {

@@ -31,7 +31,7 @@ pub fn decode_sequences(
     loop {
         let val = br.get_bits(1)?;
         skipped_bits += 1;
-        if val == 1 {
+        if val == 1 || skipped_bits > 8 {
             break;
         }
     }

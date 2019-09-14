@@ -132,6 +132,10 @@ impl BlockDecoder {
             },
         };
 
+        if raw.len() < upper_limit_for_literals {
+            return Err(format!("Malformed section header. Says literals would be this long: {} but there are only {} bytes left", upper_limit_for_literals, raw.len()));
+        }
+        
         let raw_literals = &raw[..upper_limit_for_literals];
         if crate::VERBOSE {
             println!("Slice for literals: {}", raw_literals.len());

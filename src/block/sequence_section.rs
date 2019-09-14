@@ -59,22 +59,47 @@ impl SequencesHeader {
 
     pub fn parse_from_header(&mut self, source: &[u8]) -> Result<u8, String> {
         let mut bytes_read = 0;
+        if source.len() < 1 {
+            return Err(format!(
+                "source must have at least {} bytes to parse header",
+                1
+            ));
+        }
+
         let source = match source[0] {
             0 => {
                 self.num_sequences = 0;
                 return Ok(1);
             }
             1...127 => {
+                if source.len() < 2 {
+                    return Err(format!(
+                        "source must have at least {} bytes to parse header",
+                        2
+                    ));
+                }
                 self.num_sequences = source[0] as u32;
                 bytes_read += 1;
                 &source[1..]
             }
             128...254 => {
+                if source.len() < 3 {
+                    return Err(format!(
+                        "source must have at least {} bytes to parse header",
+                        3
+                    ));
+                }
                 self.num_sequences = ((source[0] as u32 - 128) << 8) + source[1] as u32;
                 bytes_read += 2;
                 &source[2..]
             }
             255 => {
+                if source.len() < 4 {
+                    return Err(format!(
+                        "source must have at least {} bytes to parse header",
+                        4
+                    ));
+                }
                 self.num_sequences = source[1] as u32 + ((source[2] as u32) << 8) + 0x7F00;
                 bytes_read += 3;
                 &source[3..]
