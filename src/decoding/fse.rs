@@ -91,10 +91,14 @@ impl FSETable {
         Ok(bytes_read)
     }
 
-    pub fn build_from_probabilities(&mut self, acc_log: u8, probs: &Vec<i32>) {
+    pub fn build_from_probabilities(&mut self, acc_log: u8, probs: &Vec<i32>) -> Result<(), String> {
+        if acc_log == 0 {
+            return Err("Acclog must be at least 1".to_owned());
+        }
         self.symbol_probablilities = probs.clone();
         self.accuracy_log = acc_log;
         self.build_decoding_table();
+        Ok(())
     }
 
     fn build_decoding_table(&mut self) {
@@ -179,6 +183,9 @@ impl FSETable {
         self.accuracy_log = ACC_LOG_OFFSET + (br.get_bits(4)? as u8);
         if self.accuracy_log > max_log {
             return Err(format!("Found FSE acc_log: {} bigger than allowed maximum in this case: {}", self.accuracy_log, max_log));
+        }
+        if self.accuracy_log == 0 {
+            return Err("Acclog must be at least 1".to_owned());
         }
 
         let probablility_sum = 1 << self.accuracy_log;

@@ -228,12 +228,15 @@ fn maybe_update_fse_tables(
             scratch.literal_lengths.build_from_probabilities(
                 LL_DEFAULT_ACC_LOG,
                 &Vec::from(&LITERALS_LENGTH_DEFAULT_DISTRIBUTION[..]),
-            );
+            )?;
             scratch.ll_rle = None;
         }
         ModeType::Repeat => {
             if crate::VERBOSE {
                 println!("Repeat ll table");
+            }
+            if scratch.literal_lengths.accuracy_log == 0 {
+                return Err("ll table should be repeated but has not been initialized validly yet".to_owned());
             }
             /* Nothing to do */
         }
@@ -268,12 +271,15 @@ fn maybe_update_fse_tables(
             scratch.offsets.build_from_probabilities(
                 OF_DEFAULT_ACC_LOG,
                 &Vec::from(&OFFSET_DEFAULT_DISTRIBUTION[..]),
-            );
+            )?;
             scratch.of_rle = None;
         }
         ModeType::Repeat => {
             if crate::VERBOSE {
                 println!("Repeat of table");
+            }
+            if scratch.offsets.accuracy_log == 0 {
+                return Err("of table should be repeated but has not been initialized validly yet".to_owned());
             }
             /* Nothing to do */
         }
@@ -308,13 +314,17 @@ fn maybe_update_fse_tables(
             scratch.match_lengths.build_from_probabilities(
                 ML_DEFAULT_ACC_LOG,
                 &Vec::from(&MATCH_LENGTH_DEFAULT_DISTRIBUTION[..]),
-            );
+            )?;
             scratch.ml_rle = None;
         }
         ModeType::Repeat => {
             if crate::VERBOSE {
                 println!("Repeat ml table");
-            } /* Nothing to do */
+            } 
+            if scratch.match_lengths.accuracy_log == 0 {
+                return Err("ml table should be repeated but has not been initialized validly yet".to_owned());
+            }
+            /* Nothing to do */
         }
     };
 
@@ -344,7 +354,7 @@ fn test_ll_default() {
     table.build_from_probabilities(
         LL_DEFAULT_ACC_LOG,
         &Vec::from(&LITERALS_LENGTH_DEFAULT_DISTRIBUTION[..]),
-    );
+    ).unwrap();
 
     for idx in 0..table.decode.len() {
         println!(
