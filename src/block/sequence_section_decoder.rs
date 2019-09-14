@@ -75,8 +75,8 @@ pub fn decode_sequences(
             of_dec.decode_symbol()
         };
 
-        let (ll_value, ll_num_bits) = lookup_ll_code(ll_code);
-        let (ml_value, ml_num_bits) = lookup_ml_code(ml_code);
+        let (ll_value, ll_num_bits) = lookup_ll_code(ll_code)?;
+        let (ml_value, ml_num_bits) = lookup_ml_code(ml_code)?;
 
         //println!("Sequence: {}", i);
         //println!("of stat: {}", of_dec.state);
@@ -128,58 +128,58 @@ pub fn decode_sequences(
     }
 }
 
-fn lookup_ll_code(code: u8) -> (u32, u8) {
+fn lookup_ll_code(code: u8) -> Result<(u32, u8), String> {
     match code {
-        0...15 => (code as u32, 0),
-        16 => (16, 1),
-        17 => (18, 1),
-        18 => (20, 1),
-        19 => (22, 1),
-        20 => (24, 2),
-        21 => (28, 2),
-        22 => (32, 3),
-        23 => (40, 3),
-        24 => (48, 4),
-        25 => (64, 6),
-        26 => (128, 7),
-        27 => (256, 8),
-        28 => (512, 9),
-        29 => (1024, 10),
-        30 => (2048, 11),
-        31 => (4096, 12),
-        32 => (8192, 13),
-        33 => (16384, 14),
-        34 => (32768, 15),
-        35 => (65536, 16),
-        _ => panic!(format!("Invalid ll code: {}", code)),
+        0...15 => Ok((code as u32, 0)),
+        16 => Ok((16, 1)),
+        17 => Ok((18, 1)),
+        18 => Ok((20, 1)),
+        19 => Ok((22, 1)),
+        20 => Ok((24, 2)),
+        21 => Ok((28, 2)),
+        22 => Ok((32, 3)),
+        23 => Ok((40, 3)),
+        24 => Ok((48, 4)),
+        25 => Ok((64, 6)),
+        26 => Ok((128, 7)),
+        27 => Ok((256, 8)),
+        28 => Ok((512, 9)),
+        29 => Ok((1024, 10)),
+        30 => Ok((2048, 11)),
+        31 => Ok((4096, 12)),
+        32 => Ok((8192, 13)),
+        33 => Ok((16384, 14)),
+        34 => Ok((32768, 15)),
+        35 => Ok((65536, 16)),
+        _ => Err(format!("Invalid ll code: {}", code)),
     }
 }
 
-fn lookup_ml_code(code: u8) -> (u32, u8) {
+fn lookup_ml_code(code: u8) -> Result<(u32, u8), String> {
     match code {
-        0...31 => (code as u32 + 3, 0),
-        32 => (35, 1),
-        33 => (37, 1),
-        34 => (39, 1),
-        35 => (41, 1),
-        36 => (43, 2),
-        37 => (47, 2),
-        38 => (51, 3),
-        39 => (59, 3),
-        40 => (67, 4),
-        41 => (83, 4),
-        42 => (99, 5),
-        43 => (131, 7),
-        44 => (259, 8),
-        45 => (515, 9),
-        46 => (1027, 10),
-        47 => (2051, 11),
-        48 => (4099, 12),
-        49 => (8195, 13),
-        50 => (16387, 14),
-        51 => (32771, 15),
-        52 => (65539, 16),
-        _ => panic!(format!("Invalid ml code: {}", code)),
+        0...31 => Ok((code as u32 + 3, 0)),
+        32 => Ok((35, 1)),
+        33 => Ok((37, 1)),
+        34 => Ok((39, 1)),
+        35 => Ok((41, 1)),
+        36 => Ok((43, 2)),
+        37 => Ok((47, 2)),
+        38 => Ok((51, 3)),
+        39 => Ok((59, 3)),
+        40 => Ok((67, 4)),
+        41 => Ok((83, 4)),
+        42 => Ok((99, 5)),
+        43 => Ok((131, 7)),
+        44 => Ok((259, 8)),
+        45 => Ok((515, 9)),
+        46 => Ok((1027, 10)),
+        47 => Ok((2051, 11)),
+        48 => Ok((4099, 12)),
+        49 => Ok((8195, 13)),
+        50 => Ok((16387, 14)),
+        51 => Ok((32771, 15)),
+        52 => Ok((65539, 16)),
+        _ => Err(format!("Invalid ml code: {}", code)),
     }
 }
 
@@ -194,7 +194,9 @@ fn maybe_update_fse_tables(
 ) -> Result<usize, String> {
     let modes = match section.modes {
         Some(m) => m,
-        None => return Err("compression modes are none but they must be set to something".to_owned()),
+        None => {
+            return Err("compression modes are none but they must be set to something".to_owned())
+        }
     };
 
     let mut bytes_read = 0;
