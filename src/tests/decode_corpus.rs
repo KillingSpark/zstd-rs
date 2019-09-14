@@ -108,7 +108,7 @@ fn test_decode_corpus_files() {
         total_counter, success_counter, fail_counter_size, fail_counter_diff
     );
     println!("Failed files: ");
-    for f in failed {
+    for f in &failed {
         println!("{}", f);
     }
     let speed_len = speeds.len();
@@ -124,4 +124,6 @@ fn test_decode_corpus_files() {
             println!("Average speed: {} MB/s", avg_speed_bps / 1000000);
         }
     }
+
+    assert!(failed.len() == 0);
 }
