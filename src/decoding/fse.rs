@@ -177,7 +177,9 @@ impl FSETable {
 
         let mut br = BitReader::new(source);
         self.accuracy_log = ACC_LOG_OFFSET + (br.get_bits(4)? as u8);
-        assert!(self.accuracy_log <= max_log, "Found FSE acc_log: {} bigger than allowed maximum in this case: {}", self.accuracy_log, max_log);
+        if self.accuracy_log > max_log {
+            return Err(format!("Found FSE acc_log: {} bigger than allowed maximum in this case: {}", self.accuracy_log, max_log));
+        }
 
         let probablility_sum = 1 << self.accuracy_log;
         let mut probability_counter = 0;

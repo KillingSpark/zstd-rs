@@ -213,6 +213,9 @@ fn maybe_update_fse_tables(
             if crate::VERBOSE {
                 println!("Use RLE ll table");
             }
+            if source.len() == 0 {
+                return Err("Need a byte to read for RLE ll table".to_owned());
+            }
             bytes_read += 1;
             scratch.ll_rle = Some(source[0]);
         }
@@ -250,6 +253,9 @@ fn maybe_update_fse_tables(
             if crate::VERBOSE {
                 println!("Use RLE of table");
             }
+            if of_source.len() == 0 {
+                return Err("Need a byte to read for RLE of table".to_owned());
+            }
             bytes_read += 1;
             scratch.of_rle = Some(of_source[0]);
         }
@@ -286,6 +292,9 @@ fn maybe_update_fse_tables(
         ModeType::RLE => {
             if crate::VERBOSE {
                 println!("Use RLE ml table");
+            }
+            if ml_source.len() == 0 {
+                return Err("Need a byte to read for RLE ml table".to_owned());
             }
             bytes_read += 1;
             scratch.ml_rle = Some(ml_source[0]);

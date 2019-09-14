@@ -91,6 +91,12 @@ impl LiteralsSection {
         let t = br.get_bits(2)? as u8;
         self.ls_type = Self::section_type(t)?;
         let size_format = br.get_bits(2)? as u8;
+
+        let byte_needed = self.header_bytes_needed(raw[0])?;
+        if raw.len() < byte_needed as usize {
+            return Err(format!("Not enough byte to parse the literals section header. Have: {}, Want: {}", raw.len(), byte_needed));
+        }
+
         match self.ls_type {
             LiteralsSectionType::RLE | LiteralsSectionType::Raw => {
                 self.compressed_size = None;

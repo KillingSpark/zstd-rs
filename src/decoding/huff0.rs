@@ -95,6 +95,9 @@ impl HuffmanTable {
     }
 
     fn read_weights(&mut self, source: &[u8]) -> Result<u32, String> {
+        if source.len() < 1 {
+            return Err("Source needs to have at least one byte".to_owned());
+        }
         let header = source[0];
         let mut bits_read = 8;
 
@@ -174,6 +177,10 @@ impl HuffmanTable {
                 let weights_raw = &source[1..];
                 let num_weights = header - 127;
                 self.weights.resize(num_weights as usize, 0);
+
+                if weights_raw.len() < (num_weights as usize/2) {
+                    return Err("Source needs to have at least one byte".to_owned());
+                }
 
                 for idx in 0..num_weights {
                     if idx % 2 == 0 {
