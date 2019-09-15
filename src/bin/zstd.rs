@@ -41,5 +41,5 @@ fn main() {
 
 fn do_something(data: &mut Vec<u8>) {
     //Do something. Like writing it to a file or to stdout...
-    let _ = data;
+    data.clear();
 }

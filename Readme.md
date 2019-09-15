@@ -1,5 +1,5 @@
 # What is this
-A decoder for the zstd compression format as defined in: [This document](https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#appendix-a---decoding-tables-for-predefined-codes).
+A decoder for the zstd compression format as defined in: [This document](https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md).
 
 It is NOT a compressor. I dont plan on implementing that part either, at least not in the near future. (If someone is motivated enough I will of course accept a pull-request!)
 
@@ -11,13 +11,30 @@ This is currently just a work in progress project that I might never finish. Use
 1. Decode all of them correctly into the output buffer
 1. Decode all the decode_corpus files (1000+) I created locally 
 
-## Cannot do
-2. decode frames partially so a user can use it as a stream rather than load the whole frame into memory at once
+## Cannot do:
+2. Be used as a std::io::Read
 
 ## Roadmap
-1. Find more bugs
 1. Make a nice API maybe io::Read based, maybe not, we'll see
-1. More tests (especially unit-tests for the bitreaders) to find even more bugs
+1. Make FrameDecoder reusable over mutliple frames
+1. More tests (especially unit-tests for the bitreaders)
+1. Find more bugs
+
+# How can you use it?
+### Easy
+The easiest is to just decode all blocks and then drain the buffer like this:
+```
+let mut f = File::open(path).unwrap();
+let mut frame_dec = frame_decoder::FrameDecoder::new(&mut f).unwrap();
+frame_dec.decode_blocks(&mut f, frame_decoder::BlockDecodingStrategy::All).unwrap();
+
+// result contains the whole decoded file
+let result = frame_dec.drain_buffer();
+```
+
+### Memory efficient
+If memory is a concern you can decode frames partially. For an example see the src/bin/zstd.rs file. Basically you can decode the frame until either a
+given block count has been decoded or the decodebuffer has reached a certain size. Then you can collect no longer needed bytes from the buffer and do something with them, discard them and resume decoding the frame in a loop until the frame has been decoded completely.
 
 # What you might notice
 I already have done a decoder for zstd in golang. [here](https://github.com/KillingSpark/sparkzstd). This was a first try and it turned out very inperformant. I could have tried to rewrite it to use less allocations while decoding etc etc but that seemed dull (and unecessary since klauspost has done a way better golang implementation can compress too [here](https://github.com/klauspost/compress/tree/master/zstd))
