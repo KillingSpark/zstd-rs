@@ -98,7 +98,8 @@ impl Decodebuffer {
             buf[0] = *x;
             sink.write_all(&buf[..])?;
         }
+        let len = self.buffer.len();
         self.buffer.clear();
-        Ok(self.buffer.len())
+        Ok(len)
     }
 }

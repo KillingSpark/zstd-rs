@@ -104,7 +104,24 @@ impl FrameDecoder {
         Ok(self.frame_finished)
     }
 
-    pub fn drain_buffer_completely(&mut self) -> Vec<u8> {
+
+    pub fn collect(&mut self) -> Option<Vec<u8>> {
+        self.decoder_scratch.buffer.drain_to_window_size()
+    }
+
+    pub fn collect_to_writer(&mut self, w: &mut std::io::Write) -> Result<usize, std::io::Error> {
+        self.decoder_scratch.buffer.drain_to_window_size_writer(w)
+    }
+    
+    pub fn drain_buffer(&mut self) -> Vec<u8> {
         self.decoder_scratch.buffer.drain()
+    }
+
+    pub fn drain_buffer_to_writer(&mut self, w: &mut std::io::Write) -> Result<usize, std::io::Error> {
+        self.decoder_scratch.buffer.drain_to_writer(w)
+    }
+
+    pub fn can_collect(&self) -> usize {
+        self.decoder_scratch.buffer.can_drain()
     }
 }
