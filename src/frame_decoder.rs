@@ -6,6 +6,14 @@ use std::io::Read;
 pub struct FrameDecoder {
     pub frame: frame::Frame,
     decoder_scratch: DecoderScratch,
+    frame_finished: bool,
+    block_counter: usize,
+}
+
+pub enum BlockDecodingStrategy {
+    All,
+    UptoBlocks(usize),
+    UptoBytes(usize),
 }
 
 impl FrameDecoder {
@@ -15,21 +23,39 @@ impl FrameDecoder {
         frame.check_valid()?;
         Ok(FrameDecoder {
             frame: frame,
+            frame_finished: false,
+            block_counter: 0,
             decoder_scratch: DecoderScratch::new(window_size as usize),
         })
     }
 
-    pub fn decode_blocks(&mut self, source: &mut Read) -> Result<(), String> {
+    pub fn is_finished(&self) -> bool {
+        self.frame_finished
+    }
+
+    pub fn blocks_decoded(&self) -> usize {
+        self.block_counter
+    }
+
+    pub fn decode_blocks(
+        &mut self,
+        source: &mut Read,
+        strat: BlockDecodingStrategy,
+    ) -> Result<bool, crate::errors::FrameDecoderError> {
         let mut block_dec = block::block_decoder::new();
 
-        let mut block_counter = 0;
+        let buffer_size_before = self.decoder_scratch.buffer.len();
+        let block_counter_before = self.block_counter;
         loop {
             if crate::VERBOSE {
                 println!("################");
-                println!("Next Block: {}", block_counter);
+                println!("Next Block: {}", self.block_counter);
                 println!("################");
             }
-            let block_header = block_dec.read_block_header(source)?;
+            let block_header = match block_dec.read_block_header(source){
+                Ok(h) => h,
+                Err(m) => return Err(crate::errors::FrameDecoderError::FailedToReadBlockHeader(m)),
+            };
             if crate::VERBOSE {
                 println!("");
                 println!(
@@ -40,23 +66,42 @@ impl FrameDecoder {
                 );
             }
 
-            block_dec.decode_block_content(&block_header, &mut self.decoder_scratch, source)?;
+            match block_dec.decode_block_content(&block_header, &mut self.decoder_scratch, source){
+                Ok(h) => h,
+                Err(m) => return Err(crate::errors::FrameDecoderError::FailedToReadBlockBody(m)),
+            };
+            
+            self.block_counter += 1;
 
             if crate::VERBOSE {
                 println!("Output: {}", self.decoder_scratch.buffer.len());
             }
 
             if block_header.last_block {
+                self.frame_finished = true;
                 //TODO flush buffer
                 if self.frame.header.descriptor.content_checksum_flag() {
-                //TODO checksum
+                    //TODO checksum
                 }
                 break;
             }
-            block_counter += 1;
+
+            match strat {
+                BlockDecodingStrategy::All => { /* keep going */ }
+                BlockDecodingStrategy::UptoBlocks(n) => {
+                    if self.block_counter - block_counter_before >= n {
+                        break;
+                    }
+                }
+                BlockDecodingStrategy::UptoBytes(n) => {
+                    if self.decoder_scratch.buffer.len() - buffer_size_before >= n {
+                        break;
+                    }
+                }
+            }
         }
 
-        Ok(())
+        Ok(self.frame_finished)
     }
 
     pub fn drain_buffer_completely(&mut self) -> Vec<u8> {

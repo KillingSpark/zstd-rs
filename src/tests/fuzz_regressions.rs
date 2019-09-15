@@ -9,7 +9,7 @@ fn test_all_artifacts() {
         let mut f = File::open(file_name.clone()).unwrap();
         match frame_decoder::FrameDecoder::new(&mut f) {
             Ok(mut frame_dec) => {
-                let _ = frame_dec.decode_blocks(&mut f);
+                let _ = frame_dec.decode_blocks(&mut f, frame_decoder::BlockDecodingStrategy::All);
                 /* ignore errors. It just should never panic on invalid input */
             }
             Err(_) => {} /* ignore errors. It just should never panic on invalid input */
