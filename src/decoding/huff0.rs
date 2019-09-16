@@ -178,8 +178,14 @@ impl HuffmanTable {
                 let num_weights = header - 127;
                 self.weights.resize(num_weights as usize, 0);
 
-                if weights_raw.len() < (num_weights as usize/2) {
-                    return Err("Source needs to have at least one byte".to_owned());
+                let bytes_needed = if num_weights%2 == 0 {
+                    (num_weights as usize/2)
+                }else{
+                    (num_weights as usize/2) + 1
+                };
+
+                if weights_raw.len() < bytes_needed {
+                    return Err(format!("Source needs to have at least {} bytes", bytes_needed));
                 }
 
                 for idx in 0..num_weights {
