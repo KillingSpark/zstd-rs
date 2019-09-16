@@ -24,6 +24,12 @@ This is currently just a work in progress project that I might never finish. Use
 Fuzzing has been done with cargo fuzz. Each time it crashes the decoder I fixed the issue and added the offending input as a test. It's checked into the repo in the fuzz/artifacts/fuzz_target_1 directory. Those get tested in the fuzz_regressions.rs test.
 At the time of writing the fuzzer was able to run for over an hour without finding new crashes. Obviously this doesn't mean there are no bugs but the common ones are probably fixed.
 
+### You wanna help fuzz?
+Use ```cargo +nightly fuzz run fuzz_target_1``` to start the fuzzer.
+
+If (when) the fuzzer finds a crash it will be saved to the artifacts dir by the fuzzer. Run ``` cargo test artifacts ``` to run the artifacts tests. 
+This will tell you where the decoder panics exactly. If you are able to fix the issue please feel free to do a pullrequest. If not please still submit the offending input and I will see how to fix it myself.
+
 # How can you use it?
 ### Easy
 The easiest is to just decode all blocks and then drain the buffer like this:
