@@ -104,6 +104,9 @@ impl HuffmanTable {
         match header {
             0...127 => {
                 let fse_stream = &source[1..];
+                if header as usize > fse_stream.len() {
+                    return Err(format!("Header says there should be {} bytes for the weights but there are only {} bytes in the stream", header, fse_stream.len()));
+                }
                 //fse decompress weights
                 let bytes_used_by_fse_header = self
                     .fse_table
