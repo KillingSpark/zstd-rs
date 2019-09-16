@@ -104,18 +104,22 @@ impl FrameDecoder {
         Ok(self.frame_finished)
     }
 
+    //collect is for collecting bytes and retain window_size bytes while decoding is still going on
     pub fn collect(&mut self) -> Option<Vec<u8>> {
         self.decoder_scratch.buffer.drain_to_window_size()
     }
 
+    //collect is for collecting bytes and retain window_size bytes while decoding is still going on
     pub fn collect_to_writer(&mut self, w: &mut std::io::Write) -> Result<usize, std::io::Error> {
         self.decoder_scratch.buffer.drain_to_window_size_writer(w)
     }
 
+    //drain is for collecting all bytes after decoding has been finished
     pub fn drain_buffer(&mut self) -> Vec<u8> {
         self.decoder_scratch.buffer.drain()
     }
 
+    //drain is for collecting all bytes after decoding has been finished
     pub fn drain_buffer_to_writer(
         &mut self,
         w: &mut std::io::Write,
@@ -135,6 +139,8 @@ impl FrameDecoder {
     }
 }
 
+// Read bytes from the decode_buffer that are no longer needed. While the frame is not ye finished 
+// this will retain window_size bytes, else it will drain it completely
 impl std::io::Read for FrameDecoder {
     fn read(&mut self, target: &mut [u8]) -> std::result::Result<usize, std::io::Error> {
         if self.frame_finished {
