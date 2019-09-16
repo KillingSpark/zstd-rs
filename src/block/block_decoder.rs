@@ -6,8 +6,8 @@ use super::literals_section_decoder::decode_literals;
 use super::sequence_section::SequencesHeader;
 use super::sequence_section_decoder::decode_sequences;
 use crate::decoding::scratch::DecoderScratch;
-use std::io::Read;
 use crate::decoding::sequence_execution::execute_sequences;
+use std::io::Read;
 
 pub struct BlockDecoder {
     header_buffer: [u8; 3],
@@ -45,38 +45,57 @@ impl BlockDecoder {
 
         match header.block_type {
             BlockType::RLE => {
-                //TODO batch that into a sensible amount of bytes at once. Maybe a buffer of size 512b?
-                let mut buf = [0u8; 1];
+                const BATCH_SIZE: usize = 512;
+                let mut buf = [0u8; BATCH_SIZE];
+                let full_reads = header.decompressed_size / BATCH_SIZE as u32;
+                let single_read_size = header.decompressed_size % BATCH_SIZE as u32;
+
                 match source.read_exact(&mut buf[0..1]) {
                     Ok(_) => {
-                        for _ in 0..header.decompressed_size {
-                            workspace.buffer.push(&buf[0..1]);
-                        }
-
                         self.internal_state = DecoderState::ReadyToDecodeNextHeader;
-                        Ok(())
                     }
-                    Err(_) => Err(format!("Error while reading the one RLE byte")),
+                    Err(_) => return Err(format!("Error while reading the one RLE byte")),
                 }
+
+                for i in 1..BATCH_SIZE {
+                    buf[i] = buf[0];
+                }
+
+                for _ in 0..full_reads {
+                    workspace.buffer.push(&buf[..]);
+                }
+                let smaller = &mut buf[..single_read_size as usize];
+                workspace.buffer.push(smaller);
+
+                Ok(())
             }
             BlockType::Raw => {
-                //TODO batch that into a sensible amount of bytes at once. Maybe a buffer of size 512b?
-                let mut buf = [0u8; 1];
-                for written in 0..header.decompressed_size {
-                    match source.read_exact(&mut buf[0..1]) {
+                const BATCH_SIZE: usize = 128*1024;
+                let mut buf = [0u8; BATCH_SIZE];
+                let full_reads = header.decompressed_size / BATCH_SIZE as u32;
+                let single_read_size = header.decompressed_size % BATCH_SIZE as u32;
+
+                for _ in 0..full_reads {
+                    match source.read_exact(&mut buf[..]) {
                         Ok(_) => {
-                            //TODO batch that into a sensible amount of bytes at once. Maybe a buffer of size 512b?
-                            workspace.buffer.push(&buf[0..1]);
-                        
+                            workspace.buffer.push(&buf[..]);
                         }
                         Err(_) => {
-                            return Err(format!(
-                                "Error while reading byte: {} out of {}",
-                                written, header.decompressed_size
-                            ))
+                            return Err(format!("Error while reading bytes of the raw block"))
                         }
                     }
                 }
+                
+                let smaller = &mut buf[..single_read_size as usize];
+                match source.read_exact(smaller) {
+                    Ok(_) => {
+                        workspace.buffer.push(smaller);
+                    }
+                    Err(_) => {
+                       return Err(format!("Error while reading bytes of the raw block"))
+                    }
+                }
+
 
                 self.internal_state = DecoderState::ReadyToDecodeNextHeader;
                 Ok(())
@@ -135,7 +154,7 @@ impl BlockDecoder {
         if raw.len() < upper_limit_for_literals {
             return Err(format!("Malformed section header. Says literals would be this long: {} but there are only {} bytes left", upper_limit_for_literals, raw.len()));
         }
-        
+
         let raw_literals = &raw[..upper_limit_for_literals];
         if crate::VERBOSE {
             println!("Slice for literals: {}", raw_literals.len());
@@ -191,11 +210,10 @@ impl BlockDecoder {
                 &mut workspace.sequences,
             )?;
             execute_sequences(workspace)?;
-        }else{
+        } else {
             workspace.buffer.push(&workspace.literals_buffer);
             workspace.sequences.clear();
         }
-
 
         Ok(())
     }
