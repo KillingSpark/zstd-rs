@@ -20,6 +20,10 @@ This is currently just a work in progress project that I might never finish. Use
 1. More tests (especially unit-tests for the bitreaders)
 1. Find more bugs
 
+## Fuzzing
+Fuzzing has been done with cargo fuzz. Each time it crashes the decoder I fixed the issue and added the offending input as a test. It's checked into the repo in the fuzz/artifacts/fuzz_target_1 directory. Those get tested in the fuzz_regressions.rs test.
+At the time of writing the fuzzer was able to run for over an hour without finding new crashes. Obviously this doesn't mean there are no bugs but the common ones are probably fixed.
+
 # How can you use it?
 ### Easy
 The easiest is to just decode all blocks and then drain the buffer like this:
