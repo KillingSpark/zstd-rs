@@ -5,6 +5,8 @@ It is NOT a compressor. I dont plan on implementing that part either, at least n
 
 This is currently just a work in progress project that I might never finish. Use/fork at own risk ;) It does work correctly at least for the test-set of files I used, YMMV.
 
+For production use (or if you need a compressor) I would recommend to use the C binding located [here](https://github.com/gyscos/zstd-rs).
+
 # Current Status
 ## Can do:
 1. Parse all files in /decodecorpus_files. These were generated with [decodecorpus](https://github.com/facebook/zstd/tree/dev/tests) by the original zstd developers
