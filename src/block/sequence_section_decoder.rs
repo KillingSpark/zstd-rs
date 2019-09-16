@@ -89,7 +89,7 @@ pub fn decode_sequences(
         //println!("ml Code: {}", ml_value);
         //println!("");
 
-        if of_code > 32 {
+        if of_code >= 32 {
             return Err("Do not support offsets bigger than 1<<32".to_owned());
         }
 
