@@ -17,6 +17,7 @@ This is currently just a work in progress project that I might never finish. Use
 ## Roadmap
 1. Make a nice API maybe io::Read based, maybe not, we'll see
 1. Make FrameDecoder reusable over mutliple frames
+1. Performance optimizations. E.g. currently there is a lot of copying byte-by-byte where it could be batched to bigger amounts.
 1. More tests (especially unit-tests for the bitreaders)
 1. Find more bugs
 
