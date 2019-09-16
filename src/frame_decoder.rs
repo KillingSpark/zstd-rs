@@ -122,6 +122,15 @@ impl FrameDecoder {
     }
 
     pub fn can_collect(&self) -> usize {
-        self.decoder_scratch.buffer.can_drain()
+        match self.decoder_scratch.buffer.can_drain_to_window_size() {
+            Some(x) =>x,
+            None => 0,
+        }
+    }
+}
+
+impl std::io::Read for FrameDecoder {
+    fn read(&mut self, target: &mut [u8]) -> std::result::Result<usize, std::io::Error> {
+        self.decoder_scratch.buffer.read(target)
     }
 }

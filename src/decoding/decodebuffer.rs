@@ -4,6 +4,33 @@ pub struct Decodebuffer {
     window_size: usize,
 }
 
+impl std::io::Read for Decodebuffer {
+    fn read(&mut self, target: &mut [u8]) -> std::result::Result<usize, std::io::Error> {
+        let max_amount = match self.can_drain_to_window_size() {
+            Some(x) => x,
+            None => 0,
+        };
+
+        let amount = if max_amount > target.len() {
+            target.len()
+        } else {
+            max_amount
+        };
+
+        if amount == 0 {
+            return Ok(0);
+        }
+
+        let mut counter = 0;
+        for x in self.buffer.drain(0..amount) {
+            target[counter] = x;
+            counter += 1;
+        };
+
+        Ok(counter)
+    }
+}
+
 impl Decodebuffer {
     pub fn new(window_size: usize) -> Decodebuffer {
         Decodebuffer {
