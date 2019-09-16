@@ -75,7 +75,11 @@ fn decompress_literals(
         let source = &source[6..];
 
         if source.len() < jump3 as usize {
-            return Err(format!("Need at least {} byte to decode literals. Have: {}", jump3, source.len()));
+            return Err(format!(
+                "Need at least {} byte to decode literals. Have: {}",
+                jump3,
+                source.len()
+            ));
         }
 
         //decode 4 streams
@@ -109,7 +113,13 @@ fn decompress_literals(
                 target.push(decoder.decode_symbol());
                 decoder.next_state(&mut br)?;
             }
-            assert_eq!(br.bits_remaining(), -(scratch.table.max_num_bits as isize));
+            if br.bits_remaining() != -(scratch.table.max_num_bits as isize) {
+                return Err(format!(
+                    "Bitstream was read till: {}, should have been: {}",
+                    br.bits_remaining(),
+                    -(scratch.table.max_num_bits as isize)
+                ));
+            }
         }
 
         bytes_read += source.len() as u32;
