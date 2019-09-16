@@ -49,7 +49,7 @@ impl<'t> FSEDecoder<'t> {
             return Err("Tried to use an unitizialized table!".to_owned());
         }
         self.state = bits.get_bits(self.table.accuracy_log as usize)? as usize;
-        
+
         Ok(())
     }
 
@@ -57,7 +57,7 @@ impl<'t> FSEDecoder<'t> {
         let num_bits = self.table.decode[self.state].num_bits as usize;
         let add = bits.get_bits(num_bits)?;
         let base_line = self.table.decode[self.state].base_line;
-        let new_state =  base_line + add as usize;
+        let new_state = base_line + add as usize;
         assert!(new_state < self.table.decode.len());
         self.state = new_state;
 
@@ -86,7 +86,11 @@ impl FSETable {
         Ok(bytes_read)
     }
 
-    pub fn build_from_probabilities(&mut self, acc_log: u8, probs: &Vec<i32>) -> Result<(), String> {
+    pub fn build_from_probabilities(
+        &mut self,
+        acc_log: u8,
+        probs: &Vec<i32>,
+    ) -> Result<(), String> {
         if acc_log == 0 {
             return Err("Acclog must be at least 1".to_owned());
         }
@@ -177,7 +181,10 @@ impl FSETable {
         let mut br = BitReader::new(source);
         self.accuracy_log = ACC_LOG_OFFSET + (br.get_bits(4)? as u8);
         if self.accuracy_log > max_log {
-            return Err(format!("Found FSE acc_log: {} bigger than allowed maximum in this case: {}", self.accuracy_log, max_log));
+            return Err(format!(
+                "Found FSE acc_log: {} bigger than allowed maximum in this case: {}",
+                self.accuracy_log, max_log
+            ));
         }
         if self.accuracy_log == 0 {
             return Err("Acclog must be at least 1".to_owned());
@@ -191,7 +198,6 @@ impl FSETable {
             let bits_to_read = highest_bit_set(max_remaining_value);
 
             let unchecked_value = br.get_bits(bits_to_read as usize)? as u32;
-            
 
             let low_threshold = ((1 << bits_to_read) - 1) - (max_remaining_value as u32);
             let mask = (1 << (bits_to_read - 1)) - 1;
@@ -209,9 +215,8 @@ impl FSETable {
             };
             //println!("{}, {}, {}", self.symbol_probablilities.len(), unchecked_value, value);
 
-
             let prob = (value as i32) - 1;
-           
+
             self.symbol_probablilities.push(prob);
             if prob != 0 {
                 if prob > 0 {
@@ -225,7 +230,7 @@ impl FSETable {
                 //fast skip further zero probabilities
                 loop {
                     let skip_amount = br.get_bits(2)?;
-                    
+
                     for _ in 0..skip_amount {
                         self.symbol_probablilities.push(0);
                     }
@@ -236,12 +241,15 @@ impl FSETable {
             }
         }
 
-        assert!(probability_counter == probablility_sum, format!("The counter: {} exceeded the expected sum: {}. This means an error or corrupted data \n {:?}", probability_counter, probablility_sum, self.symbol_probablilities));
-        assert!(
-            self.symbol_probablilities.len() <= 256,
-            "There are too many symbols in this distribution: {}. Max: 256",
-            self.symbol_probablilities.len()
-        );
+        if probability_counter != probablility_sum {
+            return Err(format!("The counter: {} exceeded the expected sum: {}. This means an error or corrupted data \n {:?}", probability_counter, probablility_sum, self.symbol_probablilities));
+        }
+        if self.symbol_probablilities.len() > 256 {
+            return Err(format!(
+                "There are too many symbols in this distribution: {}. Max: 256",
+                self.symbol_probablilities.len()
+            ));
+        }
 
         let bytes_read = if br.bits_read() % 8 == 0 {
             br.bits_read() / 8
