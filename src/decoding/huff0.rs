@@ -109,6 +109,10 @@ impl HuffmanTable {
                     .fse_table
                     .build_decoder(fse_stream, /*TODO find actual max*/ 100)?;
 
+                if bytes_used_by_fse_header > header as usize {
+                    return Err(format!("FSE table used more bytes: {} than were meant to be used for the whole stream of huffman weights", bytes_used_by_fse_header));
+                }
+
                 if crate::VERBOSE {
                     println!(
                         "Building fse table for huffman weights used: {}",
@@ -178,14 +182,17 @@ impl HuffmanTable {
                 let num_weights = header - 127;
                 self.weights.resize(num_weights as usize, 0);
 
-                let bytes_needed = if num_weights%2 == 0 {
-                    (num_weights as usize/2)
-                }else{
-                    (num_weights as usize/2) + 1
+                let bytes_needed = if num_weights % 2 == 0 {
+                    (num_weights as usize / 2)
+                } else {
+                    (num_weights as usize / 2) + 1
                 };
 
                 if weights_raw.len() < bytes_needed {
-                    return Err(format!("Source needs to have at least {} bytes", bytes_needed));
+                    return Err(format!(
+                        "Source needs to have at least {} bytes",
+                        bytes_needed
+                    ));
                 }
 
                 for idx in 0..num_weights {
@@ -225,7 +232,10 @@ impl HuffmanTable {
 
         //left_over must be power of two
         if left_over & (left_over - 1) != 0 {
-            return Err(format!("Leftover must be power of two but is: {}", left_over));
+            return Err(format!(
+                "Leftover must be power of two but is: {}",
+                left_over
+            ));
         }
 
         let last_weight = highest_bit_set(left_over) as u8;
