@@ -7,7 +7,7 @@ fuzz_target!(|data: &[u8]| {
     let mut content = data.clone();
     match frame_decoder::FrameDecoder::new(&mut content){
         Ok(mut frame_dec) => {
-            let _ = frame_dec.decode_blocks(&mut content);
+            let _ = frame_dec.decode_blocks(&mut content,frame_decoder::BlockDecodingStrategy::All);
         }
         Err(_) => {/* nothing */}
     }

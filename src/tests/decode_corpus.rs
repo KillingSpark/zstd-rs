@@ -44,7 +44,7 @@ fn test_decode_corpus_files() {
         let start_time = std::time::Instant::now();
         /////DECODING
         frame_dec.decode_blocks(&mut content, frame_decoder::BlockDecodingStrategy::All).unwrap();
-        let result = frame_dec.drain_buffer_completely();
+        let result = frame_dec.drain_buffer();
         let end_time = start_time.elapsed();
 
         let mut original_p = p.clone();
