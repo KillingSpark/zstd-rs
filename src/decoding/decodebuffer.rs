@@ -25,7 +25,7 @@ impl std::io::Read for Decodebuffer {
         for x in self.buffer.drain(0..amount) {
             target[counter] = x;
             counter += 1;
-        };
+        }
 
         Ok(counter)
     }
@@ -128,5 +128,25 @@ impl Decodebuffer {
         let len = self.buffer.len();
         self.buffer.clear();
         Ok(len)
+    }
+
+    pub fn read_all(&mut self, target: &mut [u8]) -> usize {
+        let amount = if self.buffer.len() > target.len() {
+            target.len()
+        } else {
+            self.buffer.len()
+        };
+
+        if amount == 0 {
+            return 0;
+        }
+
+        let mut counter = 0;
+        for x in self.buffer.drain(0..amount) {
+            target[counter] = x;
+            counter += 1;
+        }
+
+        counter
     }
 }

@@ -52,7 +52,7 @@ impl FrameDecoder {
                 println!("Next Block: {}", self.block_counter);
                 println!("################");
             }
-            let block_header = match block_dec.read_block_header(source){
+            let block_header = match block_dec.read_block_header(source) {
                 Ok(h) => h,
                 Err(m) => return Err(crate::errors::FrameDecoderError::FailedToReadBlockHeader(m)),
             };
@@ -66,11 +66,11 @@ impl FrameDecoder {
                 );
             }
 
-            match block_dec.decode_block_content(&block_header, &mut self.decoder_scratch, source){
+            match block_dec.decode_block_content(&block_header, &mut self.decoder_scratch, source) {
                 Ok(h) => h,
                 Err(m) => return Err(crate::errors::FrameDecoderError::FailedToReadBlockBody(m)),
             };
-            
+
             self.block_counter += 1;
 
             if crate::VERBOSE {
@@ -104,7 +104,6 @@ impl FrameDecoder {
         Ok(self.frame_finished)
     }
 
-
     pub fn collect(&mut self) -> Option<Vec<u8>> {
         self.decoder_scratch.buffer.drain_to_window_size()
     }
@@ -112,25 +111,36 @@ impl FrameDecoder {
     pub fn collect_to_writer(&mut self, w: &mut std::io::Write) -> Result<usize, std::io::Error> {
         self.decoder_scratch.buffer.drain_to_window_size_writer(w)
     }
-    
+
     pub fn drain_buffer(&mut self) -> Vec<u8> {
         self.decoder_scratch.buffer.drain()
     }
 
-    pub fn drain_buffer_to_writer(&mut self, w: &mut std::io::Write) -> Result<usize, std::io::Error> {
+    pub fn drain_buffer_to_writer(
+        &mut self,
+        w: &mut std::io::Write,
+    ) -> Result<usize, std::io::Error> {
         self.decoder_scratch.buffer.drain_to_writer(w)
     }
 
     pub fn can_collect(&self) -> usize {
         match self.decoder_scratch.buffer.can_drain_to_window_size() {
-            Some(x) =>x,
+            Some(x) => x,
             None => 0,
         }
+    }
+
+    pub fn can_drain(&self) -> usize {
+        self.decoder_scratch.buffer.can_drain()
     }
 }
 
 impl std::io::Read for FrameDecoder {
     fn read(&mut self, target: &mut [u8]) -> std::result::Result<usize, std::io::Error> {
-        self.decoder_scratch.buffer.read(target)
+        if self.frame_finished {
+            Ok(self.decoder_scratch.buffer.read_all(target))
+        } else {
+            self.decoder_scratch.buffer.read(target)
+        }
     }
 }

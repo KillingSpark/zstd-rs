@@ -44,12 +44,19 @@ fn main() {
                 let percentage = (tracker.bytes_used * 100)
                     / frame_dec.frame.header.frame_content_size().unwrap();
                 if percentage as i8 != tracker.old_percentage {
-                    println!("{}", percentage);
+                    //println!("{}", percentage);
                     tracker.old_percentage = percentage as i8;
                 }
             }
         }
-        let x = frame_dec.drain_buffer_to_writer(&mut result).unwrap();
+        while frame_dec.can_drain() > 0 {
+            let x = frame_dec.read(result.as_mut_slice()).unwrap();
+
+            result.resize(x, 0);
+            do_something(&mut result, &mut tracker);
+            result.resize(result.capacity(), 0);
+        }
+
         // handle the last chunk of data
         do_something(&mut result, &mut tracker);
         println!("Decoded bytes: {}", tracker.bytes_used);
