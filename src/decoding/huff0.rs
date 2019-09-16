@@ -224,7 +224,10 @@ impl HuffmanTable {
         let left_over = ((1 as u32) << max_bits) - weight_sum;
 
         //left_over must be power of two
-        assert!(left_over & (left_over - 1) == 0);
+        if left_over & (left_over - 1) != 0 {
+            return Err(format!("Leftover must be power of two but is: {}", left_over));
+        }
+
         let last_weight = highest_bit_set(left_over) as u8;
 
         for symbol in 0..self.weights.len() {
