@@ -68,9 +68,9 @@ fn decompress_literals(
         if source.len() < 6 {
             return Err("Need 6 byte to decode jump header".to_owned());
         }
-        let jump1 = source[0] as u16 + ((source[1] as u16) << 8);
-        let jump2 = jump1 + source[2] as u16 + ((source[3] as u16) << 8);
-        let jump3 = jump2 + source[4] as u16 + ((source[5] as u16) << 8);
+        let jump1 = source[0] as usize + ((source[1] as usize) << 8);
+        let jump2 = jump1 + source[2] as usize + ((source[3] as usize) << 8);
+        let jump3 = jump2 + source[4] as usize + ((source[5] as usize) << 8);
         bytes_read += 6;
         let source = &source[6..];
 
