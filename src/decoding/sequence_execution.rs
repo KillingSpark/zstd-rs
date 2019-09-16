@@ -29,8 +29,10 @@ pub fn execute_sequences(scratch: &mut DecoderScratch) -> Result<(), String> {
             scratch.buffer.push(literals);
         }
 
-        assert!(seq.of > 0);
         let actual_offset = do_offset_history(seq.of, seq.ll, &mut scratch.offset_hist);
+        if actual_offset == 0 {
+            return Err("Illegal offset: 0 found".to_owned());
+        }
         if seq.ml > 0 {
             scratch
                 .buffer
