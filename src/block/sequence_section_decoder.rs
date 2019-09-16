@@ -89,7 +89,11 @@ pub fn decode_sequences(
         //println!("ml Code: {}", ml_value);
         //println!("");
 
-        let offset = (br.get_bits(of_code as usize)? + (1 << of_code)) as u32;
+        if of_code > 32 {
+            return Err("Do not support offsets bigger than 1<<32".to_owned());
+        }
+
+        let offset = (br.get_bits(of_code as usize)? as u32) + (1u32 << of_code);
         let ml_add = br.get_bits(ml_num_bits as usize)?;
         let ll_add = br.get_bits(ll_num_bits as usize)?;
 
