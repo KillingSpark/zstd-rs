@@ -1,6 +1,6 @@
 use super::decodebuffer::Decodebuffer;
 use crate::fse::FSETable;
-use super::huff0::HuffmanTable;
+use crate::huff0::HuffmanTable;
 use super::super::block::sequence_section::Sequence;
 
 pub struct DecoderScratch {
