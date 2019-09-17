@@ -50,6 +50,59 @@ fn test_frame_decoder() {
 }
 
 #[test]
+fn test_decode_from_to() {
+    use crate::frame_decoder;
+    use std::fs::File;
+    use std::io::Read;
+    let f = File::open("./decodecorpus_files/z000088.zst").unwrap();
+    let mut frame_dec = frame_decoder::FrameDecoder::new();
+
+    
+    let content: Vec<u8> = f.bytes().map(|x| x.unwrap()).collect();
+
+    let mut target = Vec::with_capacity(1024*1024);
+    target.resize(1024*1024, 0u8);
+    
+    let source = &content[..];
+    let (read,written) = frame_dec.decode_from_to(source, target.as_mut_slice()).unwrap();
+    let result = &target.as_slice()[..written];
+
+    if read != source.len() {
+        panic!("Byte counter was wrong");
+    }
+
+    let original_f = File::open("./decodecorpus_files/z000088").unwrap();
+    let original: Vec<u8> = original_f.bytes().map(|x| x.unwrap()).collect();
+
+    if original.len() != result.len() {
+        panic!(
+            "Result has wrong length: {}, should be: {}",
+            result.len(),
+            original.len()
+        );
+    }
+
+    let mut counter = 0;
+    let min = if original.len() < result.len() {
+        original.len()
+    } else {
+        result.len()
+    };
+    for idx in 0..min {
+        if original[idx] != result[idx] {
+            counter += 1;
+            //println!(
+            //    "Original {:3} not equal to result {:3} at byte: {}",
+            //    original[idx], result[idx], idx,
+            //);
+        }
+    }
+    if counter > 0 {
+        panic!("Result differs in at least {} bytes from original", counter);
+    }
+}
+
+#[test]
 fn test_specific_file() {
     use crate::frame_decoder;
     use std::fs;

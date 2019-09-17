@@ -76,7 +76,7 @@ impl FrameDecoder {
 
     pub fn content_size(&self) -> Option<u64> {
         let state = match &self.state {
-            None => return None,
+            None => return Some(0),
             Some(s) => s,
         };
 
