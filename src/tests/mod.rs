@@ -5,7 +5,7 @@ fn test_frame_header_reading() {
     use std::fs;
 
     let mut content = fs::File::open("./test_img.zst").unwrap();
-    let frame = frame::read_frame_header(&mut content).unwrap();
+    let (frame,_) = frame::read_frame_header(&mut content).unwrap();
     frame.check_valid().unwrap();
 }
 
@@ -16,7 +16,7 @@ fn test_block_header_reading() {
     use std::fs;
 
     let mut content = fs::File::open("/home/moritz/rust/zstd-rs/test_img.zst").unwrap();
-    let frame = frame::read_frame_header(&mut content).unwrap();
+    let (frame,_) = frame::read_frame_header(&mut content).unwrap();
     frame.check_valid().unwrap();
 
     let mut block_dec = decoding::block_decoder::new();

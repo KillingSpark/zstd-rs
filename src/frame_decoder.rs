@@ -8,6 +8,7 @@ pub struct FrameDecoder {
     decoder_scratch: DecoderScratch,
     frame_finished: bool,
     block_counter: usize,
+    byte_counter: u64,
 }
 
 pub enum BlockDecodingStrategy {
@@ -18,7 +19,7 @@ pub enum BlockDecodingStrategy {
 
 impl FrameDecoder {
     pub fn new(source: &mut Read) -> Result<FrameDecoder, String> {
-        let frame = frame::read_frame_header(source)?;
+        let (frame, header_size) = frame::read_frame_header(source)?;
         let window_size = frame.header.window_size()?;
         frame.check_valid()?;
         Ok(FrameDecoder {
@@ -26,7 +27,12 @@ impl FrameDecoder {
             frame_finished: false,
             block_counter: 0,
             decoder_scratch: DecoderScratch::new(window_size as usize),
+            byte_counter: header_size as u64,
         })
+    }
+
+    pub fn bytes_read_from_source(&self) -> u64 {
+        self.byte_counter
     }
 
     pub fn is_finished(&self) -> bool {
@@ -52,10 +58,12 @@ impl FrameDecoder {
                 println!("Next Block: {}", self.block_counter);
                 println!("################");
             }
-            let block_header = match block_dec.read_block_header(source) {
+            let (block_header, block_header_size) = match block_dec.read_block_header(source) {
                 Ok(h) => h,
                 Err(m) => return Err(crate::errors::FrameDecoderError::FailedToReadBlockHeader(m)),
             };
+            self.byte_counter += block_header_size as u64;
+
             if crate::VERBOSE {
                 println!("");
                 println!(
@@ -66,10 +74,11 @@ impl FrameDecoder {
                 );
             }
 
-            match block_dec.decode_block_content(&block_header, &mut self.decoder_scratch, source) {
+            let bytes_read_in_block_body = match block_dec.decode_block_content(&block_header, &mut self.decoder_scratch, source) {
                 Ok(h) => h,
                 Err(m) => return Err(crate::errors::FrameDecoderError::FailedToReadBlockBody(m)),
             };
+            self.byte_counter += bytes_read_in_block_body;
 
             self.block_counter += 1;
 
@@ -79,9 +88,15 @@ impl FrameDecoder {
 
             if block_header.last_block {
                 self.frame_finished = true;
-                //TODO flush buffer
                 if self.frame.header.descriptor.content_checksum_flag() {
-                    //TODO checksum
+                    let mut chksum = [0u8;4];
+                    match source.read_exact(&mut chksum[..]) {
+                        Err(_) => return Err(crate::errors::FrameDecoderError::FailedToReadChecksum),
+                        Ok(()) => {
+                            self.byte_counter += 4;
+                            //TODO checksum
+                        }
+                    };
                 }
                 break;
             }

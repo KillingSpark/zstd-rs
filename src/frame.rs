@@ -242,7 +242,7 @@ impl Frame {
 }
 
 use std::io::Read;
-pub fn read_frame_header(r: &mut Read) -> Result<Frame, String> {
+pub fn read_frame_header(r: &mut Read) -> Result<(Frame, u8), String> {
     let mut buf = [0u8; 4];
     let magic_num: u32 = match r.read_exact(&mut buf[0..4]) {
         Ok(_) => {
@@ -254,10 +254,14 @@ pub fn read_frame_header(r: &mut Read) -> Result<Frame, String> {
         Err(_) => return Err("Error while reading magic number".to_owned()),
     };
 
+    let mut bytes_read = 4;
+
     let desc: FrameDescriptor = match r.read_exact(&mut buf[0..1]) {
         Ok(_) => FrameDescriptor(buf[0]),
         Err(_) => return Err("Error while reading frame descriptor".to_owned()),
     };
+
+    bytes_read += 1;
 
     let mut frame_header = FrameHeader {
         descriptor: FrameDescriptor(desc.0),
@@ -289,6 +293,7 @@ pub fn read_frame_header(r: &mut Read) -> Result<Frame, String> {
             Ok(_) => frame_header.window_descriptor = buf[0],
             Err(_) => return Err("Error while reading window descriptor".to_owned()),
         }
+        bytes_read += 1;
     }
 
     if frame_header.dict_id.len() > 0 {
@@ -296,6 +301,7 @@ pub fn read_frame_header(r: &mut Read) -> Result<Frame, String> {
             Ok(_) => {}
             Err(_) => return Err("Error while reading dcitionary id".to_owned()),
         }
+        bytes_read += frame_header.dict_id.len();
     }
 
     if frame_header.frame_content_size.len() > 0 {
@@ -303,6 +309,7 @@ pub fn read_frame_header(r: &mut Read) -> Result<Frame, String> {
             Ok(_) => {}
             Err(_) => return Err("Error while reading frame content size".to_owned()),
         }
+        bytes_read += frame_header.frame_content_size.len();
     }
 
     let frame: Frame = Frame {
@@ -310,5 +317,5 @@ pub fn read_frame_header(r: &mut Read) -> Result<Frame, String> {
         header: frame_header,
     };
 
-    Ok(frame)
+    Ok((frame, bytes_read as u8))
 }

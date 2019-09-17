@@ -36,7 +36,7 @@ impl BlockDecoder {
         header: &BlockHeader,
         workspace: &mut DecoderScratch, //reuse this as often as possible. Not only if the trees are reused but also reuse the allocations when building new trees
         source: &mut Read,
-    ) -> Result<(), String> {
+    ) -> Result<u64, String> {
         match self.internal_state {
             DecoderState::ReadyToDecodeNextBody => {/* Happy :) */},
             DecoderState::Failed => return Err(format!("Cant decode next block if failed along the way. Results will be nonsense")),
@@ -67,7 +67,7 @@ impl BlockDecoder {
                 let smaller = &mut buf[..single_read_size as usize];
                 workspace.buffer.push(smaller);
 
-                Ok(())
+                Ok(1)
             }
             BlockType::Raw => {
                 const BATCH_SIZE: usize = 128*1024;
@@ -98,7 +98,7 @@ impl BlockDecoder {
 
 
                 self.internal_state = DecoderState::ReadyToDecodeNextHeader;
-                Ok(())
+                Ok(header.decompressed_size as u64)
             }
 
             BlockType::Reserved => {
@@ -110,7 +110,7 @@ impl BlockDecoder {
                 //unimplemented!("Decompression is not yet implemented...");
 
                 self.internal_state = DecoderState::ReadyToDecodeNextHeader;
-                Ok(())
+                Ok(header.content_size as u64)
             }
         }
     }
@@ -218,7 +218,7 @@ impl BlockDecoder {
         Ok(())
     }
 
-    pub fn read_block_header(&mut self, r: &mut Read) -> Result<BlockHeader, String> {
+    pub fn read_block_header(&mut self, r: &mut Read) -> Result<(BlockHeader, u8), String> {
         //match self.internal_state {
         //    DecoderState::ReadyToDecodeNextHeader => {/* Happy :) */},
         //    DecoderState::Failed => return Err(format!("Cant decode next block if failed along the way. Results will be nonsense")),
@@ -261,12 +261,13 @@ impl BlockDecoder {
         self.reset_buffer();
         self.internal_state = DecoderState::ReadyToDecodeNextBody;
 
-        Ok(BlockHeader {
+        //just return 3. Blockheaders always take 3 bytes
+        Ok((BlockHeader {
             last_block: last_block,
             block_type: btype,
             decompressed_size: decompressed_size,
             content_size: content_size,
-        })
+        }, 3))
     }
 
     fn reset_buffer(&mut self) {

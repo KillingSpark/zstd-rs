@@ -7,6 +7,7 @@ fn test_decode_corpus_files() {
     let mut success_counter = 0;
     let mut fail_counter_diff = 0;
     let mut fail_counter_size = 0;
+    let mut fail_counter_bytes_read = 0;
     let mut total_counter = 0;
     let mut failed: Vec<String> = Vec::new();
 
@@ -17,8 +18,19 @@ fn test_decode_corpus_files() {
         files.extend(fs::read_dir("./local_corpus_files").unwrap());
     }
 
+    files.sort_by_key(|x| {
+        match x {
+            Err(_) => "".to_owned(),
+            Ok(entry) => {
+                entry.path().to_str().unwrap().to_owned()
+            }
+        }
+    });
+
     for file in files {
         let f = file.unwrap();
+        let metadata = f.metadata().unwrap();
+        let file_size = metadata.len();
 
         let p = String::from(f.path().to_str().unwrap());
         if !p.ends_with(".zst") {
@@ -55,7 +67,7 @@ fn test_decode_corpus_files() {
         println!("Results for file: {}", p.clone());
         let mut success = true;
 
-        if !(original.len() == result.len()) {
+        if original.len() != result.len() {
             println!(
                 "Result has wrong length: {}, should be: {}",
                 result.len(),
@@ -63,6 +75,16 @@ fn test_decode_corpus_files() {
             );
             success = false;
             fail_counter_size += 1;
+        }
+
+        if frame_dec.bytes_read_from_source() != file_size as u64 {
+            println!(
+                "Framedecoder counted wrong amount of bytes: {}, should be: {}",
+                frame_dec.bytes_read_from_source(),
+                file_size
+            );
+            success = false;
+            fail_counter_bytes_read += 1;
         }
 
         let mut counter = 0;
@@ -104,8 +126,8 @@ fn test_decode_corpus_files() {
     println!("Summary:");
     println!("###################");
     println!(
-        "Total: {}, Success: {}, WrongSize: {}, Diffs: {}",
-        total_counter, success_counter, fail_counter_size, fail_counter_diff
+        "Total: {}, Success: {}, WrongSize: {}, WrongBytecount: {}, Diffs: {}",
+        total_counter, success_counter, fail_counter_size, fail_counter_bytes_read, fail_counter_diff
     );
     println!("Failed files: ");
     for f in &failed {

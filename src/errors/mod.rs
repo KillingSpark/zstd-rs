@@ -2,6 +2,7 @@
 pub enum FrameDecoderError {
     FailedToReadBlockHeader(String),
     FailedToReadBlockBody(String),
+    FailedToReadChecksum,
 }
 
 impl std::fmt::Display for FrameDecoderError {
@@ -11,6 +12,7 @@ impl std::fmt::Display for FrameDecoderError {
                 write!(f, "Failed to parse/decode block body: {}", m)
             }
             FrameDecoderError::FailedToReadBlockHeader(m) => write!(f, "Failed to parse block header: {}", m),
+            FrameDecoderError::FailedToReadChecksum => write!(f, "Failed to read checksum"),
         }
     }
 }
