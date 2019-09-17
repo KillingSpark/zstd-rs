@@ -1,5 +1,5 @@
-use super::bit_reader::BitReader;
-use super::bit_reader_reverse::BitReaderReversed;
+use crate::decoding::bit_reader::BitReader;
+use crate::decoding::bit_reader_reverse::BitReaderReversed;
 
 pub struct FSETable {
     pub decode: Vec<Entry>, //used to decode symbols, and calculate the next state

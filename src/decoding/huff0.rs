@@ -1,6 +1,6 @@
 use super::bit_reader_reverse::BitReaderReversed;
-use super::fse::FSEDecoder;
-use super::fse::FSETable;
+use crate::fse::FSEDecoder;
+use crate::fse::FSETable;
 
 pub struct HuffmanTable {
     decode: Vec<Entry>,

@@ -1,5 +1,5 @@
 use super::bit_reader_reverse::BitReaderReversed;
-use super::fse::FSEDecoder;
+use crate::fse::FSEDecoder;
 use super::scratch::FSEScratch;
 use super::super::block::sequence_section::ModeType;
 use super::super::block::sequence_section::Sequence;
@@ -349,7 +349,7 @@ const OFFSET_DEFAULT_DISTRIBUTION: [i32; 29] = [
 
 #[test]
 fn test_ll_default() {
-    let mut table = crate::decoding::fse::FSETable::new();
+    let mut table = crate::fse::FSETable::new();
     table.build_from_probabilities(
         LL_DEFAULT_ACC_LOG,
         &Vec::from(&LITERALS_LENGTH_DEFAULT_DISTRIBUTION[..]),

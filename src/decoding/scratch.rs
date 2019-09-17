@@ -1,5 +1,5 @@
 use super::decodebuffer::Decodebuffer;
-use super::fse::FSETable;
+use crate::fse::FSETable;
 use super::huff0::HuffmanTable;
 use super::super::block::sequence_section::Sequence;
 
