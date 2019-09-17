@@ -60,6 +60,10 @@ impl FrameDecoder {
         FrameDecoder{state: None}
     }
 
+    pub fn init(&mut self, source: &mut Read) -> Result<(), String> {
+        self.reset(source)
+    }
+
     pub fn reset(&mut self, source: &mut Read) -> Result<(), String> {
         match &mut self.state {
             Some(s) => s.reset(source),
