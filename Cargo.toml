@@ -5,3 +5,4 @@ authors = ["Moritz Borcherding <moritz.borcherding@web.de>"]
 edition = "2018"
 
 [dependencies]
+byteorder = "*"

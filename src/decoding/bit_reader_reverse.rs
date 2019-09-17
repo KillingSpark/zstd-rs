@@ -1,17 +1,68 @@
+extern crate byteorder;
+use byteorder::ByteOrder;
+use byteorder::LittleEndian;
+
 pub struct BitReaderReversed<'s> {
     idx: isize, //index counts bits already read
     source: &'s [u8],
+
+    bit_container: u64,
+    bits_in_container: u8,
 }
 
 impl<'s> BitReaderReversed<'s> {
     pub fn bits_remaining(&self) -> isize {
-        self.idx as isize
+        self.idx + self.bits_in_container as isize
     }
 
     pub fn new(source: &'s [u8]) -> BitReaderReversed {
         BitReaderReversed {
             idx: source.len() as isize * 8,
             source: source,
+            bit_container: 0,
+            bits_in_container: 0,
+        }
+    }
+
+    fn refill_container(&mut self) {
+        let want_to_read = 64 - self.bits_in_container;
+        let can_read = if want_to_read as isize > self.idx {
+            self.idx
+        } else {
+            want_to_read as isize
+        };
+
+        match can_read {
+            64 => {
+                self.bit_container = LittleEndian::read_u64(&self.source[self.byte_idx() - 7..]);
+                self.bits_in_container += 64;
+                self.idx -= 64;
+            }
+            48...63 => {
+                self.bit_container = self.bit_container << 48;
+                self.bits_in_container += 48;
+                self.bit_container |= LittleEndian::read_u48(&self.source[self.byte_idx() - 5..]);
+                self.idx -= 48;
+            }
+            32...47 => {
+                self.bit_container = self.bit_container << 32;
+                self.bits_in_container += 32;
+                self.bit_container |= LittleEndian::read_u32(&self.source[self.byte_idx() - 3..]) as u64;
+                self.idx -= 32;
+            }
+            16...31 => {
+                self.bit_container = self.bit_container << 16;
+                self.bits_in_container += 16;
+                self.bit_container |= LittleEndian::read_u16(&self.source[self.byte_idx() - 1..]) as u64;
+                self.idx -= 16;
+            }
+            8...15 => {
+                self.bit_container = self.bit_container << 8;
+                self.bits_in_container += 8;
+                self.bit_container |= self.source[self.byte_idx()] as u64;
+                self.idx -= 8;
+            }
+            _ => panic!("For now panic"),
         }
     }
 
@@ -38,96 +89,38 @@ impl<'s> BitReaderReversed<'s> {
             //TODO handle correctly. need to fill with 0
             let emulated_read_shift = n - self.bits_remaining();
             let v = self.get_bits(self.bits_remaining() as usize)?;
+            assert!(self.idx == 0);
             let value = (v as u64) << emulated_read_shift;
             self.idx -= emulated_read_shift;
             return Ok(value);
         }
 
-        let mut value: u64;
-        let start_idx = self.idx;
-
-        let bits_left_in_current_byte = if self.idx % 8 == 0 { 8 } else { self.idx % 8 };
-
-        if bits_left_in_current_byte >= n {
-            //no need for fancy stuff
-            let bits_to_keep = bits_left_in_current_byte - n;
-            assert!(
-                bits_to_keep < 8,
-                format!("bits left in byte: {}, n: {}", bits_left_in_current_byte, n)
-            );
-            value = (self.source[self.byte_idx()] >> bits_to_keep) as u64;
-            //mask all but the needed n bit
-            value &= (1 << n) - 1;
-            self.idx -= n;
-        } else {
-            let first_byte_mask = if bits_left_in_current_byte < 8 {
-                //mask the upper bits out
-                (1 << bits_left_in_current_byte) - 1
-            } else {
-                0xff //keep all
-            };
-
-            //n spans over multiple bytes
-            let full_bytes_needed = (n - bits_left_in_current_byte) / 8;
-            let bits_in_last_byte_needed = n - bits_left_in_current_byte - full_bytes_needed * 8;
-
-            assert!(
-                bits_left_in_current_byte + full_bytes_needed * 8 + bits_in_last_byte_needed == n
-            );
-
-            let mut bit_shift = full_bytes_needed * 8 + bits_in_last_byte_needed;
-
-            //collect bits from the currently pointed to byte, excluding the ones that were already read
-            value = (self.source[self.byte_idx()] & first_byte_mask) as u64;
-            self.idx -= bits_left_in_current_byte;
-            value = value << bit_shift;
-
-            assert!(
-                value < (1 << n),
-                "itermittent value: {} bigger than should be possible reading n: {} bits, maximum: {}",
-                value,
-                n,
-                1 << n
-            );
-
-            assert!(self.idx % 8 == 0);
-
-            //collect full bytes
-            for _ in 0..full_bytes_needed {
-                assert!(bit_shift >= 8);
-                //make space in shift for 8 more bits
-                bit_shift -= 8;
-
-                //add byte to decoded value
-                value |= (self.source[self.byte_idx()] as u64) << bit_shift;
-
-                //update index
-                self.idx -= 8;
+        if (self.bits_in_container as isize) < n {
+            while (self.bits_in_container <= 56) && (self.bits_in_container as isize) < n {
+                self.refill_container();
             }
-
-            assert!(bit_shift == bits_in_last_byte_needed);
-
-            if bits_in_last_byte_needed > 0 {
-                let last_byte_shift = 8 - bits_in_last_byte_needed; //need to shift out lower part of the last byte
-                let val_last_byte = (self.source[self.byte_idx()] >> last_byte_shift) as u64;
-                value |= val_last_byte;
-                self.idx -= bits_in_last_byte_needed;
+            if (self.bits_in_container as isize) < n {
+                return Err(format!("Cant fullfill read of {} bytes on reversed bitreader even after refill. Would need a bigger container", n));
             }
         }
 
-        assert!(self.idx == start_idx - n);
-        assert!(
-            value < (1 << n),
-            "value: {} bigger than should be possible reading n: {} bits, maximum: {}",
-            value,
-            n,
-            1 << n
-        );
-        Ok(value)
+        //if we reach this point there are enough bits in the container
+        let value = self.bit_container >> (self.bits_in_container as isize - n);
+        self.bits_in_container -= n as u8;
+        let value_masked = value & ((1 << n) - 1);
+
+        //println!("N {}", n);
+        //println!("Bits_Container {}", self.bits_in_container);
+
+        assert!(value_masked < (1<<n));
+
+        Ok(value_masked)
     }
 
     pub fn reset(&mut self, new_source: &'s [u8]) {
         self.idx = new_source.len() as isize * 8;
         self.source = new_source;
+        self.bit_container = 0;
+        self.bits_in_container = 0;
     }
 }
