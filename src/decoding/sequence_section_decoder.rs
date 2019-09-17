@@ -1,9 +1,9 @@
-use super::super::decoding::bit_reader_reverse::BitReaderReversed;
-use super::super::decoding::fse::FSEDecoder;
-use super::super::decoding::scratch::FSEScratch;
-use super::sequence_section::ModeType;
-use super::sequence_section::Sequence;
-use super::sequence_section::SequencesHeader;
+use super::bit_reader_reverse::BitReaderReversed;
+use super::fse::FSEDecoder;
+use super::scratch::FSEScratch;
+use super::super::block::sequence_section::ModeType;
+use super::super::block::sequence_section::Sequence;
+use super::super::block::sequence_section::SequencesHeader;
 
 pub fn decode_sequences(
     section: &SequencesHeader,

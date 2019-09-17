@@ -1,9 +1,9 @@
-use super::block::BlockHeader;
-use super::block::BlockType;
-use super::literals_section::LiteralsSection;
-use super::literals_section::LiteralsSectionType;
+use super::super::block::block::BlockHeader;
+use super::super::block::block::BlockType;
+use super::super::block::literals_section::LiteralsSection;
+use super::super::block::literals_section::LiteralsSectionType;
+use super::super::block::sequence_section::SequencesHeader;
 use super::literals_section_decoder::decode_literals;
-use super::sequence_section::SequencesHeader;
 use super::sequence_section_decoder::decode_sequences;
 use crate::decoding::scratch::DecoderScratch;
 use crate::decoding::sequence_execution::execute_sequences;

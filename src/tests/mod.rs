@@ -11,7 +11,7 @@ fn test_frame_header_reading() {
 
 #[test]
 fn test_block_header_reading() {
-    use crate::block;
+    use crate::decoding;
     use crate::frame;
     use std::fs;
 
@@ -19,7 +19,7 @@ fn test_block_header_reading() {
     let frame = frame::read_frame_header(&mut content).unwrap();
     frame.check_valid().unwrap();
 
-    let mut block_dec = block::block_decoder::new();
+    let mut block_dec = decoding::block_decoder::new();
     let block_header = block_dec.read_block_header(&mut content).unwrap();
     let _ = block_header; //TODO validate blockheader in a smart way
 }

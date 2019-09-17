@@ -1,5 +1,5 @@
 use super::frame;
-use crate::block;
+use crate::decoding;
 use crate::decoding::scratch::DecoderScratch;
 use std::io::Read;
 
@@ -42,7 +42,7 @@ impl FrameDecoder {
         source: &mut Read,
         strat: BlockDecodingStrategy,
     ) -> Result<bool, crate::errors::FrameDecoderError> {
-        let mut block_dec = block::block_decoder::new();
+        let mut block_dec = decoding::block_decoder::new();
 
         let buffer_size_before = self.decoder_scratch.buffer.len();
         let block_counter_before = self.block_counter;

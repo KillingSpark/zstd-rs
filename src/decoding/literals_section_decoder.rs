@@ -1,8 +1,8 @@
-use super::super::decoding::bit_reader_reverse::BitReaderReversed;
-use super::super::decoding::huff0::HuffmanDecoder;
-use super::super::decoding::scratch::HuffmanScratch;
-use super::literals_section::LiteralsSection;
-use super::literals_section::LiteralsSectionType;
+use super::bit_reader_reverse::BitReaderReversed;
+use super::huff0::HuffmanDecoder;
+use super::scratch::HuffmanScratch;
+use super::super::block::literals_section::LiteralsSection;
+use super::super::block::literals_section::LiteralsSectionType;
 
 pub fn decode_literals(
     section: &LiteralsSection,
