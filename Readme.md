@@ -8,18 +8,19 @@ This is currently just a work in progress project that I might never finish. Use
 For production use (or if you need a compressor) I would recommend to use the C binding located [here](https://github.com/gyscos/zstd-rs).
 
 # Current Status
+
+## Speed
+Measuring with the 'time' utility the original zstd and my decoder both decoding the same enwik9.zst file, my decoder is about 4.8 times slower.
+
 ## Can do:
 1. Parse all files in /decodecorpus_files. These were generated with [decodecorpus](https://github.com/facebook/zstd/tree/dev/tests) by the original zstd developers
 1. Decode all of them correctly into the output buffer
 1. Decode all the decode_corpus files (1000+) I created locally 
 
-## Cannot do:
-2. Be used as a std::io::Read
-
 ## Roadmap
 1. Make a nice API maybe io::Read based, maybe not, we'll see
 1. Make FrameDecoder reusable over mutliple frames
-1. Performance optimizations. E.g. currently there is a lot of copying byte-by-byte where it could be batched to bigger amounts.
+1. Performance optimizations
 1. More tests (especially unit-tests for the bitreaders)
 1. Find more bugs
 
