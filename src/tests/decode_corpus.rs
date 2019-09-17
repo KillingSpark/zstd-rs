@@ -27,6 +27,8 @@ fn test_decode_corpus_files() {
         }
     });
 
+    let mut frame_dec = frame_decoder::FrameDecoder::new();
+
     for file in files {
         let f = file.unwrap();
         let metadata = f.metadata().unwrap();
@@ -40,18 +42,7 @@ fn test_decode_corpus_files() {
 
         let mut content = fs::File::open(f.path()).unwrap();
 
-        struct NullWriter(());
-        impl std::io::Write for NullWriter {
-            fn write(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
-                Ok(buf.len())
-            }
-            fn flush(&mut self) -> Result<(), std::io::Error> {
-                Ok(())
-            }
-        }
-        let mut _null_target = NullWriter(());
-
-        let mut frame_dec = frame_decoder::FrameDecoder::new(&mut content).unwrap();
+        frame_dec.reset(&mut content).unwrap();
 
         let start_time = std::time::Instant::now();
         /////DECODING

@@ -86,6 +86,16 @@ impl HuffmanTable {
         }
     }
 
+    pub fn reset(&mut self) {
+        self.decode.clear();
+        self.weights.clear();
+        self.max_num_bits = 0;
+        self.bits.clear();
+        self.bit_ranks.clear();
+        self.rank_indexes.clear();
+        self.fse_table.reset();
+    }
+
     pub fn build_decoder(&mut self, source: &[u8]) -> Result<u32, String> {
         self.decode.clear();
 

@@ -39,6 +39,12 @@ impl Decodebuffer {
         }
     }
 
+    pub fn reset(&mut self, window_size: usize) {
+        self.window_size = window_size;
+        self.buffer.clear();
+        self.buffer.reserve(self.window_size);
+    } 
+
     pub fn len(&self) -> usize {
         self.buffer.len()
     }

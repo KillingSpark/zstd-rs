@@ -16,11 +16,13 @@ fn main() {
         old_percentage: -1,
     };
 
+    let mut frame_dec = frame_decoder::FrameDecoder::new();
+
     for path in file_paths {
         println!("File: {}", path);
         let mut f = File::open(path).unwrap();
 
-        let mut frame_dec = frame_decoder::FrameDecoder::new(&mut f).unwrap();
+        frame_dec.reset(&mut f).unwrap();
 
         let batch_size = 1024 * 1024;
         let mut result = Vec::with_capacity(batch_size);
@@ -42,7 +44,7 @@ fn main() {
                 result.resize(result.capacity(), 0);
 
                 let percentage = (tracker.bytes_used * 100)
-                    / frame_dec.frame.header.frame_content_size().unwrap();
+                    / frame_dec.content_size().unwrap();
                 if percentage as i8 != tracker.old_percentage {
                     println!("{}", percentage);
                     tracker.old_percentage = percentage as i8;

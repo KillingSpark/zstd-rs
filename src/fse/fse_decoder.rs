@@ -76,6 +76,13 @@ impl FSETable {
         }
     }
 
+    pub fn reset(&mut self) {
+        self.symbol_counter.clear();
+        self.symbol_probablilities.clear();
+        self.decode.clear();
+        self.accuracy_log = 0;
+    }
+
     //returns how many BYTEs (not bits) were read while building the decoder
     pub fn build_decoder(&mut self, source: &[u8], max_log: u8) -> Result<usize, String> {
         self.accuracy_log = 0;

@@ -36,6 +36,24 @@ impl DecoderScratch {
          sequences: Vec::new(),
       }
    }
+
+   pub fn reset(&mut self, window_size: usize) {
+      self.offset_hist = [1,4,8];
+      self.literals_buffer.clear();
+      self.sequences.clear();
+      self.block_content_buffer.clear();
+
+      self.buffer.reset(window_size);
+
+      self.fse.literal_lengths.reset();
+      self.fse.match_lengths.reset();
+      self.fse.offsets.reset();
+      self.fse.ll_rle = None;
+      self.fse.ml_rle = None;
+      self.fse.of_rle = None;
+
+      self.huf.table.reset();
+   }
 }
 
 pub struct HuffmanScratch {

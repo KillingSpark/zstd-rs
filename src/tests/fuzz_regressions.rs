@@ -4,6 +4,9 @@ fn test_all_artifacts() {
     use std::fs;
     use std::fs::File;
 
+    let mut frame_dec = frame_decoder::FrameDecoder::new();
+    
+
     for file in fs::read_dir("./fuzz/artifacts/fuzz_target_1").unwrap() {
         let file_name = file.unwrap().path();
         
@@ -13,8 +16,8 @@ fn test_all_artifacts() {
         }
 
         let mut f = File::open(file_name.clone()).unwrap();
-        match frame_decoder::FrameDecoder::new(&mut f) {
-            Ok(mut frame_dec) => {
+        match frame_dec.reset(&mut f) {
+            Ok(_) => {
                 let _ = frame_dec.decode_blocks(&mut f, frame_decoder::BlockDecodingStrategy::All);
                 /* ignore errors. It just should never panic on invalid input */
             }

@@ -5,7 +5,7 @@ fn test_frame_header_reading() {
     use std::fs;
 
     let mut content = fs::File::open("./test_img.zst").unwrap();
-    let (frame,_) = frame::read_frame_header(&mut content).unwrap();
+    let (frame, _) = frame::read_frame_header(&mut content).unwrap();
     frame.check_valid().unwrap();
 }
 
@@ -16,7 +16,7 @@ fn test_block_header_reading() {
     use std::fs;
 
     let mut content = fs::File::open("/home/moritz/rust/zstd-rs/test_img.zst").unwrap();
-    let (frame,_) = frame::read_frame_header(&mut content).unwrap();
+    let (frame, _) = frame::read_frame_header(&mut content).unwrap();
     frame.check_valid().unwrap();
 
     let mut block_dec = decoding::block_decoder::new();
@@ -42,8 +42,11 @@ fn test_frame_decoder() {
     }
     let mut _null_target = NullWriter(());
 
-    let mut frame_dec = frame_decoder::FrameDecoder::new(&mut content).unwrap();
-    frame_dec.decode_blocks(&mut content, frame_decoder::BlockDecodingStrategy::All).unwrap();
+    let mut frame_dec = frame_decoder::FrameDecoder::new();
+    frame_dec.reset(&mut content).unwrap();
+    frame_dec
+        .decode_blocks(&mut content, frame_decoder::BlockDecodingStrategy::All)
+        .unwrap();
 }
 
 #[test]
@@ -65,8 +68,11 @@ fn test_specific_file() {
     }
     let mut _null_target = NullWriter(());
 
-    let mut frame_dec = frame_decoder::FrameDecoder::new(&mut content).unwrap();
-    frame_dec.decode_blocks(&mut content, frame_decoder::BlockDecodingStrategy::All).unwrap();
+    let mut frame_dec = frame_decoder::FrameDecoder::new();
+    frame_dec.reset(&mut content).unwrap();
+    frame_dec
+        .decode_blocks(&mut content, frame_decoder::BlockDecodingStrategy::All)
+        .unwrap();
     let result = frame_dec.drain_buffer();
 
     let original_f = fs::File::open("./decodecorpus_files/z000088").unwrap();

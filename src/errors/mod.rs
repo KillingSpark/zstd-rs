@@ -3,6 +3,7 @@ pub enum FrameDecoderError {
     FailedToReadBlockHeader(String),
     FailedToReadBlockBody(String),
     FailedToReadChecksum,
+    NotYetInitialized,
 }
 
 impl std::fmt::Display for FrameDecoderError {
@@ -13,6 +14,7 @@ impl std::fmt::Display for FrameDecoderError {
             }
             FrameDecoderError::FailedToReadBlockHeader(m) => write!(f, "Failed to parse block header: {}", m),
             FrameDecoderError::FailedToReadChecksum => write!(f, "Failed to read checksum"),
+            FrameDecoderError::NotYetInitialized => write!(f, "Decoder must intizilaized or reset before using it"),
         }
     }
 }
