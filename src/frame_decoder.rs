@@ -254,6 +254,26 @@ impl FrameDecoder {
         };
         state.decoder_scratch.buffer.can_drain()
     }
+
+    // decodes from the source to the target and reports how many bytes have been read and how many have been written (read, written)
+    // in source needs to be at least one whole frame. There may be more data (for example another frame) after the first frame.
+    // target must have enough space for the whole result of the decoding. If not it errors and you can check with FrameDecoder::content_size
+    // how many bytes are necessary for the target, then start decode_from with the original source and the new target
+    pub fn decode_from_to(&mut self, source: &[u8], target: &mut [u8]) -> Result<(usize, usize), crate::errors::FrameDecoderError> {
+        let mut mt_source = &source[..];
+        match self.init(&mut mt_source) {
+            Ok(()) => {},
+            Err(m) => return Err(crate::errors::FrameDecoderError::FailedToInitialize(m)),
+        }
+        self.decode_blocks(&mut mt_source, BlockDecodingStrategy::All)?;
+
+        let result_len = match self.read(target) {
+            Ok(x) => x,
+            Err(_) => return Err(crate::errors::FrameDecoderError::FailedToDrainDecodebuffer),
+        };
+        let read_len = self.bytes_read_from_source();
+        Ok((read_len as usize ,result_len))
+    }
 }
 
 // Read bytes from the decode_buffer that are no longer needed. While the frame is not ye finished

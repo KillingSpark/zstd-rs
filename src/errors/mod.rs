@@ -4,6 +4,9 @@ pub enum FrameDecoderError {
     FailedToReadBlockBody(String),
     FailedToReadChecksum,
     NotYetInitialized,
+    FailedToInitialize(String),
+    FailedToDrainDecodebuffer,
+    TargetTooSmall,
 }
 
 impl std::fmt::Display for FrameDecoderError {
@@ -14,7 +17,10 @@ impl std::fmt::Display for FrameDecoderError {
             }
             FrameDecoderError::FailedToReadBlockHeader(m) => write!(f, "Failed to parse block header: {}", m),
             FrameDecoderError::FailedToReadChecksum => write!(f, "Failed to read checksum"),
-            FrameDecoderError::NotYetInitialized => write!(f, "Decoder must intizilaized or reset before using it"),
+            FrameDecoderError::NotYetInitialized => write!(f, "Decoder must initialized or reset before using it"),
+            FrameDecoderError::FailedToInitialize(m) => write!(f, "Decoder encountered error while initializing: {}", m),
+            FrameDecoderError::FailedToDrainDecodebuffer => write!(f, "Decoder encountered error while draining the decodebuffer"),
+            FrameDecoderError::TargetTooSmall => write!(f, "Target must have at least as many bytes as the contentsize of the frame reports"),
         }
     }
 }
