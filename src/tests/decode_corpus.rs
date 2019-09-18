@@ -12,6 +12,7 @@ fn test_decode_corpus_files() {
     let mut failed: Vec<String> = Vec::new();
 
     let mut speeds = Vec::new();
+    let mut speeds_read = Vec::new();
 
     let mut files: Vec<_> = fs::read_dir("./decodecorpus_files").unwrap().collect();
     if fs::read_dir("./local_corpus_files").is_ok() {
@@ -109,8 +110,11 @@ fn test_decode_corpus_files() {
 
         let dur = end_time.as_micros() as usize;
         let speed = result.len() / if dur == 0 { 1 } else { dur };
+        let speed_read = file_size as usize / if dur == 0 { 1 } else { dur };
         println!("SPEED: {}", speed);
+        println!("SPEED_read: {}", speed_read);
         speeds.push(speed);
+        speeds_read.push(speed_read);
     }
 
     println!("###################");
@@ -124,6 +128,7 @@ fn test_decode_corpus_files() {
     for f in &failed {
         println!("{}", f);
     }
+    
     let speed_len = speeds.len();
     let sum_speed: usize = speeds.into_iter().sum();
     let avg_speed = sum_speed / speed_len;
@@ -135,6 +140,20 @@ fn test_decode_corpus_files() {
             println!("Average speed: {} KB/s", avg_speed_bps / 1000);
         } else {
             println!("Average speed: {} MB/s", avg_speed_bps / 1000000);
+        }
+    }
+
+    let speed_read_len = speeds_read.len();
+    let sum_speed_read: usize = speeds_read.into_iter().sum();
+    let avg_speed_read = sum_speed_read / speed_read_len;
+    let avg_speed_read_bps = avg_speed_read * 1000000;
+    if avg_speed_read_bps < 1000 {
+        println!("Average speed reading: {} B/s", avg_speed_read_bps);
+    } else {
+        if avg_speed_bps < 1000000 {
+            println!("Average speed reading: {} KB/s", avg_speed_read_bps / 1000);
+        } else {
+            println!("Average speed reading: {} MB/s", avg_speed_read_bps / 1000000);
         }
     }
 
