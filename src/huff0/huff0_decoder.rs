@@ -235,6 +235,9 @@ impl HuffmanTable {
 
         let mut weight_sum: u32 = 0;
         for w in &self.weights {
+            if *w > MAX_MAX_NUM_BITS {
+                return Err(format!("Cant have weight: {} bigger than max_num_bits: {}", *w, MAX_MAX_NUM_BITS))
+            } 
             weight_sum += if *w > 0 { (1 as u32) << (*w - 1) } else { 0 };
         }
 
