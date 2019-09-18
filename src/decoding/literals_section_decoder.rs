@@ -148,5 +148,9 @@ fn decompress_literals(
         bytes_read += source.len() as u32;
     }
 
+    if target.len() != section.regenerated_size as usize {
+        return Err(format!("Did not decode enough literals: {}, Should have been: {}", target.len(), section.regenerated_size));
+    }
+
     Ok(bytes_read)
 }
