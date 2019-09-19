@@ -17,9 +17,12 @@ Measuring with the 'time' utility the original zstd and my decoder both decoding
 1. Decode all of them correctly into the output buffer
 1. Decode all the decode_corpus files (1000+) I created locally 
 
+## Cannot do
+1. Use dictionaries. This would be pretty important to implement!
+
 ## Roadmap
 1. Make a nice API maybe io::Read based, maybe not, we'll see
-1. Make FrameDecoder reusable over mutliple frames
+1. Implement dictionary support
 1. Performance optimizations
 1. More tests (especially unit-tests for the bitreaders)
 1. Find more bugs
