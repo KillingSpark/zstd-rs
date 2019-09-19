@@ -31,10 +31,15 @@ Tests take two forms.
 
 ## Fuzzing
 Fuzzing has been done with cargo fuzz. Each time it crashes the decoder I fixed the issue and added the offending input as a test. It's checked into the repo in the fuzz/artifacts/fuzz_target_1 directory. Those get tested in the fuzz_regressions.rs test.
-At the time of writing the fuzzer was able to run for over an hour without finding new crashes. Obviously this doesn't mean there are no bugs but the common ones are probably fixed.
+At the time of writing the fuzzer was able to run for over 12 hours on the random input without finding new crashes. Obviously this doesn't mean there are no bugs but the common ones are probably fixed.
+
+Fuzzing has been done on 
+1. Random input with no initial corpus
+2. The *.zst in /fuzz_decodecorpus
 
 ### You wanna help fuzz?
-Use ```cargo +nightly fuzz run fuzz_target_1``` to start the fuzzer.
+Use ```cargo +nightly fuzz run fuzz_target_1``` to start the fuzzer on random data.
+Use ```cargo +nightly fuzz run fuzz_target_1 fuzz_decodecorpus``` to start the fuzzer on files that have been created with decodecorpus. You can of course create your own corpus if you'd like to.
 
 If (when) the fuzzer finds a crash it will be saved to the artifacts dir by the fuzzer. Run ``` cargo test artifacts ``` to run the artifacts tests. 
 This will tell you where the decoder panics exactly. If you are able to fix the issue please feel free to do a pullrequest. If not please still submit the offending input and I will see how to fix it myself.
