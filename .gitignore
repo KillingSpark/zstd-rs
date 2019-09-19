@@ -3,3 +3,4 @@
 Cargo.lock
 /local_corpus_files
 /orig-zstd
+fuzz_decodecorpus
