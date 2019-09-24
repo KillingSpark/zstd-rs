@@ -10,7 +10,7 @@ For production use (or if you need a compressor) I would recommend to use the C 
 # Current Status
 
 ## Speed
-Measuring with the 'time' utility the original zstd and my decoder both decoding the same enwik9.zst file, my decoder is about 4.8 times slower. Enwik9 is highly compressible. For less compressible data my decoder comes close to only being 3 times slower.
+Measuring with the 'time' utility the original zstd and my decoder both decoding the same enwik9.zst file, my decoder is about 4.1 times slower. Enwik9 is highly compressible. For less compressible data my decoder comes close to only being 3 times slower.
 
 ## Can do:
 1. Parse all files in /decodecorpus_files. These were generated with [decodecorpus](https://github.com/facebook/zstd/tree/dev/tests) by the original zstd developers
