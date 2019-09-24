@@ -366,7 +366,7 @@ impl std::io::Read for FrameDecoder {
             Some(s) => s,
         };
         if state.frame_finished {
-            Ok(state.decoder_scratch.buffer.read_all(target))
+            state.decoder_scratch.buffer.read_all(target)
         } else {
             state.decoder_scratch.buffer.read(target)
         }

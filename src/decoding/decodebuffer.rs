@@ -21,13 +21,11 @@ impl std::io::Read for Decodebuffer {
             return Ok(0);
         }
 
-        let mut counter = 0;
-        for x in self.buffer.drain(0..amount) {
-            target[counter] = x;
-            counter += 1;
-        }
+        let mut buffer_slice = self.buffer.as_slice();
+        buffer_slice.read_exact(&mut target[..amount])?;
+        self.buffer.drain(0..amount);
 
-        Ok(counter)
+        Ok(amount)
     }
 }
 
@@ -136,7 +134,7 @@ impl Decodebuffer {
         Ok(len)
     }
 
-    pub fn read_all(&mut self, target: &mut [u8]) -> usize {
+    pub fn read_all(&mut self, target: &mut [u8]) -> Result<usize, std::io::Error> {
         let amount = if self.buffer.len() > target.len() {
             target.len()
         } else {
@@ -144,15 +142,14 @@ impl Decodebuffer {
         };
 
         if amount == 0 {
-            return 0;
+            return Ok(0);
         }
 
-        let mut counter = 0;
-        for x in self.buffer.drain(0..amount) {
-            target[counter] = x;
-            counter += 1;
-        }
+        use std::io::Read;
+        let mut buffer_slice = self.buffer.as_slice();
+        buffer_slice.read_exact(&mut target[..amount])?;
+        self.buffer.drain(0..amount);
 
-        counter
+        Ok(amount)
     }
 }
