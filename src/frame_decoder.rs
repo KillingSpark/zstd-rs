@@ -12,7 +12,7 @@ struct FrameDecoderState {
     decoder_scratch: DecoderScratch,
     frame_finished: bool,
     block_counter: usize,
-    byte_counter: u64,
+    bytes_read_counter: u64,
 }
 
 pub enum BlockDecodingStrategy {
@@ -21,7 +21,7 @@ pub enum BlockDecodingStrategy {
     UptoBytes(usize),
 }
 
-const MAX_WINDOW_SIZE: u64 = 1024*1024*100;
+const MAX_WINDOW_SIZE: u64 = 1024 * 1024 * 100;
 
 impl FrameDecoderState {
     pub fn new(source: &mut Read) -> Result<FrameDecoderState, String> {
@@ -33,7 +33,7 @@ impl FrameDecoderState {
             frame_finished: false,
             block_counter: 0,
             decoder_scratch: DecoderScratch::new(window_size as usize),
-            byte_counter: header_size as u64,
+            bytes_read_counter: header_size as u64,
         })
     }
 
@@ -43,21 +43,24 @@ impl FrameDecoderState {
         frame.check_valid()?;
 
         if window_size > MAX_WINDOW_SIZE {
-            return Err(format!("Dont support window_sizes (requested: {}) over: {}", window_size, MAX_WINDOW_SIZE));
+            return Err(format!(
+                "Dont support window_sizes (requested: {}) over: {}",
+                window_size, MAX_WINDOW_SIZE
+            ));
         }
 
         self.frame = frame;
         self.frame_finished = false;
         self.block_counter = 0;
         self.decoder_scratch.reset(window_size as usize);
-        self.byte_counter = header_size as u64;
+        self.bytes_read_counter = header_size as u64;
         Ok(())
     }
 }
 
 impl FrameDecoder {
     pub fn new() -> FrameDecoder {
-        FrameDecoder{state: None}
+        FrameDecoder { state: None }
     }
 
     pub fn init(&mut self, source: &mut Read) -> Result<(), String> {
@@ -91,7 +94,7 @@ impl FrameDecoder {
             None => return 0,
             Some(s) => s,
         };
-        state.byte_counter
+        state.bytes_read_counter
     }
 
     pub fn is_finished(&self) -> bool {
@@ -134,7 +137,7 @@ impl FrameDecoder {
                 Ok(h) => h,
                 Err(m) => return Err(crate::errors::FrameDecoderError::FailedToReadBlockHeader(m)),
             };
-            state.byte_counter += block_header_size as u64;
+            state.bytes_read_counter += block_header_size as u64;
 
             if crate::VERBOSE {
                 println!("");
@@ -154,7 +157,7 @@ impl FrameDecoder {
                 Ok(h) => h,
                 Err(m) => return Err(crate::errors::FrameDecoderError::FailedToReadBlockBody(m)),
             };
-            state.byte_counter += bytes_read_in_block_body;
+            state.bytes_read_counter += bytes_read_in_block_body;
 
             state.block_counter += 1;
 
@@ -171,7 +174,7 @@ impl FrameDecoder {
                             return Err(crate::errors::FrameDecoderError::FailedToReadChecksum)
                         }
                         Ok(()) => {
-                            state.byte_counter += 4;
+                            state.bytes_read_counter += 4;
                             //TODO checksum
                         }
                     };
@@ -255,24 +258,98 @@ impl FrameDecoder {
         state.decoder_scratch.buffer.can_drain()
     }
 
-    // decodes from the source to the target and reports how many bytes have been read and how many have been written (read, written)
-    // in source needs to be at least one whole frame. There may be more data (for example another frame) after the first frame.
-    // target must have enough space for the whole result of the decoding. If not it errors and you can check with FrameDecoder::content_size
-    // how many bytes are necessary for the target, then start decode_from with the original source and the new target
-    pub fn decode_from_to(&mut self, source: &[u8], target: &mut [u8]) -> Result<(usize, usize), crate::errors::FrameDecoderError> {
+    /// Decodes as many blocks as possible from the source slice and reads from the decodebuffer into the target slice
+    /// The source slice may contain only parts of a frame but must contain at least one full block to make progress
+    /// Returns (read, written), if read == 0 then the source did not contain a full block and further calls with the same 
+    /// input will not make any progress! 
+    /// 
+    /// Note that no kind of block can be bigger than 128kb. 
+    /// So to be safe use at least 128*1024 (max block content size) + 3 (block_header size) + 18 (max frame_header size) bytes as your source buffer
+    pub fn decode_from_to(
+        &mut self,
+        source: &[u8],
+        target: &mut [u8],
+    ) -> Result<(usize, usize), crate::errors::FrameDecoderError> {
         let mut mt_source = &source[..];
-        match self.init(&mut mt_source) {
-            Ok(()) => {},
-            Err(m) => return Err(crate::errors::FrameDecoderError::FailedToInitialize(m)),
+
+        let bytes_read_at_start = match &mut self.state {
+            Some(s) => s.bytes_read_counter,
+            None => 0,
+        };
+
+        if self.state.is_none() {
+            match self.init(&mut mt_source) {
+                Ok(()) => {}
+                Err(m) => return Err(crate::errors::FrameDecoderError::FailedToInitialize(m)),
+            }
         }
-        self.decode_blocks(&mut mt_source, BlockDecodingStrategy::All)?;
+
+        //pseudo block to scope "state" so we can borrow self again after the block
+        {
+            let mut state = match &mut self.state {
+                Some(s) => s,
+                None => panic!("Bug in library"),
+            };
+            let mut block_dec = decoding::block_decoder::new();
+
+            loop {
+                println!("{}", state.bytes_read_counter);
+                //check if there are enough bytes for the next header
+                if mt_source.len() < 3 {
+                    break;
+                }
+                let (block_header, block_header_size) = match block_dec
+                    .read_block_header(&mut mt_source)
+                {
+                    Ok(h) => h,
+                    Err(m) => {
+                        return Err(crate::errors::FrameDecoderError::FailedToReadBlockHeader(m))
+                    }
+                };
+
+                // check the needed size for the block before updating counters.
+                // If not enough bytes are in the source, the header will have to be read again, so act like we never read it in the first place
+                if mt_source.len() < block_header.content_size as usize {
+                    break;
+                }
+                state.bytes_read_counter += block_header_size as u64;
+
+                let bytes_read_in_block_body = match block_dec.decode_block_content(
+                    &block_header,
+                    &mut state.decoder_scratch,
+                    &mut mt_source,
+                ) {
+                    Ok(h) => h,
+                    Err(m) => {
+                        return Err(crate::errors::FrameDecoderError::FailedToReadBlockBody(m))
+                    }
+                };
+                state.bytes_read_counter += bytes_read_in_block_body;
+                state.block_counter += 1;
+
+                if block_header.last_block {
+                    state.frame_finished = true;
+                    if state.frame.header.descriptor.content_checksum_flag() {
+                        let chksum = &mt_source[..3];
+                        state.bytes_read_counter += 4;
+                        let _ = chksum;
+                        //TODO checksum
+                    }
+                    break;
+                }
+            }
+        }
 
         let result_len = match self.read(target) {
             Ok(x) => x,
             Err(_) => return Err(crate::errors::FrameDecoderError::FailedToDrainDecodebuffer),
         };
-        let read_len = self.bytes_read_from_source();
-        Ok((read_len as usize ,result_len))
+        let bytes_read_at_end = match &mut self.state {
+            Some(s) => s.bytes_read_counter,
+            None => panic!("Bug in library"),
+        };
+        let read_len = bytes_read_at_end - bytes_read_at_start;
+        Ok((read_len as usize, result_len))
     }
 }
 
