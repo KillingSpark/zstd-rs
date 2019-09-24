@@ -19,13 +19,9 @@ fn test_decode_corpus_files() {
         files.extend(fs::read_dir("./local_corpus_files").unwrap());
     }
 
-    files.sort_by_key(|x| {
-        match x {
-            Err(_) => "".to_owned(),
-            Ok(entry) => {
-                entry.path().to_str().unwrap().to_owned()
-            }
-        }
+    files.sort_by_key(|x| match x {
+        Err(_) => "".to_owned(),
+        Ok(entry) => entry.path().to_str().unwrap().to_owned(),
     });
 
     let mut frame_dec = frame_decoder::FrameDecoder::new();
@@ -47,7 +43,9 @@ fn test_decode_corpus_files() {
 
         let start_time = std::time::Instant::now();
         /////DECODING
-        frame_dec.decode_blocks(&mut content, frame_decoder::BlockDecodingStrategy::All).unwrap();
+        frame_dec
+            .decode_blocks(&mut content, frame_decoder::BlockDecodingStrategy::All)
+            .unwrap();
         let result = frame_dec.collect().unwrap();
         let end_time = start_time.elapsed();
 
@@ -122,13 +120,17 @@ fn test_decode_corpus_files() {
     println!("###################");
     println!(
         "Total: {}, Success: {}, WrongSize: {}, WrongBytecount: {}, Diffs: {}",
-        total_counter, success_counter, fail_counter_size, fail_counter_bytes_read, fail_counter_diff
+        total_counter,
+        success_counter,
+        fail_counter_size,
+        fail_counter_bytes_read,
+        fail_counter_diff
     );
     println!("Failed files: ");
     for f in &failed {
         println!("{}", f);
     }
-    
+
     let speed_len = speeds.len();
     let sum_speed: usize = speeds.into_iter().sum();
     let avg_speed = sum_speed / speed_len;
@@ -153,7 +155,10 @@ fn test_decode_corpus_files() {
         if avg_speed_bps < 1000000 {
             println!("Average speed reading: {} KB/s", avg_speed_read_bps / 1000);
         } else {
-            println!("Average speed reading: {} MB/s", avg_speed_read_bps / 1000000);
+            println!(
+                "Average speed reading: {} MB/s",
+                avg_speed_read_bps / 1000000
+            );
         }
     }
 

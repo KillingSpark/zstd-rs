@@ -184,12 +184,14 @@ impl HuffmanTable {
                         self.weights.push(dec1.decode_symbol());
                         break;
                     }
-                //maximum number of weights is 255 because we use u8 symbols and the last weight is infered from the sum of all others
+                    //maximum number of weights is 255 because we use u8 symbols and the last weight is infered from the sum of all others
                     if self.weights.len() > 255 {
-                        return Err("More than 255 weights decoded. Stream is probably corrupted".to_owned());
+                        return Err(
+                            "More than 255 weights decoded. Stream is probably corrupted"
+                                .to_owned(),
+                        );
                     }
                 }
-
             }
             _ => {
                 // weights are directly encoded
@@ -236,8 +238,11 @@ impl HuffmanTable {
         let mut weight_sum: u32 = 0;
         for w in &self.weights {
             if *w > MAX_MAX_NUM_BITS {
-                return Err(format!("Cant have weight: {} bigger than max_num_bits: {}", *w, MAX_MAX_NUM_BITS))
-            } 
+                return Err(format!(
+                    "Cant have weight: {} bigger than max_num_bits: {}",
+                    *w, MAX_MAX_NUM_BITS
+                ));
+            }
             weight_sum += if *w > 0 { (1 as u32) << (*w - 1) } else { 0 };
         }
 

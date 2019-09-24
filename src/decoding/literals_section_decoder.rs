@@ -1,8 +1,8 @@
-use super::bit_reader_reverse::BitReaderReversed;
-use crate::huff0::HuffmanDecoder;
-use super::scratch::HuffmanScratch;
 use super::super::block::literals_section::LiteralsSection;
 use super::super::block::literals_section::LiteralsSectionType;
+use super::bit_reader_reverse::BitReaderReversed;
+use super::scratch::HuffmanScratch;
+use crate::huff0::HuffmanDecoder;
 
 pub fn decode_literals(
     section: &LiteralsSection,
@@ -149,7 +149,11 @@ fn decompress_literals(
     }
 
     if target.len() != section.regenerated_size as usize {
-        return Err(format!("Did not decode enough literals: {}, Should have been: {}", target.len(), section.regenerated_size));
+        return Err(format!(
+            "Did not decode enough literals: {}, Should have been: {}",
+            target.len(),
+            section.regenerated_size
+        ));
     }
 
     Ok(bytes_read)

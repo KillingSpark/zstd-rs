@@ -17,7 +17,6 @@ pub struct FrameHeader {
 pub struct FrameDescriptor(u8);
 
 impl FrameDescriptor {
-    
     pub fn frame_content_size_flag(&self) -> u8 {
         self.0 >> 6
     }

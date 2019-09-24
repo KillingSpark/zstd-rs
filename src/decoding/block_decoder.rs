@@ -85,7 +85,7 @@ impl BlockDecoder {
                         }
                     }
                 }
-                
+
                 let smaller = &mut buf[..single_read_size as usize];
                 match source.read_exact(smaller) {
                     Ok(_) => {
@@ -262,12 +262,15 @@ impl BlockDecoder {
         self.internal_state = DecoderState::ReadyToDecodeNextBody;
 
         //just return 3. Blockheaders always take 3 bytes
-        Ok((BlockHeader {
-            last_block: last_block,
-            block_type: btype,
-            decompressed_size: decompressed_size,
-            content_size: content_size,
-        }, 3))
+        Ok((
+            BlockHeader {
+                last_block: last_block,
+                block_type: btype,
+                decompressed_size: decompressed_size,
+                content_size: content_size,
+            },
+            3,
+        ))
     }
 
     fn reset_buffer(&mut self) {

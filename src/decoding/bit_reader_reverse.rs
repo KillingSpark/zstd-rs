@@ -47,13 +47,15 @@ impl<'s> BitReaderReversed<'s> {
             32...47 => {
                 self.bit_container = self.bit_container << 32;
                 self.bits_in_container += 32;
-                self.bit_container |= LittleEndian::read_u32(&self.source[self.byte_idx() - 3..]) as u64;
+                self.bit_container |=
+                    LittleEndian::read_u32(&self.source[self.byte_idx() - 3..]) as u64;
                 self.idx -= 32;
             }
             16...31 => {
                 self.bit_container = self.bit_container << 16;
                 self.bits_in_container += 16;
-                self.bit_container |= LittleEndian::read_u16(&self.source[self.byte_idx() - 1..]) as u64;
+                self.bit_container |=
+                    LittleEndian::read_u16(&self.source[self.byte_idx() - 1..]) as u64;
                 self.idx -= 16;
             }
             8...15 => {
@@ -112,7 +114,7 @@ impl<'s> BitReaderReversed<'s> {
         //println!("N {}", n);
         //println!("Bits_Container {}", self.bits_in_container);
 
-        assert!(value_masked < (1<<n));
+        assert!(value_masked < (1 << n));
 
         Ok(value_masked)
     }

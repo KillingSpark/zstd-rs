@@ -21,14 +21,13 @@ impl std::fmt::Display for LiteralsSectionType {
             LiteralsSectionType::Raw => write!(f, "Raw"),
             LiteralsSectionType::RLE => write!(f, "RLE"),
             LiteralsSectionType::Treeless => write!(f, "Treeless"),
-        } 
-        
+        }
     }
 }
 
 impl LiteralsSection {
     pub fn new() -> LiteralsSection {
-        LiteralsSection{
+        LiteralsSection {
             regenerated_size: 0,
             compressed_size: None,
             num_streams: None,
@@ -94,7 +93,11 @@ impl LiteralsSection {
 
         let byte_needed = self.header_bytes_needed(raw[0])?;
         if raw.len() < byte_needed as usize {
-            return Err(format!("Not enough byte to parse the literals section header. Have: {}, Want: {}", raw.len(), byte_needed));
+            return Err(format!(
+                "Not enough byte to parse the literals section header. Have: {}, Want: {}",
+                raw.len(),
+                byte_needed
+            ));
         }
 
         match self.ls_type {
@@ -142,13 +145,14 @@ impl LiteralsSection {
                     0 | 1 => {
                         //Differ in num_streams see above
                         //both regenerated and compressed sizes use 10 bit
-                        
+
                         //4 from the first, six from the second byte
                         self.regenerated_size =
                             (raw[0] as u32 >> 4) + ((raw[1] as u32 & 0x3f) << 4);
-                        
+
                         // 2 from the second, full last byte
-                        self.compressed_size = Some(((raw[1] >> 6) as u32) + ((raw[2] as u32) << 2));
+                        self.compressed_size =
+                            Some(((raw[1] >> 6) as u32) + ((raw[2] as u32) << 2));
                         Ok(3)
                     }
                     2 => {

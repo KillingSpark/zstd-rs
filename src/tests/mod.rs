@@ -57,25 +57,32 @@ fn test_decode_from_to() {
     let f = File::open("./decodecorpus_files/z000088.zst").unwrap();
     let mut frame_dec = frame_decoder::FrameDecoder::new();
 
-    
     let content: Vec<u8> = f.bytes().map(|x| x.unwrap()).collect();
 
-    let mut target = Vec::with_capacity(1024*1024);
-    target.resize(1024*1024, 0u8);
-    
-    let source1 = &content[..50*1024];
-    let (read1,written1) = frame_dec.decode_from_to(source1, target.as_mut_slice()).unwrap();
+    let mut target = Vec::with_capacity(1024 * 1024);
+    target.resize(1024 * 1024, 0u8);
+
+    let source1 = &content[..50 * 1024];
+    let (read1, written1) = frame_dec
+        .decode_from_to(source1, target.as_mut_slice())
+        .unwrap();
 
     let source2 = &content[read1..];
-    let (read2,written2) = frame_dec.decode_from_to(source2, &mut target[written1..]).unwrap();
+    let (read2, written2) = frame_dec
+        .decode_from_to(source2, &mut target[written1..])
+        .unwrap();
 
-    let read = read1+read2;
-    let written = written1+written2;
+    let read = read1 + read2;
+    let written = written1 + written2;
 
     let result = &target.as_slice()[..written];
 
     if read != content.len() {
-        panic!(format!("Byte counter: {} was wrong. Should be: {}", read, content.len()));
+        panic!(format!(
+            "Byte counter: {} was wrong. Should be: {}",
+            read,
+            content.len()
+        ));
     }
 
     let original_f = File::open("./decodecorpus_files/z000088").unwrap();

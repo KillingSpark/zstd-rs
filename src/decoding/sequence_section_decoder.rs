@@ -1,9 +1,9 @@
-use super::bit_reader_reverse::BitReaderReversed;
-use crate::fse::FSEDecoder;
-use super::scratch::FSEScratch;
 use super::super::block::sequence_section::ModeType;
 use super::super::block::sequence_section::Sequence;
 use super::super::block::sequence_section::SequencesHeader;
+use super::bit_reader_reverse::BitReaderReversed;
+use super::scratch::FSEScratch;
+use crate::fse::FSEDecoder;
 
 pub fn decode_sequences(
     section: &SequencesHeader,
@@ -322,7 +322,7 @@ fn maybe_update_fse_tables(
         ModeType::Repeat => {
             if crate::VERBOSE {
                 println!("Repeat ml table");
-            } 
+            }
             /* Nothing to do */
         }
     };
@@ -350,10 +350,12 @@ const OFFSET_DEFAULT_DISTRIBUTION: [i32; 29] = [
 #[test]
 fn test_ll_default() {
     let mut table = crate::fse::FSETable::new();
-    table.build_from_probabilities(
-        LL_DEFAULT_ACC_LOG,
-        &Vec::from(&LITERALS_LENGTH_DEFAULT_DISTRIBUTION[..]),
-    ).unwrap();
+    table
+        .build_from_probabilities(
+            LL_DEFAULT_ACC_LOG,
+            &Vec::from(&LITERALS_LENGTH_DEFAULT_DISTRIBUTION[..]),
+        )
+        .unwrap();
 
     for idx in 0..table.decode.len() {
         println!(

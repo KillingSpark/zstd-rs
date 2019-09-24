@@ -12,8 +12,7 @@ impl std::fmt::Display for BlockType {
             BlockType::Raw => write!(f, "Raw"),
             BlockType::RLE => write!(f, "RLE"),
             BlockType::Reserved => write!(f, "Reserverd"),
-        } 
-        
+        }
     }
 }
 
