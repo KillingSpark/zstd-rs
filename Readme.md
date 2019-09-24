@@ -65,7 +65,7 @@ If memory is a concern you can decode frames partially. For an example see the s
 given block count has been decoded or the decodebuffer has reached a certain size. Then you can collect no longer needed bytes from the buffer and do something with them, discard them and resume decoding the frame in a loop until the frame has been decoded completely.
 
 # What you might notice
-I already have done a decoder for zstd in golang. [here](https://github.com/KillingSpark/sparkzstd). This was a first try and it turned out very inperformant. I could have tried to rewrite it to use less allocations while decoding etc etc but that seemed dull (and unecessary since klauspost has done a way better golang implementation can compress too [here](https://github.com/klauspost/compress/tree/master/zstd))
+I already have done a decoder for zstd in golang. [here](https://github.com/KillingSpark/sparkzstd). This was a first try and it turned out very inperformant. I could have tried to rewrite it to use less allocations while decoding etc etc but that seemed dull (and unecessary since klauspost has done a way better golang implementation that additionally can compress data [here](https://github.com/klauspost/compress/tree/master/zstd))
 
 ## Why another one
 Well I wanted to show myself that I am actually able to learn from my mistakes. This implementation should be way more performant since I from the get go focussed on reusing allocated space instead of reallocating all the decoding tables etc.
