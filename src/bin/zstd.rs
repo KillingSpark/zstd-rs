@@ -68,5 +68,7 @@ fn main() {
 
 fn do_something(data: &Vec<u8>, s: &mut StateTracker) {
     //Do something. Like writing it to a file or to stdout...
+    use std::io::Write;
+    std::io::stdout().write_all(data).unwrap();
     s.bytes_used += data.len() as u64;
 }
