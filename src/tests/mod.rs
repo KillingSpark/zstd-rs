@@ -133,7 +133,7 @@ fn test_specific_file() {
     frame_dec
         .decode_blocks(&mut content, frame_decoder::BlockDecodingStrategy::All)
         .unwrap();
-    let result = frame_dec.drain_buffer();
+    let result = frame_dec.collect().unwrap();
 
     let original_f = fs::File::open("./decodecorpus_files/z000088").unwrap();
     let original: Vec<u8> = original_f.bytes().map(|x| x.unwrap()).collect();

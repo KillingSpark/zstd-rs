@@ -1,7 +1,6 @@
 extern crate zstd_rs;
 use std::fs::File;
 use std::io::Read;
-use zstd_rs::frame_decoder;
 
 struct StateTracker {
     bytes_used: u64,
@@ -16,7 +15,7 @@ fn main() {
         old_percentage: -1,
     };
 
-    let mut frame_dec = frame_decoder::FrameDecoder::new();
+    let mut frame_dec = zstd_rs::FrameDecoder::new();
 
     for path in file_paths {
         println!("File: {}", path);
@@ -32,7 +31,7 @@ fn main() {
             frame_dec
                 .decode_blocks(
                     &mut f,
-                    frame_decoder::BlockDecodingStrategy::UptoBytes(batch_size),
+                    zstd_rs::BlockDecodingStrategy::UptoBytes(batch_size),
                 )
                 .unwrap();
 
@@ -52,7 +51,7 @@ fn main() {
             }
         }
         println!("");
-        while frame_dec.can_drain() > 0 {
+        while frame_dec.can_collect() > 0 {
             let x = frame_dec.read(result.as_mut_slice()).unwrap();
 
             result.resize(x, 0);

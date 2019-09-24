@@ -77,6 +77,7 @@ impl FrameDecoder {
         }
     }
 
+    /// Returns how many bytes the frame contains after decompression
     pub fn content_size(&self) -> Option<u64> {
         let state = match &self.state {
             None => return Some(0),
@@ -89,6 +90,7 @@ impl FrameDecoder {
         }
     }
 
+    /// Counter for how many bytes have been consumed while deocidng the frame
     pub fn bytes_read_from_source(&self) -> u64 {
         let state = match &self.state {
             None => return 0,
@@ -97,6 +99,9 @@ impl FrameDecoder {
         state.bytes_read_counter
     }
 
+    /// Whether the current frames last block has been decoded yet
+    /// If this returns true you can call the drain* functions to get all content
+    /// (the read() function will drain automatically if this returns true)
     pub fn is_finished(&self) -> bool {
         let state = match &self.state {
             None => return true,
@@ -105,6 +110,7 @@ impl FrameDecoder {
         state.frame_finished
     }
 
+    /// Counter for how many blocks have already been decoded
     pub fn blocks_decoded(&self) -> usize {
         let state = match &self.state {
             None => return 0,
@@ -113,6 +119,10 @@ impl FrameDecoder {
         state.block_counter
     }
 
+    /// Decodes blocks from a reader. It requires that the framedecoder has been initialized first.
+    /// The Strategy influences how many blocks will be decoded before the function returns
+    /// This is important if you want to manage memory consumption carefully. If you dont care
+    /// about that you can just choose the strategy "All" and have all blocks of the frame decoded into the buffer
     pub fn decode_blocks(
         &mut self,
         source: &mut Read,
@@ -200,62 +210,53 @@ impl FrameDecoder {
         Ok(state.frame_finished)
     }
 
-    //collect is for collecting bytes and retain window_size bytes while decoding is still going on
+    /// Collect is for collecting bytes and retain window_size bytes while decoding is still going on
+    /// After decoding of the frame (is_finished() == true) has finished it will collect all remaining bytes
     pub fn collect(&mut self) -> Option<Vec<u8>> {
+        let finished = self.is_finished();
         let state = match &mut self.state {
             None => return None,
             Some(s) => s,
         };
-        state.decoder_scratch.buffer.drain_to_window_size()
-    }
-
-    //collect is for collecting bytes and retain window_size bytes while decoding is still going on
-    pub fn collect_to_writer(&mut self, w: &mut std::io::Write) -> Result<usize, std::io::Error> {
-        let state = match &mut self.state {
-            None => return Ok(0),
-            Some(s) => s,
-        };
-        state.decoder_scratch.buffer.drain_to_window_size_writer(w)
-    }
-
-    //drain is for collecting all bytes after decoding has been finished
-    pub fn drain_buffer(&mut self) -> Vec<u8> {
-        let state = match &mut self.state {
-            None => return Vec::new(),
-            Some(s) => s,
-        };
-        state.decoder_scratch.buffer.drain()
-    }
-
-    //drain is for collecting all bytes after decoding has been finished
-    pub fn drain_buffer_to_writer(
-        &mut self,
-        w: &mut std::io::Write,
-    ) -> Result<usize, std::io::Error> {
-        let state = match &mut self.state {
-            None => return Ok(0),
-            Some(s) => s,
-        };
-        state.decoder_scratch.buffer.drain_to_writer(w)
-    }
-
-    pub fn can_collect(&self) -> usize {
-        let state = match &self.state {
-            None => return 0,
-            Some(s) => s,
-        };
-        match state.decoder_scratch.buffer.can_drain_to_window_size() {
-            Some(x) => x,
-            None => 0,
+        if finished {
+            Some(state.decoder_scratch.buffer.drain())
+        } else {
+            state.decoder_scratch.buffer.drain_to_window_size()
         }
     }
 
-    pub fn can_drain(&self) -> usize {
+    /// Collect is for collecting bytes and retain window_size bytes while decoding is still going on
+    /// After decoding of the frame (is_finished() == true) has finished it will collect all remaining bytes
+    pub fn collect_to_writer(&mut self, w: &mut std::io::Write) -> Result<usize, std::io::Error> {
+        let finished = self.is_finished();
+        let state = match &mut self.state {
+            None => return Ok(0),
+            Some(s) => s,
+        };
+        if finished {
+            state.decoder_scratch.buffer.drain_to_writer(w)
+        } else {
+            state.decoder_scratch.buffer.drain_to_window_size_writer(w)
+        }
+    }
+
+    /// How many bytes can currently be collected from the decodebuffer, while decoding is going on this will be lower than the ectual decodbuffer size
+    /// because window_size bytes need to be retained for decoding.
+    /// After decoding of the frame (is_finished() == true) has finished it will report all remaining bytes
+    pub fn can_collect(&self) -> usize {
+        let finished = self.is_finished();
         let state = match &self.state {
             None => return 0,
             Some(s) => s,
         };
-        state.decoder_scratch.buffer.can_drain()
+        if finished {
+            state.decoder_scratch.buffer.can_drain()
+        } else {
+            match state.decoder_scratch.buffer.can_drain_to_window_size() {
+                Some(x) => x,
+                None => 0,
+            }
+        }
     }
 
     /// Decodes as many blocks as possible from the source slice and reads from the decodebuffer into the target slice
@@ -357,8 +358,8 @@ impl FrameDecoder {
     }
 }
 
-// Read bytes from the decode_buffer that are no longer needed. While the frame is not ye finished
-// this will retain window_size bytes, else it will drain it completely
+/// Read bytes from the decode_buffer that are no longer needed. While the frame is not yet finished
+/// this will retain window_size bytes, else it will drain it completely
 impl std::io::Read for FrameDecoder {
     fn read(&mut self, target: &mut [u8]) -> std::result::Result<usize, std::io::Error> {
         let state = match &mut self.state {

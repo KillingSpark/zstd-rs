@@ -8,3 +8,5 @@ pub mod huff0;
 mod tests;
 
 pub const VERBOSE: bool = false;
+pub use frame_decoder::FrameDecoder;
+pub use frame_decoder::BlockDecodingStrategy;
