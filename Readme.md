@@ -3,14 +3,14 @@ A decoder for the zstd compression format as defined in: [This document](https:/
 
 It is NOT a compressor. I dont plan on implementing that part either, at least not in the near future. (If someone is motivated enough I will of course accept a pull-request!)
 
-This is currently just a work in progress project that I might never finish. Use/fork at own risk ;) It does work correctly at least for the test-set of files I used, YMMV.
-
-For production use (or if you need a compressor) I would recommend to use the C binding located [here](https://github.com/gyscos/zstd-rs).
-
 # Current Status
+This is started just as a toy project but I think it is in a usable state now. It does work correctly at least for the test-set of files I used, YMMV, it is not yet battle tested by any means.
+For production use (or if you need a compressor) I would (at the time of writing, this might get out of date and there might come better projects along!) recommend to use the C binding located [here](https://github.com/gyscos/zstd-rs).
+
+If you'd be willing to try this in your projects I would be very happy though!
 
 ## Speed
-Measuring with the 'time' utility the original zstd and my decoder both decoding the same enwik9.zst file, my decoder is about 4 times slower. Enwik9 is highly compressible, for less compressible data my decoder comes close to only being 3 times slower.
+Measuring with the 'time' utility the original zstd and my decoder both decoding the same enwik9.zst file from aramfs, my decoder is about 4 times slower. Enwik9 is highly compressible, for less compressible data my decoder comes close to only being 3 times slower.
 
 ## Can do:
 1. Parse all files in /decodecorpus_files. These were generated with [decodecorpus](https://github.com/facebook/zstd/tree/dev/tests) by the original zstd developers
@@ -25,7 +25,7 @@ Measuring with the 'time' utility the original zstd and my decoder both decoding
 1. Implement dictionary support
 1. Find what causes the slow-units in fuzzing
 1. Performance optimizations
-1. More tests (especially unit-tests for the bitreaders)
+1. More tests (especially unit-tests for the bitreaders and other lower-level parts)
 1. Find more bugs
 
 ## Testing
