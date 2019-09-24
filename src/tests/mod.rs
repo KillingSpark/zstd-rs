@@ -15,7 +15,7 @@ fn test_block_header_reading() {
     use crate::frame;
     use std::fs;
 
-    let mut content = fs::File::open("/home/moritz/rust/zstd-rs/test_img.zst").unwrap();
+    let mut content = fs::File::open("./decodecorpus_files/z000088.zst").unwrap();
     let (frame, _) = frame::read_frame_header(&mut content).unwrap();
     frame.check_valid().unwrap();
 
@@ -29,7 +29,7 @@ fn test_frame_decoder() {
     use crate::frame_decoder;
     use std::fs;
 
-    let mut content = fs::File::open("/home/moritz/rust/zstd-rs/test_img.zst").unwrap();
+    let mut content = fs::File::open("./decodecorpus_files/z000088.zst").unwrap();
 
     struct NullWriter(());
     impl std::io::Write for NullWriter {
