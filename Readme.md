@@ -53,11 +53,12 @@ This will tell you where the decoder panics exactly. If you are able to fix the 
 The easiest is to just decode all blocks and then drain the buffer like this:
 ```
 let mut f = File::open(path).unwrap();
-let mut frame_dec = frame_decoder::FrameDecoder::new(&mut f).unwrap();
+let mut frame_dec = frame_decoder::FrameDecoder::new();
+frame_dec.init(&mut f).unwrap();
 frame_dec.decode_blocks(&mut f, frame_decoder::BlockDecodingStrategy::All).unwrap();
 
 // result contains the whole decoded file
-let result = frame_dec.drain_buffer();
+let result = frame_dec.collect();
 ```
 
 ### Memory efficient
