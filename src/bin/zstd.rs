@@ -46,7 +46,7 @@ fn main() {
                 let percentage = (tracker.bytes_used * 100) / frame_dec.content_size().unwrap();
                 if percentage as i8 != tracker.old_percentage {
                     std::io::stderr().write_fmt(format_args!("\r")).unwrap();
-                    std::io::stderr().write_fmt(format_args!("{}", percentage)).unwrap();
+                    std::io::stderr().write_fmt(format_args!("{} % done", percentage)).unwrap();
                     tracker.old_percentage = percentage as i8;
                 }
             }
