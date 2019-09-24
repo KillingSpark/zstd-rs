@@ -46,7 +46,7 @@ fn main() {
                 let percentage = (tracker.bytes_used * 100)
                     / frame_dec.content_size().unwrap();
                 if percentage as i8 != tracker.old_percentage {
-                    println!("{}", percentage);
+                    //println!("{}", percentage);
                     tracker.old_percentage = percentage as i8;
                 }
             }

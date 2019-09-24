@@ -41,7 +41,7 @@ impl Decodebuffer {
         self.window_size = window_size;
         self.buffer.clear();
         self.buffer.reserve(self.window_size);
-    } 
+    }
 
     pub fn len(&self) -> usize {
         self.buffer.len()
@@ -68,8 +68,30 @@ impl Decodebuffer {
 
         let start_idx = self.buffer.len() - offset;
         self.buffer.reserve(match_length);
-        for x in 0..match_length {
-            self.buffer.push(self.buffer[start_idx + x]);
+
+        if start_idx + match_length > self.buffer.len() {
+            //need to copy byte by byte. can be optimized more but for now lets leave it like this
+            //TODO batch whats possible
+            for x in 0..match_length {
+                self.buffer.push(self.buffer[start_idx + x]);
+            }
+        } else {
+            const BATCH_SIZE: usize = 32;
+            let full_copies = match_length / BATCH_SIZE;
+            let partial_copy_size = match_length % BATCH_SIZE;
+
+            let mut buf = [0u8; BATCH_SIZE];
+            for x in 0..full_copies {
+                let idx = start_idx + x * BATCH_SIZE;
+                let source = &self.buffer.as_slice()[idx..idx + BATCH_SIZE];
+                buf[0..BATCH_SIZE].copy_from_slice(source);
+                self.buffer.extend(&buf[0..BATCH_SIZE]);
+            }
+
+            let idx = start_idx + full_copies * BATCH_SIZE;
+            let source = &self.buffer.as_slice()[idx..idx + partial_copy_size];
+            buf[0..partial_copy_size].copy_from_slice(source);
+            self.buffer.extend(&buf[0..partial_copy_size]);
         }
 
         Ok(())
