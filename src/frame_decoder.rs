@@ -59,14 +59,29 @@ impl FrameDecoderState {
 }
 
 impl FrameDecoder {
+    /// This will create a new decoder without allocating anything yet. 
+    /// init()/reset() will allocate all needed buffers if it is the first time this decoder is used
+    /// else they just reset these buffers with not further allocations 
     pub fn new() -> FrameDecoder {
         FrameDecoder { state: None }
     }
 
+    /// init() will allocate all needed buffers if it is the first time this decoder is used
+    /// else they just reset these buffers with not further allocations
+    /// 
+    /// Note that all bytes currently in the decodebuffer from any previous frame will be lost. Collect them with collect()/collect_to_writer()
+    /// 
+    /// equivalent to reset()
     pub fn init(&mut self, source: &mut Read) -> Result<(), String> {
         self.reset(source)
     }
 
+    /// reset() will allocate all needed buffers if it is the first time this decoder is used
+    /// else they just reset these buffers with not further allocations
+    /// 
+    /// Note that all bytes currently in the decodebuffer from any previous frame will be lost. Collect them with collect()/collect_to_writer()
+    /// 
+    /// equivalent to init()
     pub fn reset(&mut self, source: &mut Read) -> Result<(), String> {
         match &mut self.state {
             Some(s) => s.reset(source),
@@ -210,7 +225,7 @@ impl FrameDecoder {
         Ok(state.frame_finished)
     }
 
-    /// Collect is for collecting bytes and retain window_size bytes while decoding is still going on
+    /// Collect bytes and retain window_size bytes while decoding is still going on.
     /// After decoding of the frame (is_finished() == true) has finished it will collect all remaining bytes
     pub fn collect(&mut self) -> Option<Vec<u8>> {
         let finished = self.is_finished();
@@ -225,7 +240,7 @@ impl FrameDecoder {
         }
     }
 
-    /// Collect is for collecting bytes and retain window_size bytes while decoding is still going on
+    /// Collect bytes and retain window_size bytes while decoding is still going on.
     /// After decoding of the frame (is_finished() == true) has finished it will collect all remaining bytes
     pub fn collect_to_writer(&mut self, w: &mut std::io::Write) -> Result<usize, std::io::Error> {
         let finished = self.is_finished();
@@ -261,6 +276,7 @@ impl FrameDecoder {
 
     /// Decodes as many blocks as possible from the source slice and reads from the decodebuffer into the target slice
     /// The source slice may contain only parts of a frame but must contain at least one full block to make progress
+    /// 
     /// Returns (read, written), if read == 0 then the source did not contain a full block and further calls with the same
     /// input will not make any progress!
     ///
