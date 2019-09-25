@@ -76,8 +76,7 @@ impl Decodebuffer {
                 self.buffer.push(self.buffer[start_idx + x]);
             }
         } else {
-            // TODO figure out way to do this in-place without the buffer. might need unsafe here. Would reduce the amount of coping by x2
-            // so it would probably be worth it
+            // doing it this way is suprisingly faster (on my machine) than using ptr::copy_nonoverlapping
             const BATCH_SIZE: usize = 32;
             let full_copies = match_length / BATCH_SIZE;
             let partial_copy_size = match_length % BATCH_SIZE;

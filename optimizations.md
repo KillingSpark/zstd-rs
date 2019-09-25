@@ -10,3 +10,6 @@ These optimizations introduced more unsafe code. These should yield significant 
 
 * Before: about 14.7 seconds
 * After: about 12.2 seconds with about 25% of the time used for get_bits()
+
+### Optimizing decodebuffer::repeat with ptr::copy_nonoverlapping
+Did not work surprisingly. Copying in-place instead of 1.) copy on stack and 2.) extending the buffer is apparently slower. I do not know exactly why though.
