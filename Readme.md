@@ -10,7 +10,7 @@ For production use (or if you need a compressor) I would (at the time of writing
 If you'd be willing to try this in your projects I would be very happy though!
 
 ## Speed
-Measuring with the 'time' utility the original zstd and my decoder both decoding the same enwik9.zst file from aramfs, my decoder is about 3.8 times slower. Enwik9 is highly compressible, for less compressible data my decoder comes close to only being 1.4 times slower.
+Measuring with the 'time' utility the original zstd and my decoder both decoding the same enwik9.zst file from aramfs, my decoder is about 3.8 times slower. Enwik9 is highly compressible, for less compressible data (like a ubuntu installation .iso) my decoder comes close to only being 1.4 times slower.
 
 ## Can do:
 1. Parse all files in /decodecorpus_files. These were generated with [decodecorpus](https://github.com/facebook/zstd/tree/dev/tests) by the original zstd developers
