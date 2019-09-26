@@ -19,7 +19,9 @@ fn main() {
     let mut frame_dec = zstd_rs::FrameDecoder::new();
 
     for path in file_paths {
-        std::io::stderr().write_fmt(format_args!("File: {}\n", path)).unwrap();
+        std::io::stderr()
+            .write_fmt(format_args!("File: {}\n", path))
+            .unwrap();
         let mut f = File::open(path).unwrap();
 
         frame_dec.reset(&mut f).unwrap();
@@ -46,7 +48,9 @@ fn main() {
                 let percentage = (tracker.bytes_used * 100) / frame_dec.content_size().unwrap();
                 if percentage as i8 != tracker.old_percentage {
                     std::io::stderr().write_fmt(format_args!("\r")).unwrap();
-                    std::io::stderr().write_fmt(format_args!("{} % done", percentage)).unwrap();
+                    std::io::stderr()
+                        .write_fmt(format_args!("{} % done", percentage))
+                        .unwrap();
                     tracker.old_percentage = percentage as i8;
                 }
             }
@@ -61,7 +65,9 @@ fn main() {
             result.resize(result.capacity(), 0);
         }
 
-        std::io::stderr().write_fmt(format_args!("\nDecoded bytes: {}\n", tracker.bytes_used)).unwrap();
+        std::io::stderr()
+            .write_fmt(format_args!("\nDecoded bytes: {}\n", tracker.bytes_used))
+            .unwrap();
     }
 }
 

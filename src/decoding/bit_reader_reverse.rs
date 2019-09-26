@@ -88,7 +88,6 @@ impl<'s> BitReaderReversed<'s> {
         }
 
         if self.bits_remaining() < n {
-            //TODO handle correctly. need to fill with 0
             let emulated_read_shift = n - self.bits_remaining();
             let v = self.get_bits(self.bits_remaining() as usize)?;
             assert!(self.idx == 0);

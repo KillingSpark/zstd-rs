@@ -17,11 +17,6 @@ pub fn decode_sequences(
         println!("Updating tables used {} bytes", bytes_read);
     }
 
-    if scratch.ll_rle.is_some() || scratch.of_rle.is_some() || scratch.ml_rle.is_some() {
-        //TODO
-        //unimplemented!("RLE symbols for sequences not yet implemented");
-    }
-
     let bit_stream = &source[bytes_read..];
 
     let mut br = BitReaderReversed::new(bit_stream);

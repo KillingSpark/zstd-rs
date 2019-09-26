@@ -137,9 +137,15 @@ impl HuffmanTable {
 
                 let compressed_start = bytes_used_by_fse_header as usize;
                 let compressed_length = header as usize - bytes_used_by_fse_header as usize;
-                //TODO check size of compressed weights
 
                 let compressed_weights = &fse_stream[compressed_start..];
+                if compressed_weights.len() < compressed_length {
+                    return Err(format!(
+                        "Not enough bytes in stream to decompress weights. Is: {}, Should be: {}",
+                        compressed_weights.len(),
+                        compressed_length
+                    ));
+                }
                 let compressed_weights = &compressed_weights[..compressed_length];
                 let mut br = BitReaderReversed::new(compressed_weights);
 
