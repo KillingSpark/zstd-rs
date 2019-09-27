@@ -18,13 +18,11 @@ Measuring with the 'time' utility the original zstd and my decoder both decoding
 1. Decode all the decode_corpus files (1000+) I created locally 
 
 ## Cannot do
-1. Use dictionaries
+1. Use dictionaries. This is being worked on right now
 
 ## Roadmap
-1. Make a nice API maybe io::Read based, maybe not, we'll see
-1. Implement dictionary support
-1. Find what causes the slow-units in fuzzing
-1. Performance optimizations
+1. Finish implementing dictionary support
+1. More Performance optimizations
 1. More tests (especially unit-tests for the bitreaders and other lower-level parts)
 1. Find more bugs
 
