@@ -118,6 +118,10 @@ pub fn decode_sequences(
                 of_dec.update_state(&mut br)?;
             }
         }
+
+        if br.bits_remaining() < 0 {
+            return Err("Bytestream did not contain enough bytes to decode num_sequences".to_owned());
+        }
     }
 
     if br.bits_remaining() > 0 {

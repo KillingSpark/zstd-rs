@@ -209,6 +209,9 @@ impl BlockDecoder {
                 &mut workspace.fse,
                 &mut workspace.sequences,
             )?;
+            if crate::VERBOSE {
+                println!("Executing sequences");
+            }
             execute_sequences(workspace)?;
         } else {
             workspace.buffer.push(&workspace.literals_buffer);
