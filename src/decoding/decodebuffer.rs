@@ -59,16 +59,15 @@ impl Decodebuffer {
     }
 
     pub fn repeat(&mut self, offset: usize, match_length: usize) -> Result<(), String> {
-        if offset > self.window_size {
-            return Err(format!(
-                "offset: {} bigger than windowsize: {}",
-                offset, self.window_size
-            ));
-        }
         if offset > self.buffer.len() {
             if self.total_output_counter <= self.window_size as u64 {
                 // at least part of that repeat is from the dictionary content
                 let bytes_from_dict = offset - self.buffer.len();
+
+                if bytes_from_dict > self.dict_content.len() {
+                    return Err(format!("Need {} bytes from the dictionary but it is only {} bytes long", bytes_from_dict, self.dict_content.len()));
+                }
+
                 let dict_slice = &self.dict_content[self.dict_content.len()-bytes_from_dict..];
                 self.buffer.reserve(bytes_from_dict);
                 self.buffer.extend(dict_slice);
