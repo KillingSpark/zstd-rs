@@ -1,7 +1,9 @@
 pub struct Decodebuffer {
-    buffer: Vec<u8>,
+    pub buffer: Vec<u8>,
+    pub dict_content: Vec<u8>,
 
-    window_size: usize,
+    pub window_size: usize,
+    total_output_counter: u64,
 }
 
 impl std::io::Read for Decodebuffer {
@@ -33,7 +35,9 @@ impl Decodebuffer {
     pub fn new(window_size: usize) -> Decodebuffer {
         Decodebuffer {
             buffer: Vec::new(),
+            dict_content: Vec::new(),
             window_size: window_size,
+            total_output_counter: 0,
         }
     }
 
@@ -41,6 +45,8 @@ impl Decodebuffer {
         self.window_size = window_size;
         self.buffer.clear();
         self.buffer.reserve(self.window_size);
+        self.dict_content.clear();
+        self.total_output_counter = 0;
     }
 
     pub fn len(&self) -> usize {
@@ -49,6 +55,7 @@ impl Decodebuffer {
 
     pub fn push(&mut self, data: &[u8]) {
         self.buffer.extend_from_slice(data);
+        self.total_output_counter += data.len() as u64;
     }
 
     pub fn repeat(&mut self, offset: usize, match_length: usize) -> Result<(), String> {
@@ -59,11 +66,21 @@ impl Decodebuffer {
             ));
         }
         if offset > self.buffer.len() {
-            return Err(format!(
-                "offset: {} bigger than buffer: {}",
-                offset,
-                self.buffer.len()
-            ));
+            if self.total_output_counter <= self.window_size as u64 {
+                // at least part of that repeat is from the dictionary content
+                let bytes_from_dict = offset - self.buffer.len();
+                let dict_slice = &self.dict_content[self.dict_content.len()-bytes_from_dict..];
+                self.buffer.reserve(bytes_from_dict);
+                self.buffer.extend(dict_slice);
+
+                return self.repeat(self.buffer.len(), match_length - bytes_from_dict);
+            } else {
+                return Err(format!(
+                    "offset: {} bigger than buffer: {}",
+                    offset,
+                    self.buffer.len()
+                ));
+            }
         }
 
         let start_idx = self.buffer.len() - offset;
@@ -105,7 +122,7 @@ impl Decodebuffer {
                 std::ptr::copy_nonoverlapping(src, dst, match_length);
             }
         }
-
+        self.total_output_counter += match_length as u64;
         Ok(())
     }
 

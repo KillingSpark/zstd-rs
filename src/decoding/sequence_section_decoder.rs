@@ -190,9 +190,9 @@ fn lookup_ml_code(code: u8) -> Result<(u32, u8), String> {
     }
 }
 
-const LL_MAX_LOG: u8 = 9;
-const ML_MAX_LOG: u8 = 9;
-const OF_MAX_LOG: u8 = 8;
+pub const LL_MAX_LOG: u8 = 9;
+pub const ML_MAX_LOG: u8 = 9;
+pub const OF_MAX_LOG: u8 = 8;
 
 fn maybe_update_fse_tables(
     section: &SequencesHeader,
