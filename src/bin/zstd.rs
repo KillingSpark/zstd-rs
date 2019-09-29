@@ -11,14 +11,15 @@ struct StateTracker {
 fn main() {
     let mut file_paths: Vec<_> = std::env::args().collect();
     file_paths.remove(0);
-    let mut tracker = StateTracker {
-        bytes_used: 0,
-        old_percentage: -1,
-    };
 
     let mut frame_dec = zstd_rs::FrameDecoder::new();
 
     for path in file_paths {
+        let mut tracker = StateTracker {
+            bytes_used: 0,
+            old_percentage: -1,
+        };
+
         std::io::stderr()
             .write_fmt(format_args!("File: {}\n", path))
             .unwrap();
