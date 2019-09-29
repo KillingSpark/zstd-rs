@@ -9,8 +9,24 @@ struct StateTracker {
 }
 
 fn main() {
-    let mut file_paths: Vec<_> = std::env::args().collect();
+    let mut file_paths: Vec<_> = std::env::args().filter(|f| !f.starts_with("-")).collect();
+    let flags: Vec<_> = std::env::args().filter(|f| f.starts_with("-")).collect();
     file_paths.remove(0);
+
+    if !flags.contains(&"-d".to_owned()) {
+        std::io::stderr().write(b"This zstd implementation only supports decompression. Please add a \"-d\" flag").unwrap();
+        return;
+    }
+
+    if !flags.contains(&"-c".to_owned()) {
+        std::io::stderr().write(b"This zstd implementation only supports output on the stdout. Please add a \"-c\" flag and pipe the output into a file").unwrap();
+        return;
+    }
+
+    if flags.len() != 2{
+        std::io::stderr().write_fmt(format_args!("No flags other than -d and -c are currently implemented. Flags used: {:?}", flags)).unwrap();
+        return;
+    }
 
     let mut frame_dec = zstd_rs::FrameDecoder::new();
 
