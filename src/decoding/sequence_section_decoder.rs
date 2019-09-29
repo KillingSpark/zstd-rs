@@ -35,18 +35,31 @@ pub fn decode_sequences(
         return Err(format!("Padding at the end of the sequence_section was more than a byte long: {}. Probably cause by data corruption", skipped_bits));
     }
 
+    if scratch.ll_rle.is_some() || scratch.ml_rle.is_some() || scratch.of_rle.is_some() {
+        decode_sequences_with_rle(section, &mut br, scratch, target)
+    } else {
+        decode_sequences_without_rle(section, &mut br, scratch, target)
+    }
+}
+
+fn decode_sequences_with_rle(
+    section: &SequencesHeader,
+    br: &mut BitReaderReversed,
+    scratch: &mut FSEScratch,
+    target: &mut Vec<Sequence>,
+) -> Result<(), String> {
     let mut ll_dec = FSEDecoder::new(&scratch.literal_lengths);
     let mut ml_dec = FSEDecoder::new(&scratch.match_lengths);
     let mut of_dec = FSEDecoder::new(&scratch.offsets);
 
     if scratch.ll_rle.is_none() {
-        ll_dec.init_state(&mut br)?;
+        ll_dec.init_state(br)?;
     }
     if scratch.of_rle.is_none() {
-        of_dec.init_state(&mut br)?;
+        of_dec.init_state(br)?;
     }
     if scratch.ml_rle.is_none() {
-        ml_dec.init_state(&mut br)?;
+        ml_dec.init_state(br)?;
     }
 
     target.clear();
@@ -70,8 +83,8 @@ pub fn decode_sequences(
             of_dec.decode_symbol()
         };
 
-        let (ll_value, ll_num_bits) = lookup_ll_code(ll_code)?;
-        let (ml_value, ml_num_bits) = lookup_ml_code(ml_code)?;
+        let (ll_value, ll_num_bits) = lookup_ll_code(ll_code);
+        let (ml_value, ml_num_bits) = lookup_ml_code(ml_code);
 
         //println!("Sequence: {}", i);
         //println!("of stat: {}", of_dec.state);
@@ -109,18 +122,20 @@ pub fn decode_sequences(
             //    br.bits_remaining() / 8,
             //);
             if scratch.ll_rle.is_none() {
-                ll_dec.update_state(&mut br)?;
+                ll_dec.update_state(br)?;
             }
             if scratch.ml_rle.is_none() {
-                ml_dec.update_state(&mut br)?;
+                ml_dec.update_state(br)?;
             }
             if scratch.of_rle.is_none() {
-                of_dec.update_state(&mut br)?;
+                of_dec.update_state(br)?;
             }
         }
 
         if br.bits_remaining() < 0 {
-            return Err("Bytestream did not contain enough bytes to decode num_sequences".to_owned());
+            return Err(
+                "Bytestream did not contain enough bytes to decode num_sequences".to_owned(),
+            );
         }
     }
 
@@ -135,58 +150,130 @@ pub fn decode_sequences(
     }
 }
 
-fn lookup_ll_code(code: u8) -> Result<(u32, u8), String> {
-    match code {
-        0...15 => Ok((code as u32, 0)),
-        16 => Ok((16, 1)),
-        17 => Ok((18, 1)),
-        18 => Ok((20, 1)),
-        19 => Ok((22, 1)),
-        20 => Ok((24, 2)),
-        21 => Ok((28, 2)),
-        22 => Ok((32, 3)),
-        23 => Ok((40, 3)),
-        24 => Ok((48, 4)),
-        25 => Ok((64, 6)),
-        26 => Ok((128, 7)),
-        27 => Ok((256, 8)),
-        28 => Ok((512, 9)),
-        29 => Ok((1024, 10)),
-        30 => Ok((2048, 11)),
-        31 => Ok((4096, 12)),
-        32 => Ok((8192, 13)),
-        33 => Ok((16384, 14)),
-        34 => Ok((32768, 15)),
-        35 => Ok((65536, 16)),
-        _ => Err(format!("Invalid ll code: {}", code)),
+fn decode_sequences_without_rle(
+    section: &SequencesHeader,
+    br: &mut BitReaderReversed,
+    scratch: &mut FSEScratch,
+    target: &mut Vec<Sequence>,
+) -> Result<(), String> {
+    let mut ll_dec = FSEDecoder::new(&scratch.literal_lengths);
+    let mut ml_dec = FSEDecoder::new(&scratch.match_lengths);
+    let mut of_dec = FSEDecoder::new(&scratch.offsets);
+
+    ll_dec.init_state(br)?;
+    of_dec.init_state(br)?;
+    ml_dec.init_state(br)?;
+
+    target.clear();
+    target.reserve(section.num_sequences as usize);
+
+    for _seq_idx in 0..section.num_sequences {
+        let ll_code = ll_dec.decode_symbol();
+        let ml_code = ml_dec.decode_symbol();
+        let of_code = of_dec.decode_symbol();
+
+        let (ll_value, ll_num_bits) = lookup_ll_code(ll_code);
+        let (ml_value, ml_num_bits) = lookup_ml_code(ml_code);
+
+        if of_code >= 32 {
+            return Err("Do not support offsets bigger than 1<<32".to_owned());
+        }
+
+        let offset = (br.get_bits(of_code as usize)? as u32) + (1u32 << of_code);
+        let ml_add = br.get_bits(ml_num_bits as usize)?;
+        let ll_add = br.get_bits(ll_num_bits as usize)?;
+
+        if offset == 0 {
+            return Err("Read an offset == 0. That is an illegal value for offsets".to_owned());
+        }
+
+        target.push(Sequence {
+            ll: ll_value as u32 + ll_add as u32,
+            ml: ml_value as u32 + ml_add as u32,
+            of: offset,
+        });
+
+        if target.len() < section.num_sequences as usize {
+            //println!(
+            //    "Bits left: {} ({} bytes)",
+            //    br.bits_remaining(),
+            //    br.bits_remaining() / 8,
+            //);
+            ll_dec.update_state(br)?;
+            ml_dec.update_state(br)?;
+            of_dec.update_state(br)?;
+        }
+
+        if br.bits_remaining() < 0 {
+            return Err(
+                "Bytestream did not contain enough bytes to decode num_sequences".to_owned(),
+            );
+        }
+    }
+
+    if br.bits_remaining() > 0 {
+        Err(format!(
+            "Did not use full bitstream. Bits left: {} ({} bytes)",
+            br.bits_remaining(),
+            br.bits_remaining() / 8,
+        ))
+    } else {
+        Ok(())
     }
 }
 
-fn lookup_ml_code(code: u8) -> Result<(u32, u8), String> {
+fn lookup_ll_code(code: u8) -> (u32, u8) {
     match code {
-        0...31 => Ok((code as u32 + 3, 0)),
-        32 => Ok((35, 1)),
-        33 => Ok((37, 1)),
-        34 => Ok((39, 1)),
-        35 => Ok((41, 1)),
-        36 => Ok((43, 2)),
-        37 => Ok((47, 2)),
-        38 => Ok((51, 3)),
-        39 => Ok((59, 3)),
-        40 => Ok((67, 4)),
-        41 => Ok((83, 4)),
-        42 => Ok((99, 5)),
-        43 => Ok((131, 7)),
-        44 => Ok((259, 8)),
-        45 => Ok((515, 9)),
-        46 => Ok((1027, 10)),
-        47 => Ok((2051, 11)),
-        48 => Ok((4099, 12)),
-        49 => Ok((8195, 13)),
-        50 => Ok((16387, 14)),
-        51 => Ok((32771, 15)),
-        52 => Ok((65539, 16)),
-        _ => Err(format!("Invalid ml code: {}", code)),
+        0...15 => (code as u32, 0),
+        16 => (16, 1),
+        17 => (18, 1),
+        18 => (20, 1),
+        19 => (22, 1),
+        20 => (24, 2),
+        21 => (28, 2),
+        22 => (32, 3),
+        23 => (40, 3),
+        24 => (48, 4),
+        25 => (64, 6),
+        26 => (128, 7),
+        27 => (256, 8),
+        28 => (512, 9),
+        29 => (1024, 10),
+        30 => (2048, 11),
+        31 => (4096, 12),
+        32 => (8192, 13),
+        33 => (16384, 14),
+        34 => (32768, 15),
+        35 => (65536, 16),
+        _ => (0, 255),
+    }
+}
+
+fn lookup_ml_code(code: u8) -> (u32, u8) {
+    match code {
+        0...31 => (code as u32 + 3, 0),
+        32 => (35, 1),
+        33 => (37, 1),
+        34 => (39, 1),
+        35 => (41, 1),
+        36 => (43, 2),
+        37 => (47, 2),
+        38 => (51, 3),
+        39 => (59, 3),
+        40 => (67, 4),
+        41 => (83, 4),
+        42 => (99, 5),
+        43 => (131, 7),
+        44 => (259, 8),
+        45 => (515, 9),
+        46 => (1027, 10),
+        47 => (2051, 11),
+        48 => (4099, 12),
+        49 => (8195, 13),
+        50 => (16387, 14),
+        51 => (32771, 15),
+        52 => (65539, 16),
+        _ => (0, 255),
     }
 }
 
