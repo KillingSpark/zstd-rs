@@ -1,0 +1,18 @@
+[Unit]
+Description=Automatic wireless network connection using netctl profiles
+Documentation=man:netctl.special(7)
+Requisite=multi-user.target
+BindsTo=sys-subsystem-net-devices-%i.device
+After=sys-subsystem-net-devices-%i.device network-pre.target
+Before=network.target
+Wants=network.target
+
+[Service]
+Type=forking
+RemainAfterExit=yes
+ExecStart=/usr/bin/netctl-auto start %I
+ExecStop=/usr/bin/netctl-auto stop %I
+ExecStopPost=/usr/bin/netctl-auto clean %I
+
+[Install]
+WantedBy=sys-subsystem-net-devices-%i.device

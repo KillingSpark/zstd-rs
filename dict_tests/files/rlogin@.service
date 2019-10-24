@@ -1,0 +1,7 @@
+[Unit]
+Description=Remote Login Facilities Server
+After=local-fs.target
+
+[Service]
+ExecStart=-/usr/bin/rlogind
+StandardInput=socket

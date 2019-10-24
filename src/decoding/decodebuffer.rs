@@ -65,14 +65,26 @@ impl Decodebuffer {
                 let bytes_from_dict = offset - self.buffer.len();
 
                 if bytes_from_dict > self.dict_content.len() {
-                    return Err(format!("Need {} bytes from the dictionary but it is only {} bytes long", bytes_from_dict, self.dict_content.len()));
+                    return Err(format!(
+                        "Need {} bytes from the dictionary but it is only {} bytes long",
+                        bytes_from_dict,
+                        self.dict_content.len()
+                    ));
                 }
 
-                let dict_slice = &self.dict_content[self.dict_content.len()-bytes_from_dict..];
-                self.buffer.reserve(bytes_from_dict);
-                self.buffer.extend(dict_slice);
+                if bytes_from_dict < match_length {
+                    let dict_slice =
+                        &self.dict_content[self.dict_content.len() - bytes_from_dict..];
+                    self.buffer.extend(dict_slice);
 
-                return self.repeat(self.buffer.len(), match_length - bytes_from_dict);
+                    return self.repeat(self.buffer.len(), match_length - bytes_from_dict);
+                } else {
+                    let low = self.dict_content.len() - bytes_from_dict;
+                    let high = low + match_length;
+                    let dict_slice = &self.dict_content[low..high];
+                    self.buffer.extend(dict_slice);
+                    return Ok(());
+                }
             } else {
                 return Err(format!(
                     "offset: {} bigger than buffer: {}",

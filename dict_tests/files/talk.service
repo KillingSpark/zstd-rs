@@ -1,0 +1,12 @@
+[Unit]
+Description=Talk Server
+Documentation=man:talkd(8) man:talk(1)
+
+[Service]
+User=nobody
+Group=tty
+ExecStart=/usr/bin/talkd
+StandardInput=socket
+
+[Install]
+Also=talk.socket

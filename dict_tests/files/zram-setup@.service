@@ -1,0 +1,14 @@
+#Service initializes zram devices
+[Unit]
+Description=Setup zram based device %i
+After=dev-%i.device
+Requires=dev-%i.device
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=-/usr/local/lib/zram.conf.d/%i-env
+ExecStart=-/bin/sh -c 'echo $ZRAM_NUM_STR > /sys/class/block/%i/max_comp_streams'
+ExecStart=-/bin/sh -c 'echo $ZRAM_DEV_SIZE > /sys/class/block/%i/disksize'
+ExecStart=-/bin/sh -c '[ "$SWAP" = "y" ] && mkswap /dev/%i && swapon /dev/%i'
+ExecStop=-/bin/sh -c 'echo 1 > /sys/class/block/%i/reset'

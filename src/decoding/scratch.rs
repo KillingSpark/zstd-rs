@@ -63,7 +63,7 @@ impl DecoderScratch {
         let _ = magic_num;
 
         let dict_id = &raw[4..8];
-        let dict_id = dict_id[0] as u32 + (dict_id[1]  as u32) << 8 + (dict_id[2]  as u32) << 16 + (dict_id[3]  as u32) << 24;
+        let dict_id = dict_id[0] as u32 + ((dict_id[1]  as u32) << 8) + ((dict_id[2]  as u32) << 16) + ((dict_id[3]  as u32) << 24);
 
         let raw_tables = &raw[8..];
 

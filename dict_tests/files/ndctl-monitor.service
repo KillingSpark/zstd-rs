@@ -1,0 +1,9 @@
+[Unit]
+Description=Ndctl Monitor Daemon
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/ndctl monitor
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,24 @@
+[Unit]
+Description=Daemon for generating UUIDs
+Documentation=man:uuidd(8)
+Requires=uuidd.socket
+
+[Service]
+ExecStart=/usr/sbin/uuidd --socket-activation
+Restart=no
+User=uuidd
+Group=uuidd
+ProtectSystem=strict
+ProtectHome=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+PrivateUsers=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@default @file-system @basic-io @system-service @signal @io-event @network-io
+
+[Install]
+Also=uuidd.socket

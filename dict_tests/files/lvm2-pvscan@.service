@@ -1,0 +1,16 @@
+[Unit]
+Description=LVM2 PV scan on device %i
+Documentation=man:pvscan(8)
+DefaultDependencies=no
+BindsTo=dev-block-%i.device
+Requires=lvm2-lvmetad.socket
+After=lvm2-lvmetad.socket lvm2-lvmetad.service
+Before=shutdown.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/lvm pvscan --cache --activate ay %i
+ExecStop=/usr/bin/lvm pvscan --cache %i
+StartLimitInterval=0

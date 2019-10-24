@@ -177,3 +177,4 @@ fn test_specific_file() {
 
 pub mod decode_corpus;
 pub mod fuzz_regressions;
+pub mod dict_test;

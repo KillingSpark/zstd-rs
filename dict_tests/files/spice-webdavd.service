@@ -1,0 +1,10 @@
+[Unit]
+Description=webdav daemon for Spice guests
+Requires=dbus.service avahi-daemon.service
+After=dbus.service avahi-daemon.service
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/conf.d/spice-webdavd
+ExecStart=/usr/bin/spice-webdavd -p 9843 $SPICE_WEBDAVD_EXTRA_ARGS
+Restart=on-success

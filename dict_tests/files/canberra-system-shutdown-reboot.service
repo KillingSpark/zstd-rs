@@ -1,0 +1,17 @@
+[Unit]
+Description=Play Reboot Sound
+DefaultDependencies=no
+Before=shutdown.target
+
+# A little optimization under the assumption that we are using the
+# standard freedesktop theme
+ConditionPathExists=|/usr/share/sounds/freedesktop/stereo/system-shutdown.oga
+ConditionPathExists=|/usr/share/sounds/freedesktop/stereo/system-shutdown-reboot.oga
+
+[Service]
+Type=oneshot
+ExecStart=-/usr/bin/canberra-boot system-shutdown-reboot
+
+[Install]
+WantedBy=reboot.target kexec.target
+Also=canberra-system-shutdown.service

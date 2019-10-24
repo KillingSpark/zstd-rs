@@ -75,6 +75,9 @@ impl FrameDecoder {
     pub fn init(&mut self, source: &mut Read) -> Result<(), String> {
         self.reset(source)
     }
+    pub fn init_with_dict(&mut self, source: &mut Read, dict: &Vec<u8>) -> Result<(), String> {
+        self.reset_with_dict(source, dict)
+    }
 
     /// reset() will allocate all needed buffers if it is the first time this decoder is used
     /// else they just reset these buffers with not further allocations
@@ -90,6 +93,13 @@ impl FrameDecoder {
                 Ok(())
             }
         }
+    }
+    pub fn reset_with_dict(&mut self, source: &mut Read, dict: &Vec<u8>) -> Result<(), String> {
+        self.reset(source)?;
+        if let Some(state) = &mut self.state {
+            state.decoder_scratch.load_dict(dict)?;
+        };
+        Ok(())
     }
 
     /// Returns how many bytes the frame contains after decompression

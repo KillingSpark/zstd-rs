@@ -1,0 +1,18 @@
+[Unit]
+Description=Play Bootup Sound
+DefaultDependencies=no
+After=alsa-restore.service
+Before=shutdown.target
+Conflicts=shutdown.target
+
+# A little optimization under the assumption that we are using the
+# standard freedesktop theme
+ConditionPathExists=/usr/share/sounds/freedesktop/stereo/system-bootup.oga
+
+[Service]
+Type=oneshot
+ExecStart=-/usr/bin/canberra-boot system-bootup
+
+[Install]
+WantedBy=sound.target
+Also=canberra-system-shutdown.service canberra-system-shutdown-reboot.service

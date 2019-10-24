@@ -1,0 +1,16 @@
+[Unit]
+Description=LVM2 metadata daemon
+Documentation=man:lvmetad(8)
+Requires=lvm2-lvmetad.socket
+Before=shutdown.target
+After=lvm2-lvmetad.socket
+DefaultDependencies=no
+Conflicts=shutdown.target
+
+[Service]
+Type=simple
+NonBlocking=true
+ExecStart=/usr/bin/lvmetad -f
+Environment=SD_ACTIVATION=1
+Restart=on-abort
+PIDFile=/run/lvmetad.pid

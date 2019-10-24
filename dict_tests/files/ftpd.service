@@ -1,0 +1,12 @@
+[Unit]
+Description=FTPD Daemon
+After=network.target
+
+[Service]
+Type=forking
+PIDFile=/run/ftpd.pid
+ExecStart=/usr/bin/ftpd -D
+ExecStopPost=/usr/bin/rm -f /run/ftpd.pid
+
+[Install]
+WantedBy=multi-user.target

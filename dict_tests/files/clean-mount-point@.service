@@ -1,0 +1,10 @@
+[Unit]
+Description=Clean the %f mount point
+Before=%i.mount
+BindsTo=%i.mount
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+ExecStop=/bin/rm -fd %f

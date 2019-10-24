@@ -1,0 +1,13 @@
+[Unit]
+Description=Wait for the enabled netctl profiles to come online
+Documentation=man:netctl.special(7)
+After=network.target
+Before=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/lib/netctl/network wait-online
+
+[Install]
+WantedBy=network-online.target

@@ -1,0 +1,55 @@
+[Unit]
+Description=Daemon for power management
+Documentation=man:upowerd(8)
+
+[Service]
+Type=dbus
+BusName=org.freedesktop.UPower
+ExecStart=/usr/lib/upowerd
+Restart=on-failure
+
+# Filesystem lockdown
+ProtectSystem=strict
+# Needed by keyboard backlight support
+ProtectKernelTunables=false
+ProtectControlGroups=true
+ReadWritePaths=/var/lib/upower
+StateDirectory=upower
+ProtectHome=true
+PrivateTmp=true
+
+# Network
+# PrivateNetwork=true would block udev's netlink socket
+IPAddressDeny=any
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+
+# Execute Mappings
+MemoryDenyWriteExecute=true
+
+# Modules
+ProtectKernelModules=true
+
+# Real-time
+RestrictRealtime=true
+
+# Privilege escalation
+NoNewPrivileges=true
+
+# Capabilities
+CapabilityBoundingSet=
+
+# System call interfaces
+LockPersonality=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=ioprio_get
+
+# Namespaces
+PrivateUsers=yes
+RestrictNamespaces=yes
+
+# Locked memory
+LimitMEMLOCK=0
+
+[Install]
+WantedBy=graphical.target

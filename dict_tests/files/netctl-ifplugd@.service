@@ -1,0 +1,13 @@
+[Unit]
+Description=Automatic wired network connection using netctl profiles
+Documentation=man:netctl.special(7)
+Requisite=multi-user.target
+BindsTo=sys-subsystem-net-devices-%i.device
+After=sys-subsystem-net-devices-%i.device network-pre.target
+
+[Service]
+NotifyAccess=all
+ExecStart=/usr/bin/ifplugd -i %I -r /etc/ifplugd/netctl.action -bfIns
+
+[Install]
+WantedBy=sys-subsystem-net-devices-%i.device

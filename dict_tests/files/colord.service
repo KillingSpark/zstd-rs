@@ -1,0 +1,12 @@
+[Unit]
+Description=Manage, Install and Generate Color Profiles
+
+[Service]
+Type=dbus
+BusName=org.freedesktop.ColorManager
+ExecStart=/usr/lib/colord
+User=colord
+# We think that udev's AF_NETLINK messages are being filtered when
+# network namespacing is on.
+# PrivateNetwork=yes
+PrivateTmp=yes

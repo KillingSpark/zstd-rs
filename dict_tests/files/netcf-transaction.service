@@ -1,0 +1,14 @@
+[Unit]
+Description=Rollback uncommitted netcf network config change transactions
+Before=network.target
+Before=NetworkManager.service
+
+[Service]
+# call common script that is also used by initscript-based service
+# and libnetcf.so
+ExecStart=/usr/lib/netcf/netcf-transaction.sh start
+Type=oneshot
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
