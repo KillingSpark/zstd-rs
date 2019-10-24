@@ -18,10 +18,10 @@ Measuring with the 'time' utility the original zstd and my decoder both decoding
 1. Decode all the decode_corpus files (1000+) I created locally 
 
 ## Cannot do
-1. Use dictionaries. This is being worked on right now
+1. Calculate checksums
 
 ## Roadmap
-1. Finish implementing dictionary support
+1. Test/fuzz dictionary implementation
 1. More Performance optimizations (targets would be sequence_decoding and reverse_bitreader::get_bits. Those account for about 50% of the whole time used)
 1. More tests (especially unit-tests for the bitreaders and other lower-level parts)
 1. Find more bugs
