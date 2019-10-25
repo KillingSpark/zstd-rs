@@ -14,7 +14,11 @@ fn main() {
     file_paths.remove(0);
 
     if !flags.contains(&"-d".to_owned()) {
-        std::io::stderr().write(b"This zstd implementation only supports decompression. Please add a \"-d\" flag").unwrap();
+        std::io::stderr()
+            .write(
+                b"This zstd implementation only supports decompression. Please add a \"-d\" flag",
+            )
+            .unwrap();
         return;
     }
 
@@ -23,8 +27,13 @@ fn main() {
         return;
     }
 
-    if flags.len() != 2{
-        std::io::stderr().write_fmt(format_args!("No flags other than -d and -c are currently implemented. Flags used: {:?}", flags)).unwrap();
+    if flags.len() != 2 {
+        std::io::stderr()
+            .write_fmt(format_args!(
+                "No flags other than -d and -c are currently implemented. Flags used: {:?}",
+                flags
+            ))
+            .unwrap();
         return;
     }
 
@@ -85,6 +94,27 @@ fn main() {
         std::io::stderr()
             .write_fmt(format_args!("\nDecoded bytes: {}\n", tracker.bytes_used))
             .unwrap();
+
+        match frame_dec.get_checksum_from_data() {
+            Some(chksum) => {
+                if frame_dec.get_calculated_checksum().unwrap() != chksum {
+                    std::io::stderr()
+                        .write_fmt(format_args!(
+                            "Checksum did not match! From data: {}, calculated while decoding: {}\n",
+                            chksum,
+                            frame_dec.get_calculated_checksum().unwrap()
+                        ))
+                        .unwrap();
+                } else {
+                    std::io::stderr()
+                        .write_fmt(format_args!("Checksums are ok!\n"))
+                        .unwrap();
+                }
+            }
+            None => std::io::stderr()
+                .write_fmt(format_args!("No checksums to test\n"))
+                .unwrap(),
+        }
     }
 }
 

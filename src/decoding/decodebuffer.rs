@@ -1,9 +1,13 @@
+use std::hash::Hasher;
+use twox_hash::XxHash64;
+
 pub struct Decodebuffer {
     pub buffer: Vec<u8>,
     pub dict_content: Vec<u8>,
 
     pub window_size: usize,
     total_output_counter: u64,
+    pub hash: XxHash64,
 }
 
 impl std::io::Read for Decodebuffer {
@@ -23,6 +27,7 @@ impl std::io::Read for Decodebuffer {
             return Ok(0);
         }
 
+        self.hash.write(&self.buffer[0..amount]);
         let mut buffer_slice = self.buffer.as_slice();
         buffer_slice.read_exact(&mut target[..amount])?;
         self.buffer.drain(0..amount);
@@ -38,6 +43,7 @@ impl Decodebuffer {
             dict_content: Vec::new(),
             window_size: window_size,
             total_output_counter: 0,
+            hash: XxHash64::with_seed(0),
         }
     }
 
@@ -47,6 +53,7 @@ impl Decodebuffer {
         self.buffer.reserve(self.window_size);
         self.dict_content.clear();
         self.total_output_counter = 0;
+        self.hash = XxHash64::with_seed(0);
     }
 
     pub fn len(&self) -> usize {
@@ -77,13 +84,13 @@ impl Decodebuffer {
                         &self.dict_content[self.dict_content.len() - bytes_from_dict..];
                     self.buffer.extend(dict_slice);
 
+                    self.total_output_counter += bytes_from_dict as u64;
                     return self.repeat(self.buffer.len(), match_length - bytes_from_dict);
                 } else {
                     let low = self.dict_content.len() - bytes_from_dict;
                     let high = low + match_length;
                     let dict_slice = &self.dict_content[low..high];
                     self.buffer.extend(dict_slice);
-                    return Ok(());
                 }
             } else {
                 return Err(format!(
@@ -157,7 +164,10 @@ impl Decodebuffer {
         //TODO investigate if it is possible to return the std::vec::Drain iterator directly without collecting here
         match self.can_drain_to_window_size() {
             None => None,
-            Some(can_drain) => Some(self.buffer.drain(0..can_drain).collect()),
+            Some(can_drain) => {
+                self.hash.write(&self.buffer[0..can_drain]);
+                Some(self.buffer.drain(0..can_drain).collect())
+            }
         }
     }
 
@@ -168,6 +178,7 @@ impl Decodebuffer {
         match self.can_drain_to_window_size() {
             None => Ok(0),
             Some(can_drain) => {
+                self.hash.write(&self.buffer[0..can_drain]);
                 let mut buf = [0u8; 1]; //TODO batch to reasonable size
                 for x in self.buffer.drain(0..can_drain) {
                     buf[0] = x;
@@ -180,12 +191,14 @@ impl Decodebuffer {
 
     //drain the buffer completely
     pub fn drain(&mut self) -> Vec<u8> {
+        self.hash.write(&self.buffer);
         let r = self.buffer.clone();
         self.buffer.clear();
         r
     }
 
     pub fn drain_to_writer(&mut self, sink: &mut std::io::Write) -> Result<usize, std::io::Error> {
+        self.hash.write(&self.buffer);
         let mut buf = [0u8; 1]; //TODO batch to reasonable size
         for x in &self.buffer {
             buf[0] = *x;
@@ -207,6 +220,8 @@ impl Decodebuffer {
             return Ok(0);
         }
 
+
+        self.hash.write(&self.buffer[0..amount]);
         use std::io::Read;
         let mut buffer_slice = self.buffer.as_slice();
         buffer_slice.read_exact(&mut target[..amount])?;

@@ -5,4 +5,5 @@ authors = ["Moritz Borcherding <moritz.borcherding@web.de>"]
 edition = "2018"
 
 [dependencies]
-byteorder = "*"
+byteorder = "1.3.2"
+twox-hash = "*"

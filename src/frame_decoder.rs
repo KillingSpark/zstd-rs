@@ -2,6 +2,7 @@ use super::frame;
 use crate::decoding;
 use crate::decoding::scratch::DecoderScratch;
 use std::io::Read;
+use std::hash::Hasher;
 
 pub struct FrameDecoder {
     state: Option<FrameDecoderState>,
@@ -13,6 +14,7 @@ struct FrameDecoderState {
     frame_finished: bool,
     block_counter: usize,
     bytes_read_counter: u64,
+    check_sum: Option<u32>,
 }
 
 pub enum BlockDecodingStrategy {
@@ -34,6 +36,7 @@ impl FrameDecoderState {
             block_counter: 0,
             decoder_scratch: DecoderScratch::new(window_size as usize),
             bytes_read_counter: header_size as u64,
+            check_sum: None,
         })
     }
 
@@ -54,6 +57,7 @@ impl FrameDecoderState {
         self.block_counter = 0;
         self.decoder_scratch.reset(window_size as usize);
         self.bytes_read_counter = header_size as u64;
+        self.check_sum = None;
         Ok(())
     }
 }
@@ -113,6 +117,25 @@ impl FrameDecoder {
             Err(_) => None,
             Ok(x) => Some(x),
         }
+    }
+
+    pub fn get_checksum_from_data(&self) -> Option<u32> {
+        let state = match &self.state {
+            None => return None,
+            Some(s) => s,
+        };
+
+        state.check_sum
+    }
+
+    pub fn get_calculated_checksum(&self) -> Option<u32> {
+        let state = match &self.state {
+            None => return None,
+            Some(s) => s,
+        };
+        let cksum_64bit = state.decoder_scratch.buffer.hash.finish();
+        //truncate to lower 32bit because reasons...
+        Some(cksum_64bit as u32)
     }
 
     /// Counter for how many bytes have been consumed while deocidng the frame
@@ -210,7 +233,8 @@ impl FrameDecoder {
                         }
                         Ok(()) => {
                             state.bytes_read_counter += 4;
-                            //TODO checksum
+                            let chksum = chksum[0] as u32 + ((chksum[1] as u32) << 8) + ((chksum[2] as u32) << 16) + ((chksum[3] as u32) << 24); 
+                            state.check_sum = Some(chksum);
                         }
                     };
                 }
@@ -360,10 +384,11 @@ impl FrameDecoder {
                     if block_header.last_block {
                         state.frame_finished = true;
                         if state.frame.header.descriptor.content_checksum_flag() {
+                            //TODO make sure that there are 3 bytes left. Mabye new bytes must be provided
                             let chksum = &mt_source[..3];
                             state.bytes_read_counter += 4;
-                            let _ = chksum;
-                            //TODO checksum
+                            let chksum = chksum[0] as u32 + ((chksum[1] as u32) << 8) + ((chksum[2] as u32) << 16) + ((chksum[3] as u32) << 24); 
+                            state.check_sum = Some(chksum);
                         }
                         break;
                     }
