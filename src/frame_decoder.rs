@@ -385,7 +385,7 @@ impl FrameDecoder {
                         state.frame_finished = true;
                         if state.frame.header.descriptor.content_checksum_flag() {
                             //TODO make sure that there are 3 bytes left. Mabye new bytes must be provided
-                            let chksum = &mt_source[..3];
+                            let chksum = &mt_source[..4];
                             state.bytes_read_counter += 4;
                             let chksum = chksum[0] as u32 + ((chksum[1] as u32) << 8) + ((chksum[2] as u32) << 16) + ((chksum[3] as u32) << 24); 
                             state.check_sum = Some(chksum);
