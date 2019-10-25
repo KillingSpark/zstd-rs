@@ -8,6 +8,7 @@ fn test_decode_corpus_files() {
     let mut fail_counter_diff = 0;
     let mut fail_counter_size = 0;
     let mut fail_counter_bytes_read = 0;
+    let mut fail_counter_chksum = 0;
     let mut total_counter = 0;
     let mut failed: Vec<String> = Vec::new();
 
@@ -48,6 +49,23 @@ fn test_decode_corpus_files() {
             .unwrap();
         let result = frame_dec.collect().unwrap();
         let end_time = start_time.elapsed();
+
+        match frame_dec.get_checksum_from_data() {
+            Some(chksum) => {
+                if frame_dec.get_calculated_checksum().unwrap() != chksum {
+                    println!(
+                            "Checksum did not match! From data: {}, calculated while decoding: {}\n",
+                            chksum,
+                            frame_dec.get_calculated_checksum().unwrap()
+                        );
+                    fail_counter_chksum += 1;
+                    failed.push(p.clone().to_string());
+                } else {
+                    println!("Checksums are ok!\n");
+                }
+            }
+            None => println!("No checksums to test\n"),
+        }
 
         let mut original_p = p.clone();
         original_p.truncate(original_p.len() - 4);
@@ -119,11 +137,12 @@ fn test_decode_corpus_files() {
     println!("Summary:");
     println!("###################");
     println!(
-        "Total: {}, Success: {}, WrongSize: {}, WrongBytecount: {}, Diffs: {}",
+        "Total: {}, Success: {}, WrongSize: {}, WrongBytecount: {}, WrongChecksum: {}, Diffs: {}",
         total_counter,
         success_counter,
         fail_counter_size,
         fail_counter_bytes_read,
+        fail_counter_chksum,
         fail_counter_diff
     );
     println!("Failed files: ");

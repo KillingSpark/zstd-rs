@@ -48,6 +48,21 @@ fn test_dict_decoding() {
         let result = frame_dec.collect().unwrap();
         let end_time = start_time.elapsed();
 
+        match frame_dec.get_checksum_from_data() {
+            Some(chksum) => {
+                if frame_dec.get_calculated_checksum().unwrap() != chksum {
+                    println!(
+                            "Checksum did not match! From data: {}, calculated while decoding: {}\n",
+                            chksum,
+                            frame_dec.get_calculated_checksum().unwrap()
+                        );
+                } else {
+                    println!("Checksums are ok!\n");
+                }
+            }
+            None => println!("No checksums to test\n"),
+        }
+
         let mut original_p = p.clone();
         original_p.truncate(original_p.len() - 4);
         let original_f = fs::File::open(original_p).unwrap();

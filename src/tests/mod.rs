@@ -4,7 +4,7 @@ fn test_frame_header_reading() {
     use crate::frame;
     use std::fs;
 
-    let mut content = fs::File::open("./test_img.zst").unwrap();
+    let mut content = fs::File::open("./decodecorpus_files/z000088.zst").unwrap();
     let (frame, _) = frame::read_frame_header(&mut content).unwrap();
     frame.check_valid().unwrap();
 }
@@ -83,6 +83,21 @@ fn test_decode_from_to() {
             read,
             content.len()
         ));
+    }
+
+    match frame_dec.get_checksum_from_data() {
+        Some(chksum) => {
+            if frame_dec.get_calculated_checksum().unwrap() != chksum {
+                println!(
+                    "Checksum did not match! From data: {}, calculated while decoding: {}\n",
+                    chksum,
+                    frame_dec.get_calculated_checksum().unwrap()
+                );
+            } else {
+                println!("Checksums are ok!\n");
+            }
+        }
+        None => println!("No checksums to test\n"),
     }
 
     let original_f = File::open("./decodecorpus_files/z000088").unwrap();
@@ -176,5 +191,5 @@ fn test_specific_file() {
 }
 
 pub mod decode_corpus;
-pub mod fuzz_regressions;
 pub mod dict_test;
+pub mod fuzz_regressions;
