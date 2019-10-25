@@ -15,10 +15,11 @@ Measuring with the 'time' utility the original zstd and my decoder both decoding
 ## Can do:
 1. Parse all files in /decodecorpus_files. These were generated with [decodecorpus](https://github.com/facebook/zstd/tree/dev/tests) by the original zstd developers
 1. Decode all of them correctly into the output buffer
-1. Decode all the decode_corpus files (1000+) I created locally 
+1. Decode all the decode_corpus files (1000+) I created locally
+1. Calculate checksums
 
 ## Cannot do
-1. Calculate checksums
+This decoder is pretty much feature complete but probably not bugfree. If there are any wishes for new APIs or bug reports please file an issue, I will gladly take a look!
 
 ## Roadmap
 1. Test/fuzz dictionary implementation
