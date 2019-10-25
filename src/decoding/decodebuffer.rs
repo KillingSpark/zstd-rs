@@ -99,48 +99,49 @@ impl Decodebuffer {
                     self.buffer.len()
                 ));
             }
-        }
-
-        let start_idx = self.buffer.len() - offset;
-        self.buffer.reserve(match_length);
-
-        if start_idx + match_length > self.buffer.len() {
-            //need to copy byte by byte. can be optimized more but for now lets leave it like this
-            //TODO batch whats possible
-            for x in 0..match_length {
-                self.buffer.push(self.buffer[start_idx + x]);
-            }
         } else {
-            /*
-            const BATCH_SIZE: usize = 32;
-            let full_copies = match_length / BATCH_SIZE;
-            let partial_copy_size = match_length % BATCH_SIZE;
-
-            let mut buf = [0u8; BATCH_SIZE];
-            for x in 0..full_copies {
-                let idx = start_idx + x * BATCH_SIZE;
-                let source = &self.buffer.as_slice()[idx..idx + BATCH_SIZE];
-                buf[0..BATCH_SIZE].copy_from_slice(source);
-                self.buffer.extend(&buf[0..BATCH_SIZE]);
-            }
-
-            let idx = start_idx + full_copies * BATCH_SIZE;
-            let source = &self.buffer.as_slice()[idx..idx + partial_copy_size];
-            buf[0..partial_copy_size].copy_from_slice(source);
-            self.buffer.extend(&buf[0..partial_copy_size]);
-            */
-
-            // using this unsafe block instead of the above increases performance by ca 5% when decoding the enwik9 dataset
+            let start_idx = self.buffer.len() - offset;
             self.buffer.reserve(match_length);
-            unsafe {
-                self.buffer.set_len(self.buffer.len() + match_length);
-                let slice = &mut self.buffer[start_idx..];
-                let src = slice.as_mut_ptr();
-                let dst = src.offset((slice.len() - match_length) as isize);
-                std::ptr::copy_nonoverlapping(src, dst, match_length);
+
+            if start_idx + match_length > self.buffer.len() {
+                //need to copy byte by byte. can be optimized more but for now lets leave it like this
+                //TODO batch whats possible
+                for x in 0..match_length {
+                    self.buffer.push(self.buffer[start_idx + x]);
+                }
+            } else {
+                /*
+                const BATCH_SIZE: usize = 32;
+                let full_copies = match_length / BATCH_SIZE;
+                let partial_copy_size = match_length % BATCH_SIZE;
+
+                let mut buf = [0u8; BATCH_SIZE];
+                for x in 0..full_copies {
+                    let idx = start_idx + x * BATCH_SIZE;
+                    let source = &self.buffer.as_slice()[idx..idx + BATCH_SIZE];
+                    buf[0..BATCH_SIZE].copy_from_slice(source);
+                    self.buffer.extend(&buf[0..BATCH_SIZE]);
+                }
+
+                let idx = start_idx + full_copies * BATCH_SIZE;
+                let source = &self.buffer.as_slice()[idx..idx + partial_copy_size];
+                buf[0..partial_copy_size].copy_from_slice(source);
+                self.buffer.extend(&buf[0..partial_copy_size]);
+                */
+
+                // using this unsafe block instead of the above increases performance by ca 5% when decoding the enwik9 dataset
+                self.buffer.reserve(match_length);
+                unsafe {
+                    self.buffer.set_len(self.buffer.len() + match_length);
+                    let slice = &mut self.buffer[start_idx..];
+                    let src = slice.as_mut_ptr();
+                    let dst = src.offset((slice.len() - match_length) as isize);
+                    std::ptr::copy_nonoverlapping(src, dst, match_length);
+                }
             }
+            self.total_output_counter += match_length as u64;
         }
-        self.total_output_counter += match_length as u64;
+
         Ok(())
     }
 
@@ -219,7 +220,6 @@ impl Decodebuffer {
         if amount == 0 {
             return Ok(0);
         }
-
 
         self.hash.write(&self.buffer[0..amount]);
         use std::io::Read;
