@@ -88,6 +88,7 @@ impl FrameDecoder {
     pub fn init(&mut self, source: &mut Read) -> Result<(), String> {
         self.reset(source)
     }
+    /// Like init but provides the dict to use for the next frame
     pub fn init_with_dict(&mut self, source: &mut Read, dict: &[u8]) -> Result<(), String> {
         self.reset_with_dict(source, dict)
     }
@@ -107,6 +108,8 @@ impl FrameDecoder {
             }
         }
     }
+
+    /// Like reset but provides the dict to use for the next frame
     pub fn reset_with_dict(&mut self, source: &mut Read, dict: &[u8]) -> Result<(), String> {
         self.reset(source)?;
         if let Some(state) = &mut self.state {
@@ -116,6 +119,7 @@ impl FrameDecoder {
         Ok(())
     }
 
+    /// Add a dict to the FrameDecoder that can be used when needed. The FrameDecoder uses the appropriate one dynamically
     pub fn add_dict(&mut self, raw_dict: &[u8]) -> Result<(), String> {
         let dict = Dictionary::decode_dict(raw_dict)?;
         println!("Added dict: {}", dict.id);
@@ -136,6 +140,7 @@ impl FrameDecoder {
         }
     }
 
+    /// Returns the checksum that was read from the data. Only available after all bytes have been read. It is the last 4 bytes of a zstd-frame
     pub fn get_checksum_from_data(&self) -> Option<u32> {
         let state = match &self.state {
             None => return None,
@@ -145,6 +150,8 @@ impl FrameDecoder {
         state.check_sum
     }
 
+    /// Returns the checksum that was calculated while decoding.
+    /// Only a sensible value after all decoded bytes have been collected/read from the FrameDecoder
     pub fn get_calculated_checksum(&self) -> Option<u32> {
         let state = match &self.state {
             None => return None,
@@ -207,9 +214,9 @@ impl FrameDecoder {
                     }
                     None => {
                         println!("Looking for dict: {}", id);
-                        let dict = match self.dicts.get(&id){
+                        let dict = match self.dicts.get(&id) {
                             Some(dict) => dict,
-                            None => {return Err(crate::errors::FrameDecoderError::DictNotProvided)},
+                            None => return Err(crate::errors::FrameDecoderError::DictNotProvided),
                         };
                         state.decoder_scratch.use_dict(dict);
                         state.using_dict = Some(id);
