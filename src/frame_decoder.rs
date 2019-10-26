@@ -122,7 +122,6 @@ impl FrameDecoder {
     /// Add a dict to the FrameDecoder that can be used when needed. The FrameDecoder uses the appropriate one dynamically
     pub fn add_dict(&mut self, raw_dict: &[u8]) -> Result<(), String> {
         let dict = Dictionary::decode_dict(raw_dict)?;
-        println!("Added dict: {}", dict.id);
         self.dicts.insert(dict.id, dict);
         Ok(())
     }
@@ -213,7 +212,6 @@ impl FrameDecoder {
                         debug_assert!(id == using_id);
                     }
                     None => {
-                        println!("Looking for dict: {}", id);
                         let dict = match self.dicts.get(&id) {
                             Some(dict) => dict,
                             None => return Err(crate::errors::FrameDecoderError::DictNotProvided),
@@ -397,6 +395,34 @@ impl FrameDecoder {
                     None => panic!("Bug in library"),
                 };
                 let mut block_dec = decoding::block_decoder::new();
+
+                match state.frame.header.dictiornary_id() {
+                    Ok(Some(id)) => {
+                        match state.using_dict {
+                            Some(using_id) => {
+                                //happy
+                                debug_assert!(id == using_id);
+                            }
+                            None => {
+                                let dict = match self.dicts.get(&id) {
+                                    Some(dict) => dict,
+                                    None => {
+                                        return Err(
+                                            crate::errors::FrameDecoderError::DictNotProvided,
+                                        )
+                                    }
+                                };
+                                state.decoder_scratch.use_dict(dict);
+                                state.using_dict = Some(id);
+                            }
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        //should never happen we check this directly after decoding the frame header
+                        return Err(crate::errors::FrameDecoderError::FailedToInitialize(e));
+                    }
+                }
 
                 loop {
                     //check if there are enough bytes for the next header
