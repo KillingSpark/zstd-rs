@@ -1,11 +1,14 @@
 use super::frame;
 use crate::decoding;
+use crate::decoding::dictionary::Dictionary;
 use crate::decoding::scratch::DecoderScratch;
-use std::io::Read;
+use std::collections::HashMap;
 use std::hash::Hasher;
+use std::io::Read;
 
 pub struct FrameDecoder {
     state: Option<FrameDecoderState>,
+    dicts: HashMap<u32, Dictionary>,
 }
 
 struct FrameDecoderState {
@@ -15,6 +18,7 @@ struct FrameDecoderState {
     block_counter: usize,
     bytes_read_counter: u64,
     check_sum: Option<u32>,
+    using_dict: Option<u32>,
 }
 
 pub enum BlockDecodingStrategy {
@@ -37,6 +41,7 @@ impl FrameDecoderState {
             decoder_scratch: DecoderScratch::new(window_size as usize),
             bytes_read_counter: header_size as u64,
             check_sum: None,
+            using_dict: None,
         })
     }
 
@@ -58,6 +63,7 @@ impl FrameDecoderState {
         self.decoder_scratch.reset(window_size as usize);
         self.bytes_read_counter = header_size as u64;
         self.check_sum = None;
+        self.using_dict = None;
         Ok(())
     }
 }
@@ -67,7 +73,10 @@ impl FrameDecoder {
     /// init()/reset() will allocate all needed buffers if it is the first time this decoder is used
     /// else they just reset these buffers with not further allocations
     pub fn new() -> FrameDecoder {
-        FrameDecoder { state: None }
+        FrameDecoder {
+            state: None,
+            dicts: HashMap::new(),
+        }
     }
 
     /// init() will allocate all needed buffers if it is the first time this decoder is used
@@ -79,7 +88,7 @@ impl FrameDecoder {
     pub fn init(&mut self, source: &mut Read) -> Result<(), String> {
         self.reset(source)
     }
-    pub fn init_with_dict(&mut self, source: &mut Read, dict: &Vec<u8>) -> Result<(), String> {
+    pub fn init_with_dict(&mut self, source: &mut Read, dict: &[u8]) -> Result<(), String> {
         self.reset_with_dict(source, dict)
     }
 
@@ -98,11 +107,19 @@ impl FrameDecoder {
             }
         }
     }
-    pub fn reset_with_dict(&mut self, source: &mut Read, dict: &Vec<u8>) -> Result<(), String> {
+    pub fn reset_with_dict(&mut self, source: &mut Read, dict: &[u8]) -> Result<(), String> {
         self.reset(source)?;
         if let Some(state) = &mut self.state {
-            state.decoder_scratch.load_dict(dict)?;
+            let id = state.decoder_scratch.load_dict(dict)?;
+            state.using_dict = Some(id);
         };
+        Ok(())
+    }
+
+    pub fn add_dict(&mut self, raw_dict: &[u8]) -> Result<(), String> {
+        let dict = Dictionary::decode_dict(raw_dict)?;
+        println!("Added dict: {}", dict.id);
+        self.dicts.insert(dict.id, dict);
         Ok(())
     }
 
@@ -181,6 +198,25 @@ impl FrameDecoder {
             Some(s) => s,
         };
 
+        match state.frame.header.dictiornary_id() {
+            Ok(Some(id)) => {
+                match state.using_dict {
+                    Some(using_id) => {
+                        //happy
+                        debug_assert!(id == using_id);
+                    },
+                    None => {
+                        println!("Looking for dict: {}", id);
+                        let dict = self.dicts.get(&id).unwrap();
+                        state.decoder_scratch.use_dict(dict);
+                        state.using_dict = Some(id);
+                    }
+                }
+            },
+            Ok(None) => {},
+            Err(e) => {return Err(crate::errors::FrameDecoderError::FailedToInitialize(e))},
+        }
+
         let mut block_dec = decoding::block_decoder::new();
 
         let buffer_size_before = state.decoder_scratch.buffer.len();
@@ -233,7 +269,10 @@ impl FrameDecoder {
                         }
                         Ok(()) => {
                             state.bytes_read_counter += 4;
-                            let chksum = chksum[0] as u32 + ((chksum[1] as u32) << 8) + ((chksum[2] as u32) << 16) + ((chksum[3] as u32) << 24); 
+                            let chksum = chksum[0] as u32
+                                + ((chksum[1] as u32) << 8)
+                                + ((chksum[2] as u32) << 16)
+                                + ((chksum[3] as u32) << 24);
                             state.check_sum = Some(chksum);
                         }
                     };
@@ -387,7 +426,10 @@ impl FrameDecoder {
                             //TODO make sure that there are 3 bytes left. Mabye new bytes must be provided
                             let chksum = &mt_source[..4];
                             state.bytes_read_counter += 4;
-                            let chksum = chksum[0] as u32 + ((chksum[1] as u32) << 8) + ((chksum[2] as u32) << 16) + ((chksum[3] as u32) << 24); 
+                            let chksum = chksum[0] as u32
+                                + ((chksum[1] as u32) << 8)
+                                + ((chksum[2] as u32) << 16)
+                                + ((chksum[3] as u32) << 24);
                             state.check_sum = Some(chksum);
                         }
                         break;

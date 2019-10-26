@@ -2,6 +2,7 @@ use super::super::block::sequence_section::Sequence;
 use super::decodebuffer::Decodebuffer;
 use crate::fse::FSETable;
 use crate::huff0::HuffmanTable;
+use crate::decoding::dictionary::Dictionary;
 
 pub struct DecoderScratch {
     pub huf: HuffmanScratch,
@@ -55,6 +56,13 @@ impl DecoderScratch {
         self.huf.table.reset();
     }
 
+    pub fn use_dict(&mut self, dict: &Dictionary) {
+        self.fse = dict.fse.clone();
+        self.huf = dict.huf.clone();
+        self.offset_hist = dict.offset_hist;
+        self.buffer.dict_content = dict.dict_content.clone();
+    }
+
     /// parses the dictionary and set the tables
     /// it returns the dict_id for checking with the frame's dict_id 
     pub fn load_dict(&mut self, raw: &[u8]) -> Result<u32, String> {
@@ -101,10 +109,20 @@ impl DecoderScratch {
     }
 }
 
+#[derive(Clone)]
 pub struct HuffmanScratch {
     pub table: HuffmanTable,
 }
 
+impl HuffmanScratch {
+    pub fn new() -> HuffmanScratch {
+        HuffmanScratch {
+            table: HuffmanTable::new()
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct FSEScratch {
     pub offsets: FSETable,
     pub of_rle: Option<u8>,
@@ -112,4 +130,17 @@ pub struct FSEScratch {
     pub ll_rle: Option<u8>,
     pub match_lengths: FSETable,
     pub ml_rle: Option<u8>,
+}
+
+impl FSEScratch {
+    pub fn new() -> FSEScratch {
+        FSEScratch{
+            offsets: FSETable::new(),
+            of_rle: None,
+            literal_lengths: FSETable::new(),
+            ll_rle: None,
+            match_lengths: FSETable::new(),
+            ml_rle: None,
+        }
+    }
 }

@@ -2,6 +2,7 @@ use crate::decoding::bit_reader_reverse::BitReaderReversed;
 use crate::fse::FSEDecoder;
 use crate::fse::FSETable;
 
+#[derive(Clone)]
 pub struct HuffmanTable {
     decode: Vec<Entry>,
 

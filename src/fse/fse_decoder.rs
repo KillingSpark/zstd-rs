@@ -1,6 +1,7 @@
 use crate::decoding::bit_reader::BitReader;
 use crate::decoding::bit_reader_reverse::BitReaderReversed;
 
+#[derive(Clone)]
 pub struct FSETable {
     pub decode: Vec<Entry>, //used to decode symbols, and calculate the next state
 

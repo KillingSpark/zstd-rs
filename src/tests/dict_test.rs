@@ -24,6 +24,7 @@ fn test_dict_decoding() {
     });
 
     let mut frame_dec = frame_decoder::FrameDecoder::new();
+    frame_dec.add_dict(&dict).unwrap();
 
     for file in files {
         let f = file.unwrap();
@@ -38,7 +39,7 @@ fn test_dict_decoding() {
 
         let mut content = fs::File::open(f.path()).unwrap();
 
-        frame_dec.reset_with_dict(&mut content, &dict).unwrap();
+        frame_dec.reset(&mut content).unwrap();
 
         let start_time = std::time::Instant::now();
         /////DECODING
