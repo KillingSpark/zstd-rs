@@ -120,8 +120,10 @@ impl FrameHeader {
                         ))
                     } else {
                         let mut value: u32 = 0;
+                        let mut shift = 0;
                         for x in &self.dict_id {
-                            value = (value << 8) | (*x as u32);
+                            value = value | (*x as u32) << shift;
+                            shift += 8;
                         }
 
                         Ok(Some(value))
