@@ -204,17 +204,23 @@ impl FrameDecoder {
                     Some(using_id) => {
                         //happy
                         debug_assert!(id == using_id);
-                    },
+                    }
                     None => {
                         println!("Looking for dict: {}", id);
-                        let dict = self.dicts.get(&id).unwrap();
+                        let dict = match self.dicts.get(&id){
+                            Some(dict) => dict,
+                            None => {return Err(crate::errors::FrameDecoderError::DictNotProvided)},
+                        };
                         state.decoder_scratch.use_dict(dict);
                         state.using_dict = Some(id);
                     }
                 }
-            },
-            Ok(None) => {},
-            Err(e) => {return Err(crate::errors::FrameDecoderError::FailedToInitialize(e))},
+            }
+            Ok(None) => {}
+            Err(e) => {
+                //should never happen we check this directly after decoding the frame header
+                return Err(crate::errors::FrameDecoderError::FailedToInitialize(e));
+            }
         }
 
         let mut block_dec = decoding::block_decoder::new();

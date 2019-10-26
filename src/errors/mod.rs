@@ -7,6 +7,7 @@ pub enum FrameDecoderError {
     FailedToInitialize(String),
     FailedToDrainDecodebuffer,
     TargetTooSmall,
+    DictNotProvided,
 }
 
 impl std::fmt::Display for FrameDecoderError {
@@ -32,6 +33,10 @@ impl std::fmt::Display for FrameDecoderError {
             FrameDecoderError::TargetTooSmall => write!(
                 f,
                 "Target must have at least as many bytes as the contentsize of the frame reports"
+            ),
+            FrameDecoderError::DictNotProvided => write!(
+                f,
+                "Frame header specified dictionary id that wasnt provided by add_dict() or reset_with_dict()"
             ),
         }
     }
