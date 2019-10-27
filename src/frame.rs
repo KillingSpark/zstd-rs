@@ -1,4 +1,4 @@
-pub const MAGIC_NUM: u32 = 0xFD2FB528;
+pub const MAGIC_NUM: u32 = 0xFD2F_B528;
 pub const MIN_WINDOW_SIZE: u64 = 1024;
 pub const MAX_WINDOW_SIZE: u64 = (1 << 41) + 7 * (1 << 38);
 
@@ -122,7 +122,7 @@ impl FrameHeader {
                         let mut value: u32 = 0;
                         let mut shift = 0;
                         for x in &self.dict_id {
-                            value = value | (*x as u32) << shift;
+                            value |= (*x as u32) << shift;
                             shift += 8;
                         }
 
@@ -147,7 +147,7 @@ impl FrameHeader {
                             self.frame_content_size.len(),
                             bytes
                         )
-                        .to_owned())
+                        )
                     }
                 }
                 2 => {
@@ -161,7 +161,7 @@ impl FrameHeader {
                             self.frame_content_size.len(),
                             bytes
                         )
-                        .to_owned())
+                        )
                     }
                 }
                 4 => {
@@ -169,7 +169,7 @@ impl FrameHeader {
                         let val = ((self.frame_content_size[3] as u64) << 24)
                             | ((self.frame_content_size[2] as u64) << 16)
                             | ((self.frame_content_size[1] as u64) << 8)
-                            | ((self.frame_content_size[0] as u64) << 0);
+                            | (self.frame_content_size[0] as u64);
                         Ok(val)
                     } else {
                         Err(format!(
@@ -177,12 +177,12 @@ impl FrameHeader {
                             self.frame_content_size.len(),
                             bytes
                         )
-                        .to_owned())
+                        )
                     }
                 }
                 8 => {
                     if self.frame_content_size.len() == 8 {
-                        let val = ((self.frame_content_size[0] as u64) << 0)
+                        let val = (self.frame_content_size[0] as u64)
                             | ((self.frame_content_size[1] as u64) << 8)
                             | ((self.frame_content_size[2] as u64) << 16)
                             | ((self.frame_content_size[3] as u64) << 24)
@@ -197,14 +197,14 @@ impl FrameHeader {
                             self.frame_content_size.len(),
                             bytes
                         )
-                        .to_owned())
+                        )
                     }
                 }
                 _ => Err(format!(
                     "Invalid amount of bytes'. Is: {}, Should be one of 1,2,4,8",
                     self.frame_content_size.len()
                 )
-                .to_owned()),
+                ),
             },
         }
     }
@@ -217,33 +217,31 @@ impl Frame {
                 "magic_num wrong. Is: {}. Should be: {}",
                 self.magic_num, MAGIC_NUM
             ))
-        } else {
-            if self.header.descriptor.reserved_flag() {
-                Err(format!("Reserved Flag set. Must be zero"))
-            } else {
-                match self.header.dictiornary_id() {
-                    Ok(_) => match self.header.window_size() {
-                        Ok(_) => {
-                            if self.header.descriptor.single_segment_flag() {
-                                match self.header.frame_content_size() {
-                                    Ok(_) => Ok(()),
-                                    Err(m) => Err(m),
-                                }
-                            } else {
-                                Ok(())
-                            }
-                        }
+        } else if self.header.descriptor.reserved_flag() {
+    Err("Reserved Flag set. Must be zero".to_string())
+} else {
+    match self.header.dictiornary_id() {
+        Ok(_) => match self.header.window_size() {
+            Ok(_) => {
+                if self.header.descriptor.single_segment_flag() {
+                    match self.header.frame_content_size() {
+                        Ok(_) => Ok(()),
                         Err(m) => Err(m),
-                    },
-                    Err(m) => Err(m),
+                    }
+                } else {
+                    Ok(())
                 }
             }
-        }
+            Err(m) => Err(m),
+        },
+        Err(m) => Err(m),
+    }
+}
     }
 }
 
 use std::io::Read;
-pub fn read_frame_header(r: &mut Read) -> Result<(Frame, u8), String> {
+pub fn read_frame_header(r: &mut dyn Read) -> Result<(Frame, u8), String> {
     let mut buf = [0u8; 4];
     let magic_num: u32 = match r.read_exact(&mut buf[0..4]) {
         Ok(_) => {
@@ -297,7 +295,7 @@ pub fn read_frame_header(r: &mut Read) -> Result<(Frame, u8), String> {
         bytes_read += 1;
     }
 
-    if frame_header.dict_id.len() > 0 {
+    if !frame_header.dict_id.is_empty() {
         match r.read_exact(&mut frame_header.dict_id.as_mut_slice()) {
             Ok(_) => {}
             Err(_) => return Err("Error while reading dcitionary id".to_owned()),
@@ -305,7 +303,7 @@ pub fn read_frame_header(r: &mut Read) -> Result<(Frame, u8), String> {
         bytes_read += frame_header.dict_id.len();
     }
 
-    if frame_header.frame_content_size.len() > 0 {
+    if !frame_header.frame_content_size.is_empty() {
         match r.read_exact(&mut frame_header.frame_content_size.as_mut_slice()) {
             Ok(_) => {}
             Err(_) => return Err("Error while reading frame content size".to_owned()),
@@ -314,7 +312,7 @@ pub fn read_frame_header(r: &mut Read) -> Result<(Frame, u8), String> {
     }
 
     let frame: Frame = Frame {
-        magic_num: magic_num,
+        magic_num,
         header: frame_header,
     };
 

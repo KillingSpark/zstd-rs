@@ -36,15 +36,15 @@ impl CompressionModes {
         }
     }
 
-    pub fn ll_mode(&self) -> ModeType {
+    pub fn ll_mode(self) -> ModeType {
         Self::decode_mode(self.0 >> 6)
     }
 
-    pub fn of_mode(&self) -> ModeType {
+    pub fn of_mode(self) -> ModeType {
         Self::decode_mode((self.0 >> 4) & 0x3)
     }
 
-    pub fn ml_mode(&self) -> ModeType {
+    pub fn ml_mode(self) -> ModeType {
         Self::decode_mode((self.0 >> 2) & 0x3)
     }
 }
@@ -59,7 +59,7 @@ impl SequencesHeader {
 
     pub fn parse_from_header(&mut self, source: &[u8]) -> Result<u8, String> {
         let mut bytes_read = 0;
-        if source.len() < 1 {
+        if source.is_empty() {
             return Err(format!(
                 "source must have at least {} bytes to parse header",
                 1
@@ -71,7 +71,7 @@ impl SequencesHeader {
                 self.num_sequences = 0;
                 return Ok(1);
             }
-            1...127 => {
+            1..=127 => {
                 if source.len() < 2 {
                     return Err(format!(
                         "source must have at least {} bytes to parse header",
@@ -82,7 +82,7 @@ impl SequencesHeader {
                 bytes_read += 1;
                 &source[1..]
             }
-            128...254 => {
+            128..=254 => {
                 if source.len() < 3 {
                     return Err(format!(
                         "source must have at least {} bytes to parse header",

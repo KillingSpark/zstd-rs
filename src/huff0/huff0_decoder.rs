@@ -40,15 +40,15 @@ fn highest_bit_set(x: u32) -> u32 {
 impl<'t> HuffmanDecoder<'t> {
     pub fn new(table: &'t HuffmanTable) -> HuffmanDecoder<'t> {
         HuffmanDecoder {
-            table: table,
+            table,
             state: 0,
         }
     }
 
     pub fn reset(mut self, new_table: Option<&'t HuffmanTable>) {
         self.state = 0;
-        if new_table.is_some() {
-            self.table = new_table.unwrap();
+        if let Some(next_table) = new_table {
+            self.table = next_table;
         }
     }
 
@@ -106,14 +106,14 @@ impl HuffmanTable {
     }
 
     fn read_weights(&mut self, source: &[u8]) -> Result<u32, String> {
-        if source.len() < 1 {
+        if source.is_empty() {
             return Err("Source needs to have at least one byte".to_owned());
         }
         let header = source[0];
         let mut bits_read = 8;
 
         match header {
-            0...127 => {
+            0..=127 => {
                 let fse_stream = &source[1..];
                 if header as usize > fse_stream.len() {
                     return Err(format!("Header says there should be {} bytes for the weights but there are only {} bytes in the stream", header, fse_stream.len()));

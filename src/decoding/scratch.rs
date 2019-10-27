@@ -100,21 +100,15 @@ impl DecoderScratch {
         let raw_tables = &raw_tables[ll_size as usize..];
 
         let offset1 = &raw_tables[0..4];
-        let offset1 = offset1[0] as u32 + (offset1[1] as u32)
-            << 8 + (offset1[2] as u32)
-            << 16 + (offset1[3] as u32)
+        let offset1 = (offset1[0] as u32 + (offset1[1] as u32)) << (8 + (offset1[2] as u32)) << (16 + (offset1[3] as u32))
             << 24;
 
         let offset2 = &raw_tables[4..8];
-        let offset2 = offset2[0] as u32 + (offset2[1] as u32)
-            << 8 + (offset2[2] as u32)
-            << 16 + (offset2[3] as u32)
+        let offset2 = (offset2[0] as u32 + (offset2[1] as u32)) << (8 + (offset2[2] as u32)) << (16 + (offset2[3] as u32))
             << 24;
 
         let offset3 = &raw_tables[8..12];
-        let offset3 = offset3[0] as u32 + (offset3[1] as u32)
-            << 8 + (offset3[2] as u32)
-            << 16 + (offset3[3] as u32)
+        let offset3 = (offset3[0] as u32 + (offset3[1] as u32)) << (8 + (offset3[2] as u32)) << (16 + (offset3[3] as u32))
             << 24;
 
         self.offset_hist[0] = offset1;

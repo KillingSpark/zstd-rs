@@ -41,7 +41,7 @@ impl Decodebuffer {
         Decodebuffer {
             buffer: Vec::new(),
             dict_content: Vec::new(),
-            window_size: window_size,
+            window_size,
             total_output_counter: 0,
             hash: XxHash64::with_seed(0),
         }
@@ -58,6 +58,10 @@ impl Decodebuffer {
 
     pub fn len(&self) -> usize {
         self.buffer.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.buffer.is_empty()
     }
 
     pub fn push(&mut self, data: &[u8]) {
@@ -135,7 +139,7 @@ impl Decodebuffer {
                     self.buffer.set_len(self.buffer.len() + match_length);
                     let slice = &mut self.buffer[start_idx..];
                     let src = slice.as_mut_ptr();
-                    let dst = src.offset((slice.len() - match_length) as isize);
+                    let dst = src.add(slice.len() - match_length);
                     std::ptr::copy_nonoverlapping(src, dst, match_length);
                 }
             }
@@ -174,7 +178,7 @@ impl Decodebuffer {
 
     pub fn drain_to_window_size_writer(
         &mut self,
-        sink: &mut std::io::Write,
+        sink: &mut dyn std::io::Write,
     ) -> Result<usize, std::io::Error> {
         match self.can_drain_to_window_size() {
             None => Ok(0),
@@ -198,7 +202,7 @@ impl Decodebuffer {
         r
     }
 
-    pub fn drain_to_writer(&mut self, sink: &mut std::io::Write) -> Result<usize, std::io::Error> {
+    pub fn drain_to_writer(&mut self, sink: &mut dyn std::io::Write) -> Result<usize, std::io::Error> {
         self.hash.write(&self.buffer);
         let mut buf = [0u8; 1]; //TODO batch to reasonable size
         for x in &self.buffer {

@@ -18,7 +18,7 @@ impl<'s> BitReaderReversed<'s> {
     pub fn new(source: &'s [u8]) -> BitReaderReversed {
         BitReaderReversed {
             idx: source.len() as isize * 8,
-            source: source,
+            source,
             bit_container: 0,
             bits_in_container: 0,
         }
@@ -38,28 +38,28 @@ impl<'s> BitReaderReversed<'s> {
                 self.bits_in_container += 64;
                 self.idx -= 64;
             }
-            48...63 => {
-                self.bit_container = self.bit_container << 48;
+            48..=63 => {
+                self.bit_container <<= 48;
                 self.bits_in_container += 48;
                 self.bit_container |= LittleEndian::read_u48(&self.source[self.byte_idx() - 5..]);
                 self.idx -= 48;
             }
-            32...47 => {
-                self.bit_container = self.bit_container << 32;
+            32..=47 => {
+                self.bit_container <<= 32;
                 self.bits_in_container += 32;
                 self.bit_container |=
                     LittleEndian::read_u32(&self.source[self.byte_idx() - 3..]) as u64;
                 self.idx -= 32;
             }
-            16...31 => {
-                self.bit_container = self.bit_container << 16;
+            16..=31 => {
+                self.bit_container <<= 16;
                 self.bits_in_container += 16;
                 self.bit_container |=
                     LittleEndian::read_u16(&self.source[self.byte_idx() - 1..]) as u64;
                 self.idx -= 16;
             }
-            8...15 => {
-                self.bit_container = self.bit_container << 8;
+            8..=15 => {
+                self.bit_container <<= 8;
                 self.bits_in_container += 8;
                 self.bit_container |= self.source[self.byte_idx()] as u64;
                 self.idx -= 8;

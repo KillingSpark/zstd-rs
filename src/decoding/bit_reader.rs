@@ -7,7 +7,7 @@ impl<'s> BitReader<'s> {
     pub fn new(source: &'s [u8]) -> BitReader {
         BitReader {
             idx: 0,
-            source: source,
+            source,
         }
     }
 
