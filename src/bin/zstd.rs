@@ -14,26 +14,20 @@ fn main() {
     file_paths.remove(0);
 
     if !flags.contains(&"-d".to_owned()) {
-        std::io::stderr()
-            .write(
-                b"This zstd implementation only supports decompression. Please add a \"-d\" flag",
-            )
-            .unwrap();
+        eprintln!("This zstd implementation only supports decompression. Please add a \"-d\" flag");
         return;
     }
 
     if !flags.contains(&"-c".to_owned()) {
-        std::io::stderr().write(b"This zstd implementation only supports output on the stdout. Please add a \"-c\" flag and pipe the output into a file").unwrap();
+        eprintln!("This zstd implementation only supports output on the stdout. Please add a \"-c\" flag and pipe the output into a file");
         return;
     }
 
     if flags.len() != 2 {
-        std::io::stderr()
-            .write_fmt(format_args!(
-                "No flags other than -d and -c are currently implemented. Flags used: {:?}",
-                flags
-            ))
-            .unwrap();
+        eprintln!(
+            "No flags other than -d and -c are currently implemented. Flags used: {:?}",
+            flags
+        );
         return;
     }
 
@@ -45,9 +39,7 @@ fn main() {
             old_percentage: -1,
         };
 
-        std::io::stderr()
-            .write_fmt(format_args!("File: {}\n", path))
-            .unwrap();
+        eprintln!("File: {}", path);
         let mut f = File::open(path).unwrap();
 
         frame_dec.reset(&mut f).unwrap();
@@ -73,10 +65,8 @@ fn main() {
 
                 let percentage = (tracker.bytes_used * 100) / frame_dec.content_size().unwrap();
                 if percentage as i8 != tracker.old_percentage {
-                    std::io::stderr().write_fmt(format_args!("\r")).unwrap();
-                    std::io::stderr()
-                        .write_fmt(format_args!("{} % done", percentage))
-                        .unwrap();
+                    eprint!("\r");
+                    eprint!("{} % done", percentage);
                     tracker.old_percentage = percentage as i8;
                 }
             }
@@ -91,29 +81,21 @@ fn main() {
             result.resize(result.capacity(), 0);
         }
 
-        std::io::stderr()
-            .write_fmt(format_args!("\nDecoded bytes: {}\n", tracker.bytes_used))
-            .unwrap();
+        eprintln!("\nDecoded bytes: {}", tracker.bytes_used);
 
         match frame_dec.get_checksum_from_data() {
             Some(chksum) => {
                 if frame_dec.get_calculated_checksum().unwrap() != chksum {
-                    std::io::stderr()
-                        .write_fmt(format_args!(
-                            "Checksum did not match! From data: {}, calculated while decoding: {}\n",
-                            chksum,
-                            frame_dec.get_calculated_checksum().unwrap()
-                        ))
-                        .unwrap();
+                    eprintln!(
+                        "Checksum did not match! From data: {}, calculated while decoding: {}",
+                        chksum,
+                        frame_dec.get_calculated_checksum().unwrap()
+                    );
                 } else {
-                    std::io::stderr()
-                        .write_fmt(format_args!("Checksums are ok!\n"))
-                        .unwrap();
+                    eprintln!("Checksums are ok!");
                 }
             }
-            None => std::io::stderr()
-                .write_fmt(format_args!("No checksums to test\n"))
-                .unwrap(),
+            None => eprintln!("No checksums to test\n"),
         }
     }
 }
