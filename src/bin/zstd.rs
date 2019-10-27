@@ -95,7 +95,7 @@ fn main() {
                     eprintln!("Checksums are ok!");
                 }
             }
-            None => eprintln!("No checksums to test\n"),
+            None => eprintln!("No checksums to test"),
         }
     }
 }
