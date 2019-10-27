@@ -18,7 +18,7 @@ impl Dictionary {
             fse: FSEScratch::new(),
             huf: HuffmanScratch::new(),
             dict_content: Vec::new(),
-            offset_hist: [2,4,8],
+            offset_hist: [2, 4, 8],
         };
         let magic_num = &raw[..4];
         //TODO check magic num

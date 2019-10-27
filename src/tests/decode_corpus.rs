@@ -54,10 +54,10 @@ fn test_decode_corpus_files() {
             Some(chksum) => {
                 if frame_dec.get_calculated_checksum().unwrap() != chksum {
                     println!(
-                            "Checksum did not match! From data: {}, calculated while decoding: {}\n",
-                            chksum,
-                            frame_dec.get_calculated_checksum().unwrap()
-                        );
+                        "Checksum did not match! From data: {}, calculated while decoding: {}\n",
+                        chksum,
+                        frame_dec.get_calculated_checksum().unwrap()
+                    );
                     fail_counter_chksum += 1;
                     failed.push(p.clone().to_string());
                 } else {

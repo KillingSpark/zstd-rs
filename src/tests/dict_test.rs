@@ -53,10 +53,10 @@ fn test_dict_decoding() {
             Some(chksum) => {
                 if frame_dec.get_calculated_checksum().unwrap() != chksum {
                     println!(
-                            "Checksum did not match! From data: {}, calculated while decoding: {}\n",
-                            chksum,
-                            frame_dec.get_calculated_checksum().unwrap()
-                        );
+                        "Checksum did not match! From data: {}, calculated while decoding: {}\n",
+                        chksum,
+                        frame_dec.get_calculated_checksum().unwrap()
+                    );
                 } else {
                     println!("Checksums are ok!\n");
                 }
