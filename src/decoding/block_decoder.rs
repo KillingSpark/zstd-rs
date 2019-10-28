@@ -35,12 +35,12 @@ impl BlockDecoder {
         &mut self,
         header: &BlockHeader,
         workspace: &mut DecoderScratch, //reuse this as often as possible. Not only if the trees are reused but also reuse the allocations when building new trees
-        source: &mut Read,
+        source: &mut dyn Read,
     ) -> Result<u64, String> {
         match self.internal_state {
             DecoderState::ReadyToDecodeNextBody => {/* Happy :) */},
-            DecoderState::Failed => return Err(format!("Cant decode next block if failed along the way. Results will be nonsense")),
-            DecoderState::ReadyToDecodeNextHeader => return Err(format!("Cant decode next block body, while expecting to decode the header of the previous block. Results will be nonsense")),
+            DecoderState::Failed => return Err("Cant decode next block if failed along the way. Results will be nonsense".to_string()),
+            DecoderState::ReadyToDecodeNextHeader => return Err("Cant decode next block body, while expecting to decode the header of the previous block. Results will be nonsense".to_string()),
         }
 
         match header.block_type {
@@ -54,7 +54,7 @@ impl BlockDecoder {
                     Ok(_) => {
                         self.internal_state = DecoderState::ReadyToDecodeNextHeader;
                     }
-                    Err(_) => return Err(format!("Error while reading the one RLE byte")),
+                    Err(_) => return Err("Error while reading the one RLE byte".to_string()),
                 }
 
                 for i in 1..BATCH_SIZE {
@@ -81,7 +81,7 @@ impl BlockDecoder {
                             workspace.buffer.push(&buf[..]);
                         }
                         Err(_) => {
-                            return Err(format!("Error while reading bytes of the raw block"))
+                            return Err("Error while reading bytes of the raw block".to_string())
                         }
                     }
                 }
@@ -92,7 +92,7 @@ impl BlockDecoder {
                         workspace.buffer.push(smaller);
                     }
                     Err(_) => {
-                       return Err(format!("Error while reading bytes of the raw block"))
+                       return Err("Error while reading bytes of the raw block".to_string())
                     }
                 }
 
@@ -119,7 +119,7 @@ impl BlockDecoder {
         &mut self,
         header: &BlockHeader,
         workspace: &mut DecoderScratch, //reuse this as often as possible. Not only if the trees are reused but also reuse the allocations when building new trees
-        source: &mut Read,
+        source: &mut dyn Read,
     ) -> Result<(), String> {
         workspace
             .block_content_buffer
@@ -221,7 +221,7 @@ impl BlockDecoder {
         Ok(())
     }
 
-    pub fn read_block_header(&mut self, r: &mut Read) -> Result<(BlockHeader, u8), String> {
+    pub fn read_block_header(&mut self, r: &mut dyn Read) -> Result<(BlockHeader, u8), String> {
         //match self.internal_state {
         //    DecoderState::ReadyToDecodeNextHeader => {/* Happy :) */},
         //    DecoderState::Failed => return Err(format!("Cant decode next block if failed along the way. Results will be nonsense")),
@@ -230,15 +230,13 @@ impl BlockDecoder {
 
         match r.read_exact(&mut self.header_buffer[0..3]) {
             Ok(_) => {}
-            Err(_) => return Err(format!("Error while reading the block header")),
+            Err(_) => return Err("Error while reading the block header".to_string()),
         }
 
         let btype = match self.block_type() {
             Ok(t) => match t {
                 BlockType::Reserved => {
-                    return Err(format!(
-                        "Reserved block occured. This is considered corruption by the documentation"
-                    ))
+                    return Err("Reserved block occured. This is considered corruption by the documentation".to_string())
                 }
                 _ => t,
             },
@@ -267,10 +265,10 @@ impl BlockDecoder {
         //just return 3. Blockheaders always take 3 bytes
         Ok((
             BlockHeader {
-                last_block: last_block,
+                last_block,
                 block_type: btype,
-                decompressed_size: decompressed_size,
-                content_size: content_size,
+                decompressed_size,
+                content_size,
             },
             3,
         ))

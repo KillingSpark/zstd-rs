@@ -30,12 +30,12 @@ pub enum BlockDecodingStrategy {
 const MAX_WINDOW_SIZE: u64 = 1024 * 1024 * 100;
 
 impl FrameDecoderState {
-    pub fn new(source: &mut Read) -> Result<FrameDecoderState, String> {
+    pub fn new(source: &mut dyn Read) -> Result<FrameDecoderState, String> {
         let (frame, header_size) = frame::read_frame_header(source)?;
         let window_size = frame.header.window_size()?;
         frame.check_valid()?;
         Ok(FrameDecoderState {
-            frame: frame,
+            frame,
             frame_finished: false,
             block_counter: 0,
             decoder_scratch: DecoderScratch::new(window_size as usize),
@@ -45,7 +45,7 @@ impl FrameDecoderState {
         })
     }
 
-    pub fn reset(&mut self, source: &mut Read) -> Result<(), String> {
+    pub fn reset(&mut self, source: &mut dyn Read) -> Result<(), String> {
         let (frame, header_size) = frame::read_frame_header(source)?;
         let window_size = frame.header.window_size()?;
         frame.check_valid()?;
@@ -85,11 +85,11 @@ impl FrameDecoder {
     /// Note that all bytes currently in the decodebuffer from any previous frame will be lost. Collect them with collect()/collect_to_writer()
     ///
     /// equivalent to reset()
-    pub fn init(&mut self, source: &mut Read) -> Result<(), String> {
+    pub fn init(&mut self, source: &mut dyn Read) -> Result<(), String> {
         self.reset(source)
     }
     /// Like init but provides the dict to use for the next frame
-    pub fn init_with_dict(&mut self, source: &mut Read, dict: &[u8]) -> Result<(), String> {
+    pub fn init_with_dict(&mut self, source: &mut dyn Read, dict: &[u8]) -> Result<(), String> {
         self.reset_with_dict(source, dict)
     }
 
@@ -99,7 +99,7 @@ impl FrameDecoder {
     /// Note that all bytes currently in the decodebuffer from any previous frame will be lost. Collect them with collect()/collect_to_writer()
     ///
     /// equivalent to init()
-    pub fn reset(&mut self, source: &mut Read) -> Result<(), String> {
+    pub fn reset(&mut self, source: &mut dyn Read) -> Result<(), String> {
         match &mut self.state {
             Some(s) => s.reset(source),
             None => {
@@ -110,7 +110,7 @@ impl FrameDecoder {
     }
 
     /// Like reset but provides the dict to use for the next frame
-    pub fn reset_with_dict(&mut self, source: &mut Read, dict: &[u8]) -> Result<(), String> {
+    pub fn reset_with_dict(&mut self, source: &mut dyn Read, dict: &[u8]) -> Result<(), String> {
         self.reset(source)?;
         if let Some(state) = &mut self.state {
             let id = state.decoder_scratch.load_dict(dict)?;
@@ -196,7 +196,7 @@ impl FrameDecoder {
     /// about that you can just choose the strategy "All" and have all blocks of the frame decoded into the buffer
     pub fn decode_blocks(
         &mut self,
-        source: &mut Read,
+        source: &mut dyn Read,
         strat: BlockDecodingStrategy,
     ) -> Result<bool, crate::errors::FrameDecoderError> {
         let state = match &mut self.state {
@@ -245,7 +245,7 @@ impl FrameDecoder {
             state.bytes_read_counter += block_header_size as u64;
 
             if crate::VERBOSE {
-                println!("");
+                println!();
                 println!(
                     "Found {} block with size: {}, which will be of size: {}",
                     block_header.block_type,
@@ -326,7 +326,7 @@ impl FrameDecoder {
 
     /// Collect bytes and retain window_size bytes while decoding is still going on.
     /// After decoding of the frame (is_finished() == true) has finished it will collect all remaining bytes
-    pub fn collect_to_writer(&mut self, w: &mut std::io::Write) -> Result<usize, std::io::Error> {
+    pub fn collect_to_writer(&mut self, w: &mut dyn std::io::Write) -> Result<usize, std::io::Error> {
         let finished = self.is_finished();
         let state = match &mut self.state {
             None => return Ok(0),

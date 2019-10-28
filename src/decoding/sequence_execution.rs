@@ -61,7 +61,7 @@ pub fn execute_sequences(scratch: &mut DecoderScratch) -> Result<(), String> {
 fn do_offset_history(offset_value: u32, lit_len: u32, scratch: &mut [u32; 3]) -> u32 {
     let actual_offset = if lit_len > 0 {
         match offset_value {
-            1...3 => scratch[offset_value as usize - 1],
+            1..=3 => scratch[offset_value as usize - 1],
             _ => {
                 //new offset
                 offset_value - 3
@@ -69,7 +69,7 @@ fn do_offset_history(offset_value: u32, lit_len: u32, scratch: &mut [u32; 3]) ->
         }
     } else {
         match offset_value {
-            1...2 => scratch[offset_value as usize],
+            1..=2 => scratch[offset_value as usize],
             3 => scratch[0] - 1,
             _ => {
                 //new offset

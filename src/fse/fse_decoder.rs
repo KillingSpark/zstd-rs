@@ -37,7 +37,7 @@ impl<'t> FSEDecoder<'t> {
     pub fn new(table: &'t FSETable) -> FSEDecoder {
         FSEDecoder {
             state: 0,
-            table: table,
+            table,
         }
     }
 
@@ -97,12 +97,12 @@ impl FSETable {
     pub fn build_from_probabilities(
         &mut self,
         acc_log: u8,
-        probs: &Vec<i32>,
+        probs: &[i32],
     ) -> Result<(), String> {
         if acc_log == 0 {
             return Err("Acclog must be at least 1".to_owned());
         }
-        self.symbol_probablilities = probs.clone();
+        self.symbol_probablilities = probs.to_vec();
         self.accuracy_log = acc_log;
         self.build_decoding_table();
         Ok(())
@@ -214,13 +214,11 @@ impl FSETable {
             let value = if small_value < low_threshold {
                 br.return_bits(1);
                 small_value
-            } else {
-                if unchecked_value > mask {
-                    unchecked_value - low_threshold
-                } else {
-                    unchecked_value
-                }
-            };
+            } else if unchecked_value > mask {
+    unchecked_value - low_threshold
+} else {
+    unchecked_value
+};
             //println!("{}, {}, {}", self.symbol_probablilities.len(), unchecked_value, value);
 
             let prob = (value as i32) - 1;

@@ -224,7 +224,7 @@ fn decode_sequences_without_rle(
 
 fn lookup_ll_code(code: u8) -> (u32, u8) {
     match code {
-        0...15 => (code as u32, 0),
+        0..=15 => (code as u32, 0),
         16 => (16, 1),
         17 => (18, 1),
         18 => (20, 1),
@@ -251,7 +251,7 @@ fn lookup_ll_code(code: u8) -> (u32, u8) {
 
 fn lookup_ml_code(code: u8) -> (u32, u8) {
     match code {
-        0...31 => (code as u32 + 3, 0),
+        0..=31 => (code as u32 + 3, 0),
         32 => (35, 1),
         33 => (37, 1),
         34 => (39, 1),
@@ -309,7 +309,7 @@ fn maybe_update_fse_tables(
             if crate::VERBOSE {
                 println!("Use RLE ll table");
             }
-            if source.len() == 0 {
+            if source.is_empty() {
                 return Err("Need a byte to read for RLE ll table".to_owned());
             }
             bytes_read += 1;
@@ -349,7 +349,7 @@ fn maybe_update_fse_tables(
             if crate::VERBOSE {
                 println!("Use RLE of table");
             }
-            if of_source.len() == 0 {
+            if of_source.is_empty() {
                 return Err("Need a byte to read for RLE of table".to_owned());
             }
             bytes_read += 1;
@@ -389,7 +389,7 @@ fn maybe_update_fse_tables(
             if crate::VERBOSE {
                 println!("Use RLE ml table");
             }
-            if ml_source.len() == 0 {
+            if ml_source.is_empty() {
                 return Err("Need a byte to read for RLE ml table".to_owned());
             }
             bytes_read += 1;

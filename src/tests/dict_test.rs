@@ -99,7 +99,7 @@ fn test_dict_decoding() {
             result.len()
         };
         for idx in 0..min {
-            if !(original[idx] == result[idx]) {
+            if original[idx] != result[idx] {
                 counter += 1;
                 //println!(
                 //    "Original {} not equal to result {} at byte: {}",
@@ -149,33 +149,29 @@ fn test_dict_decoding() {
     let speed_len = speeds.len();
     let sum_speed: usize = speeds.into_iter().sum();
     let avg_speed = sum_speed / speed_len;
-    let avg_speed_bps = avg_speed * 1000000;
+    let avg_speed_bps = avg_speed * 1_000_000;
     if avg_speed_bps < 1000 {
         println!("Average speed: {} B/s", avg_speed_bps);
-    } else {
-        if avg_speed_bps < 1000000 {
-            println!("Average speed: {} KB/s", avg_speed_bps / 1000);
-        } else {
-            println!("Average speed: {} MB/s", avg_speed_bps / 1000000);
-        }
-    }
+    } else if avg_speed_bps < 1_000_000 {
+    println!("Average speed: {} KB/s", avg_speed_bps / 1000);
+} else {
+    println!("Average speed: {} MB/s", avg_speed_bps / 1_000_000);
+}
 
     let speed_read_len = speeds_read.len();
     let sum_speed_read: usize = speeds_read.into_iter().sum();
     let avg_speed_read = sum_speed_read / speed_read_len;
-    let avg_speed_read_bps = avg_speed_read * 1000000;
+    let avg_speed_read_bps = avg_speed_read * 1_000_000;
     if avg_speed_read_bps < 1000 {
         println!("Average speed reading: {} B/s", avg_speed_read_bps);
-    } else {
-        if avg_speed_bps < 1000000 {
-            println!("Average speed reading: {} KB/s", avg_speed_read_bps / 1000);
-        } else {
-            println!(
-                "Average speed reading: {} MB/s",
-                avg_speed_read_bps / 1000000
-            );
-        }
-    }
+    } else if avg_speed_bps < 1_000_000 {
+    println!("Average speed reading: {} KB/s", avg_speed_read_bps / 1000);
+} else {
+    println!(
+        "Average speed reading: {} MB/s",
+        avg_speed_read_bps / 1_000_000
+    );
+}
 
-    assert!(failed.len() == 0);
+    assert!(failed.is_empty());
 }
