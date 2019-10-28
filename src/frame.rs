@@ -164,11 +164,10 @@ impl FrameHeader {
                 }
                 4 => {
                     if self.frame_content_size.len() == 4 {
-                        let val = ((self.frame_content_size[3] as u64) << 24)
-                            | ((self.frame_content_size[2] as u64) << 16)
-                            | ((self.frame_content_size[1] as u64) << 8)
-                            | (self.frame_content_size[0] as u64);
-                        Ok(val)
+                        let val = crate::decoding::little_endian::read_little_endian_u32(
+                            self.frame_content_size.as_slice(),
+                        );
+                        Ok(val as u64)
                     } else {
                         Err(format!(
                             "frame_content_size not long enough. Is: {}, Should be: {}",
@@ -179,14 +178,9 @@ impl FrameHeader {
                 }
                 8 => {
                     if self.frame_content_size.len() == 8 {
-                        let val = (self.frame_content_size[0] as u64)
-                            | ((self.frame_content_size[1] as u64) << 8)
-                            | ((self.frame_content_size[2] as u64) << 16)
-                            | ((self.frame_content_size[3] as u64) << 24)
-                            | ((self.frame_content_size[4] as u64) << 32)
-                            | ((self.frame_content_size[5] as u64) << 40)
-                            | ((self.frame_content_size[6] as u64) << 48)
-                            | ((self.frame_content_size[7] as u64) << 56);
+                        let val = crate::decoding::little_endian::read_little_endian_u64(
+                            &self.frame_content_size,
+                        );
                         Ok(val)
                     } else {
                         Err(format!(
@@ -239,12 +233,7 @@ use std::io::Read;
 pub fn read_frame_header(r: &mut dyn Read) -> Result<(Frame, u8), String> {
     let mut buf = [0u8; 4];
     let magic_num: u32 = match r.read_exact(&mut buf[0..4]) {
-        Ok(_) => {
-            (buf[0] as u32)
-                | ((buf[1] as u32) << 8)
-                | ((buf[2] as u32) << 16)
-                | ((buf[3] as u32) << 24)
-        }
+        Ok(_) => crate::decoding::little_endian::read_little_endian_u32(&buf[..]),
         Err(_) => return Err("Error while reading magic number".to_owned()),
     };
 

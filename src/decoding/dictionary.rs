@@ -25,10 +25,7 @@ impl Dictionary {
         let _ = magic_num;
 
         let dict_id = &raw[4..8];
-        let dict_id = dict_id[0] as u32
-            + ((dict_id[1] as u32) << 8)
-            + ((dict_id[2] as u32) << 16)
-            + ((dict_id[3] as u32) << 24);
+        let dict_id = crate::decoding::little_endian::read_little_endian_u32(dict_id);
         new_dict.id = dict_id;
 
         let raw_tables = &raw[8..];
@@ -55,22 +52,13 @@ impl Dictionary {
         let raw_tables = &raw_tables[ll_size as usize..];
 
         let offset1 = &raw_tables[0..4];
-        let offset1 = (offset1[0] as u32)
-            + ((offset1[1] as u32) << 8)
-            + ((offset1[2] as u32) << 16)
-            + ((offset1[3] as u32) << 24);
+        let offset1 = crate::decoding::little_endian::read_little_endian_u32(offset1);
 
         let offset2 = &raw_tables[4..8];
-        let offset2 = (offset2[0] as u32)
-            + ((offset2[1] as u32) << 8)
-            + ((offset2[2] as u32) << 16)
-            + ((offset2[3] as u32) << 24);
+        let offset2 = crate::decoding::little_endian::read_little_endian_u32(offset2);
 
         let offset3 = &raw_tables[8..12];
-        let offset3 = (offset3[0] as u32)
-            + ((offset3[1] as u32) << 8)
-            + ((offset3[2] as u32) << 16)
-            + ((offset3[3] as u32) << 24);
+        let offset3 = crate::decoding::little_endian::read_little_endian_u32(offset3);
 
         new_dict.offset_hist[0] = offset1;
         new_dict.offset_hist[1] = offset2;
