@@ -140,7 +140,7 @@ impl FrameHeader {
                 0 => Err("Bytes was zero".to_owned()),
                 1 => {
                     if self.frame_content_size.len() == 1 {
-                        Ok(self.frame_content_size[0] as u64)
+                        Ok(u64::from(self.frame_content_size[0]))
                     } else {
                         Err(format!(
                             "frame_content_size not long enough. Is: {}, Should be: {}",
@@ -151,8 +151,8 @@ impl FrameHeader {
                 }
                 2 => {
                     if self.frame_content_size.len() == 2 {
-                        let val = ((self.frame_content_size[1] as u64) << 8)
-                            + (self.frame_content_size[0] as u64);
+                        let val = (u64::from(self.frame_content_size[1]) << 8)
+                            + (u64::from(self.frame_content_size[0]));
                         Ok(val + 256) //this weird offset is from the documentation. Only if bytes == 2
                     } else {
                         Err(format!(
@@ -167,7 +167,7 @@ impl FrameHeader {
                         let val = crate::decoding::little_endian::read_little_endian_u32(
                             self.frame_content_size.as_slice(),
                         );
-                        Ok(val as u64)
+                        Ok(u64::from(val))
                     } else {
                         Err(format!(
                             "frame_content_size not long enough. Is: {}, Should be: {}",

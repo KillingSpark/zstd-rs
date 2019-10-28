@@ -39,7 +39,7 @@ impl FrameDecoderState {
             frame_finished: false,
             block_counter: 0,
             decoder_scratch: DecoderScratch::new(window_size as usize),
-            bytes_read_counter: header_size as u64,
+            bytes_read_counter: u64::from(header_size),
             check_sum: None,
             using_dict: None,
         })
@@ -61,10 +61,16 @@ impl FrameDecoderState {
         self.frame_finished = false;
         self.block_counter = 0;
         self.decoder_scratch.reset(window_size as usize);
-        self.bytes_read_counter = header_size as u64;
+        self.bytes_read_counter = u64::from(header_size);
         self.check_sum = None;
         self.using_dict = None;
         Ok(())
+    }
+}
+
+impl Default for FrameDecoder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -242,7 +248,7 @@ impl FrameDecoder {
                 Ok(h) => h,
                 Err(m) => return Err(crate::errors::FrameDecoderError::FailedToReadBlockHeader(m)),
             };
-            state.bytes_read_counter += block_header_size as u64;
+            state.bytes_read_counter += u64::from(block_header_size);
 
             if crate::VERBOSE {
                 println!();
@@ -445,7 +451,7 @@ impl FrameDecoder {
                     if mt_source.len() < block_header.content_size as usize {
                         break;
                     }
-                    state.bytes_read_counter += block_header_size as u64;
+                    state.bytes_read_counter += u64::from(block_header_size);
 
                     let bytes_read_in_block_body = match block_dec.decode_block_content(
                         &block_header,

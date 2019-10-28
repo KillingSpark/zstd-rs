@@ -89,6 +89,12 @@ impl HuffmanScratch {
     }
 }
 
+impl Default for HuffmanScratch {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Clone)]
 pub struct FSEScratch {
     pub offsets: FSETable,
@@ -109,5 +115,11 @@ impl FSEScratch {
             match_lengths: FSETable::new(),
             ml_rle: None,
         }
+    }
+}
+
+impl Default for FSEScratch {
+    fn default() -> Self {
+        Self::new()
     }
 }

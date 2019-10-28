@@ -70,6 +70,12 @@ impl<'t> HuffmanDecoder<'t> {
     }
 }
 
+impl Default for HuffmanTable {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HuffmanTable {
     pub fn new() -> HuffmanTable {
         HuffmanTable {

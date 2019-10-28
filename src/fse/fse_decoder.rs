@@ -10,6 +10,12 @@ pub struct FSETable {
     symbol_counter: Vec<u32>,
 }
 
+impl Default for FSETable {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct FSEDecoder<'table> {
     pub state: usize,
     table: &'table FSETable,
