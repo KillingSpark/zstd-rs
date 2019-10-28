@@ -235,9 +235,10 @@ impl BlockDecoder {
 
         let btype = match self.block_type() {
             Ok(t) => match t {
-                BlockType::Reserved => {
-                    return Err("Reserved block occured. This is considered corruption by the documentation".to_string())
-                }
+                BlockType::Reserved => return Err(
+                    "Reserved block occured. This is considered corruption by the documentation"
+                        .to_string(),
+                ),
                 _ => t,
             },
             Err(m) => return Err(m),

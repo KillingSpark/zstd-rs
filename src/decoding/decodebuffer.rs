@@ -202,7 +202,10 @@ impl Decodebuffer {
         r
     }
 
-    pub fn drain_to_writer(&mut self, sink: &mut dyn std::io::Write) -> Result<usize, std::io::Error> {
+    pub fn drain_to_writer(
+        &mut self,
+        sink: &mut dyn std::io::Write,
+    ) -> Result<usize, std::io::Error> {
         self.hash.write(&self.buffer);
         let mut buf = [0u8; 1]; //TODO batch to reasonable size
         for x in &self.buffer {

@@ -39,10 +39,7 @@ fn highest_bit_set(x: u32) -> u32 {
 
 impl<'t> HuffmanDecoder<'t> {
     pub fn new(table: &'t HuffmanTable) -> HuffmanDecoder<'t> {
-        HuffmanDecoder {
-            table,
-            state: 0,
-        }
+        HuffmanDecoder { table, state: 0 }
     }
 
     pub fn reset(mut self, new_table: Option<&'t HuffmanTable>) {

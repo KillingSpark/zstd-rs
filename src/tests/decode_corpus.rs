@@ -157,10 +157,10 @@ fn test_decode_corpus_files() {
     if avg_speed_bps < 1000 {
         println!("Average speed: {} B/s", avg_speed_bps);
     } else if avg_speed_bps < 1_000_000 {
-    println!("Average speed: {} KB/s", avg_speed_bps / 1000);
-} else {
-    println!("Average speed: {} MB/s", avg_speed_bps / 1_000_000);
-}
+        println!("Average speed: {} KB/s", avg_speed_bps / 1000);
+    } else {
+        println!("Average speed: {} MB/s", avg_speed_bps / 1_000_000);
+    }
 
     let speed_read_len = speeds_read.len();
     let sum_speed_read: usize = speeds_read.into_iter().sum();
@@ -169,13 +169,13 @@ fn test_decode_corpus_files() {
     if avg_speed_read_bps < 1000 {
         println!("Average speed reading: {} B/s", avg_speed_read_bps);
     } else if avg_speed_bps < 1_000_000 {
-    println!("Average speed reading: {} KB/s", avg_speed_read_bps / 1000);
-} else {
-    println!(
-        "Average speed reading: {} MB/s",
-        avg_speed_read_bps / 1_000_000
-    );
-}
+        println!("Average speed reading: {} KB/s", avg_speed_read_bps / 1000);
+    } else {
+        println!(
+            "Average speed reading: {} MB/s",
+            avg_speed_read_bps / 1_000_000
+        );
+    }
 
     assert!(failed.is_empty());
 }

@@ -326,7 +326,10 @@ impl FrameDecoder {
 
     /// Collect bytes and retain window_size bytes while decoding is still going on.
     /// After decoding of the frame (is_finished() == true) has finished it will collect all remaining bytes
-    pub fn collect_to_writer(&mut self, w: &mut dyn std::io::Write) -> Result<usize, std::io::Error> {
+    pub fn collect_to_writer(
+        &mut self,
+        w: &mut dyn std::io::Write,
+    ) -> Result<usize, std::io::Error> {
         let finished = self.is_finished();
         let state = match &mut self.state {
             None => return Ok(0),

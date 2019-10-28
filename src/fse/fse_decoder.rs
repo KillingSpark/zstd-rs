@@ -35,10 +35,7 @@ fn highest_bit_set(x: u32) -> u32 {
 
 impl<'t> FSEDecoder<'t> {
     pub fn new(table: &'t FSETable) -> FSEDecoder {
-        FSEDecoder {
-            state: 0,
-            table,
-        }
+        FSEDecoder { state: 0, table }
     }
 
     pub fn decode_symbol(&self) -> u8 {
@@ -94,11 +91,7 @@ impl FSETable {
         Ok(bytes_read)
     }
 
-    pub fn build_from_probabilities(
-        &mut self,
-        acc_log: u8,
-        probs: &[i32],
-    ) -> Result<(), String> {
+    pub fn build_from_probabilities(&mut self, acc_log: u8, probs: &[i32]) -> Result<(), String> {
         if acc_log == 0 {
             return Err("Acclog must be at least 1".to_owned());
         }
@@ -215,10 +208,10 @@ impl FSETable {
                 br.return_bits(1);
                 small_value
             } else if unchecked_value > mask {
-    unchecked_value - low_threshold
-} else {
-    unchecked_value
-};
+                unchecked_value - low_threshold
+            } else {
+                unchecked_value
+            };
             //println!("{}, {}, {}", self.symbol_probablilities.len(), unchecked_value, value);
 
             let prob = (value as i32) - 1;

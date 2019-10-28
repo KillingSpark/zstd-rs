@@ -5,10 +5,7 @@ pub struct BitReader<'s> {
 
 impl<'s> BitReader<'s> {
     pub fn new(source: &'s [u8]) -> BitReader {
-        BitReader {
-            idx: 0,
-            source,
-        }
+        BitReader { idx: 0, source }
     }
 
     pub fn bits_left(&self) -> usize {

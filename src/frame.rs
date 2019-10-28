@@ -146,8 +146,7 @@ impl FrameHeader {
                             "frame_content_size not long enough. Is: {}, Should be: {}",
                             self.frame_content_size.len(),
                             bytes
-                        )
-                        )
+                        ))
                     }
                 }
                 2 => {
@@ -160,8 +159,7 @@ impl FrameHeader {
                             "frame_content_size not long enough. Is: {}, Should be: {}",
                             self.frame_content_size.len(),
                             bytes
-                        )
-                        )
+                        ))
                     }
                 }
                 4 => {
@@ -176,8 +174,7 @@ impl FrameHeader {
                             "frame_content_size not long enough. Is: {}, Should be: {}",
                             self.frame_content_size.len(),
                             bytes
-                        )
-                        )
+                        ))
                     }
                 }
                 8 => {
@@ -196,15 +193,13 @@ impl FrameHeader {
                             "frame_content_size not long enough. Is: {}, Should be: {}",
                             self.frame_content_size.len(),
                             bytes
-                        )
-                        )
+                        ))
                     }
                 }
                 _ => Err(format!(
                     "Invalid amount of bytes'. Is: {}, Should be one of 1,2,4,8",
                     self.frame_content_size.len()
-                )
-                ),
+                )),
             },
         }
     }
@@ -218,25 +213,25 @@ impl Frame {
                 self.magic_num, MAGIC_NUM
             ))
         } else if self.header.descriptor.reserved_flag() {
-    Err("Reserved Flag set. Must be zero".to_string())
-} else {
-    match self.header.dictiornary_id() {
-        Ok(_) => match self.header.window_size() {
-            Ok(_) => {
-                if self.header.descriptor.single_segment_flag() {
-                    match self.header.frame_content_size() {
-                        Ok(_) => Ok(()),
-                        Err(m) => Err(m),
+            Err("Reserved Flag set. Must be zero".to_string())
+        } else {
+            match self.header.dictiornary_id() {
+                Ok(_) => match self.header.window_size() {
+                    Ok(_) => {
+                        if self.header.descriptor.single_segment_flag() {
+                            match self.header.frame_content_size() {
+                                Ok(_) => Ok(()),
+                                Err(m) => Err(m),
+                            }
+                        } else {
+                            Ok(())
+                        }
                     }
-                } else {
-                    Ok(())
-                }
+                    Err(m) => Err(m),
+                },
+                Err(m) => Err(m),
             }
-            Err(m) => Err(m),
-        },
-        Err(m) => Err(m),
-    }
-}
+        }
     }
 }
 
