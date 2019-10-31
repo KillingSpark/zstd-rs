@@ -20,9 +20,11 @@ impl Dictionary {
             dict_content: Vec::new(),
             offset_hist: [2, 4, 8],
         };
-        let magic_num = &raw[..4];
-        //TODO check magic num
-        let _ = magic_num;
+        let magic_num = Vec::from(&raw[..4]);
+        
+        if !magic_num.eq(&vec![0x37, 0xA4, 0x30, 0xEC]) {
+            return Err("Bad magic_num at start of the dictionary".to_owned());
+        }
 
         let dict_id = &raw[4..8];
         let dict_id = crate::decoding::little_endian::read_little_endian_u32(dict_id);
