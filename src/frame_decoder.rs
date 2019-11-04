@@ -184,7 +184,11 @@ impl FrameDecoder {
             None => return true,
             Some(s) => s,
         };
-        state.frame_finished
+        if state.frame.header.descriptor.content_checksum_flag() {
+            state.frame_finished && state.check_sum.is_some()
+        } else {
+            state.frame_finished
+        }
     }
 
     /// Counter for how many blocks have already been decoded
@@ -403,6 +407,20 @@ impl FrameDecoder {
                 };
                 let mut block_dec = decoding::block_decoder::new();
 
+                if state.frame.header.descriptor.content_checksum_flag()
+                    && state.frame_finished
+                    && state.check_sum.is_none()
+                {
+                    //this block is needed if the checksum were the only 4 bytes that were not included in the last decode_from_to call for a frame
+                    if mt_source.len() >= 4 {
+                        let chksum = &mt_source[..4];
+                        state.bytes_read_counter += 4;
+                        let chksum = crate::decoding::little_endian::read_little_endian_u32(chksum);
+                        state.check_sum = Some(chksum);
+                    }
+                    return Ok((4,0));
+                }
+
                 match state.frame.header.dictiornary_id() {
                     Ok(Some(id)) => {
                         match state.using_dict {
@@ -469,12 +487,14 @@ impl FrameDecoder {
                     if block_header.last_block {
                         state.frame_finished = true;
                         if state.frame.header.descriptor.content_checksum_flag() {
-                            //TODO make sure that there are 3 bytes left. Mabye new bytes must be provided
-                            let chksum = &mt_source[..4];
-                            state.bytes_read_counter += 4;
-                            let chksum =
-                                crate::decoding::little_endian::read_little_endian_u32(chksum);
-                            state.check_sum = Some(chksum);
+                            //if there are enough bytes handle this here. Else the block at the start of this function will handle it at the next call
+                            if mt_source.len() >= 4 {
+                                let chksum = &mt_source[..4];
+                                state.bytes_read_counter += 4;
+                                let chksum =
+                                    crate::decoding::little_endian::read_little_endian_u32(chksum);
+                                state.check_sum = Some(chksum);
+                            }
                         }
                         break;
                     }

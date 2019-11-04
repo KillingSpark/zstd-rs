@@ -62,17 +62,33 @@ fn test_decode_from_to() {
     let mut target = Vec::with_capacity(1024 * 1024);
     target.resize(1024 * 1024, 0u8);
 
+    // first part
     let source1 = &content[..50 * 1024];
     let (read1, written1) = frame_dec
         .decode_from_to(source1, target.as_mut_slice())
         .unwrap();
 
-    let source2 = &content[read1..];
+    //second part explicitely without checksum
+    let source2 = &content[read1..content.len()-4];
     let (read2, written2) = frame_dec
         .decode_from_to(source2, &mut target[written1..])
         .unwrap();
 
-    let read = read1 + read2;
+    //must have decoded until checksum
+    assert!(read1+read2 == content.len()-4);
+
+    //insert checksum separatly to test that this is handled correctly
+    let chksum_source = &content[read1+read2..];
+    let (read3, written3) = frame_dec
+        .decode_from_to(chksum_source, &mut target[written1+written2..])
+        .unwrap();
+
+    //this must result in these values because just the checksum was processed
+    assert!(read3 == 4);
+    assert!(written3 == 0);
+    
+
+    let read = read1 + read2 + read3;
     let written = written1 + written2;
 
     let result = &target.as_slice()[..written];
