@@ -1,6 +1,6 @@
 [package]
-name = "zstd-rs"
-version = "0.1.0"
+name = "ruzstd"
+version = "0.1.1"
 authors = ["Moritz Borcherding <moritz.borcherding@web.de>"]
 edition = "2018"
 

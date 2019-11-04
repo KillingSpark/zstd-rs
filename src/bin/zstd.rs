@@ -1,4 +1,4 @@
-extern crate zstd_rs;
+extern crate ruzstd;
 use std::fs::File;
 use std::io::Read;
 use std::io::Write;
@@ -31,7 +31,7 @@ fn main() {
         return;
     }
 
-    let mut frame_dec = zstd_rs::FrameDecoder::new();
+    let mut frame_dec = ruzstd::FrameDecoder::new();
 
     for path in file_paths {
         let mut tracker = StateTracker {
@@ -51,7 +51,7 @@ fn main() {
             frame_dec
                 .decode_blocks(
                     &mut f,
-                    zstd_rs::BlockDecodingStrategy::UptoBytes(batch_size),
+                    ruzstd::BlockDecodingStrategy::UptoBytes(batch_size),
                 )
                 .unwrap();
 
