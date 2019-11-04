@@ -7,6 +7,7 @@ license = "MIT"
 homepage = "https://github.com/KillingSpark/zstd-rs"
 repository = "https://github.com/KillingSpark/zstd-rs"
 description = "A decoder for the zstd compression format"
+exclude = ["decodecorpus_files/*", "dict_tests/*"]
 
 [dependencies]
 byteorder = "1.3.2"
