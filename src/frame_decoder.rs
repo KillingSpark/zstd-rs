@@ -371,6 +371,9 @@ impl FrameDecoder {
 
     /// Decodes as many blocks as possible from the source slice and reads from the decodebuffer into the target slice
     /// The source slice may contain only parts of a frame but must contain at least one full block to make progress
+    /// 
+    /// By all means use decode_blocks if you have a io.Reader available. This is just for compatibility with other decompressors
+    /// which try to serve an old-style c api
     ///
     /// Returns (read, written), if read == 0 then the source did not contain a full block and further calls with the same
     /// input will not make any progress!
