@@ -36,6 +36,11 @@ impl<'a> Read for StreamingDecoder<'a> {
             return Ok(0)
         }
         
+        // need to loop. The UpToBytes strategy doesnt take any effort to actually reach that limit. 
+        // The first few calls can result in just filling the decode buffer but these bytes can not be collected.
+        // So we need to call this until we can actually collect enough bytes
+
+        // TODO add BlockDecodingStrategy::UntilCollectable(usize) that pushes this logic into the decode_blocks function
         while self.decoder.can_collect() < buf.len() && !self.decoder.is_finished() {
             //More bytes can be decoded
             let additional_bytes_needed = buf.len() - self.decoder.can_collect();
