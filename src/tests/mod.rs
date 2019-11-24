@@ -147,13 +147,15 @@ fn test_decode_from_to() {
     }
 }
 
+
 #[test]
 fn test_specific_file() {
     use crate::frame_decoder;
     use std::fs;
     use std::io::Read;
 
-    let mut content = fs::File::open("./decodecorpus_files/z000088.zst").unwrap();
+    let path = "./decodecorpus_files/z000068.zst";
+    let mut content = fs::File::open(path).unwrap();
 
     struct NullWriter(());
     impl std::io::Write for NullWriter {
@@ -176,7 +178,7 @@ fn test_specific_file() {
     let original_f = fs::File::open("./decodecorpus_files/z000088").unwrap();
     let original: Vec<u8> = original_f.bytes().map(|x| x.unwrap()).collect();
 
-    println!("Results for file:");
+    println!("Results for file: {}", path);
 
     if original.len() != result.len() {
         println!(
@@ -203,6 +205,89 @@ fn test_specific_file() {
     }
     if counter > 0 {
         println!("Result differs in at least {} bytes from original", counter);
+    }
+}
+
+#[test]
+fn test_streaming() {
+    use std::fs;
+    use std::io::Read;
+
+    let mut content = fs::File::open("./decodecorpus_files/z000088.zst").unwrap();
+    let mut stream = crate::streaming_decoder::StreamingDecoder::new(&mut content).unwrap();
+    
+    let mut result = Vec::new();
+    Read::read_to_end(&mut stream, &mut result).unwrap();
+
+    let original_f = fs::File::open("./decodecorpus_files/z000088").unwrap();
+    let original: Vec<u8> = original_f.bytes().map(|x| x.unwrap()).collect();
+
+    if original.len() != result.len() {
+        panic!(
+            "Result has wrong length: {}, should be: {}",
+            result.len(),
+            original.len()
+        );
+    }
+
+    let mut counter = 0;
+    let min = if original.len() < result.len() {
+        original.len()
+    } else {
+        result.len()
+    };
+    for idx in 0..min {
+        if original[idx] != result[idx] {
+            counter += 1;
+            //println!(
+            //    "Original {:3} not equal to result {:3} at byte: {}",
+            //    original[idx], result[idx], idx,
+            //);
+        }
+    }
+    if counter > 0 {
+        panic!("Result differs in at least {} bytes from original", counter);
+    }
+
+
+    // Test resetting to a new file while keeping the old decoder
+
+    let mut content = fs::File::open("./decodecorpus_files/z000068.zst").unwrap();
+    let mut stream = crate::streaming_decoder::StreamingDecoder::new_with_decoder(&mut content, stream.inner()).unwrap();
+    
+    let mut result = Vec::new();
+    Read::read_to_end(&mut stream, &mut result).unwrap();
+   
+    let original_f = fs::File::open("./decodecorpus_files/z000068").unwrap();
+    let original: Vec<u8> = original_f.bytes().map(|x| x.unwrap()).collect();
+
+    println!("Results for file:");
+
+    if original.len() != result.len() {
+        panic!(
+            "Result has wrong length: {}, should be: {}",
+            result.len(),
+            original.len()
+        );
+    }
+
+    let mut counter = 0;
+    let min = if original.len() < result.len() {
+        original.len()
+    } else {
+        result.len()
+    };
+    for idx in 0..min {
+        if original[idx] != result[idx] {
+            counter += 1;
+            //println!(
+            //    "Original {:3} not equal to result {:3} at byte: {}",
+            //    original[idx], result[idx], idx,
+            //);
+        }
+    }
+    if counter > 0 {
+        panic!("Result differs in at least {} bytes from original", counter);
     }
 }
 
