@@ -7,7 +7,8 @@ It is NOT a compressor. I dont plan on implementing that part either, at least n
 This is started just as a toy project but I think it is in a usable state now. It does work correctly at least for the test-set of files I used, YMMV, it is not yet battle tested by any means.
 For production use (or if you need a compressor) I would (at the time of writing, this might get out of date and there might come better projects along!) recommend to use the C binding located [here](https://github.com/gyscos/zstd-rs).
 
-If you'd be willing to try this in your projects I would be very happy though!
+If you'd be willing to try this in your projects I would be very happy though! The crate is published to [crates.io](https://crates.io/crates/ruzstd) following the releases on this repo. The docs are located
+[here](https://docs.rs/ruzstd) (These might lag behind the releases since docs.rs doesnt pull from crates.io immediatly but they will show the latest version eventually).
 
 ## Speed
 Measuring with the 'time' utility the original zstd and my decoder both decoding the same enwik9.zst file from aramfs, my decoder is about 3.5 times slower. Enwik9 is highly compressible, for less compressible data (like a ubuntu installation .iso) my decoder comes close to only being 1.4 times slower.
