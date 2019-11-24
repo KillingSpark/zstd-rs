@@ -6,6 +6,40 @@ use std::collections::HashMap;
 use std::hash::Hasher;
 use std::io::Read;
 
+/// This implements a decoder for zstd frames. This decoder is able to decode frames only partially and gives control
+/// over how many bytes/blocks will be decoded at a time (so you dont have to decode a 10GB file into memory all at once). 
+/// It reads bytes as needed from a provided source and can be read from to collect partial results.
+/// 
+/// If you want to just read the whole frame with an io::Read without having to deal with manually calling decode_blocks
+/// you can use the provided StreamingDecoder with wraps this FrameDecoder
+/// 
+/// Workflow is as follows:
+/// ```
+/// //Create a new decoder
+/// let mut frame_dec = ruzstd::FrameDecoder::new(); 
+/// 
+/// // Use reset or init to make the decoder ready to decocde the frame from the io::Read
+/// frame_dec.reset(&mut file).unwrap();
+/// 
+/// // Loop until the frame has been decoded completely
+/// while !frame_dec.is_finished() {
+///     // decode (roughly) batch_size many bytes
+///     frame_dec.decode_blocks(&mut file, BlockDecodingStrategy::UptoBytes(batch_size)).unwrap();
+/// 
+///     // read from the decoder to collect bytes from the internal buffer 
+///     let bytes_read = frame_dec.read(result.as_mut_slice()).unwrap()
+///     
+///     // then do something with it
+///     do_something(&result[0..bytes_read]);
+/// }
+/// 
+/// // handle the last chunk of data
+/// while frame_dec.can_collect() > 0 {
+///     let x = frame_dec.read(result.as_mut_slice()).unwrap();
+/// 
+///     do_something(&result[0..x]);
+/// }
+/// ```
 pub struct FrameDecoder {
     state: Option<FrameDecoderState>,
     dicts: HashMap<u32, Dictionary>,
