@@ -7,37 +7,49 @@ use std::hash::Hasher;
 use std::io::Read;
 
 /// This implements a decoder for zstd frames. This decoder is able to decode frames only partially and gives control
-/// over how many bytes/blocks will be decoded at a time (so you dont have to decode a 10GB file into memory all at once). 
+/// over how many bytes/blocks will be decoded at a time (so you dont have to decode a 10GB file into memory all at once).
 /// It reads bytes as needed from a provided source and can be read from to collect partial results.
-/// 
+///
 /// If you want to just read the whole frame with an io::Read without having to deal with manually calling decode_blocks
 /// you can use the provided StreamingDecoder with wraps this FrameDecoder
-/// 
+///
 /// Workflow is as follows:
 /// ```
-/// //Create a new decoder
-/// let mut frame_dec = ruzstd::FrameDecoder::new(); 
+/// use ruzstd::frame_decoder::BlockDecodingStrategy;
+/// use std::io::Read;
+/// use std::io::Write;
+///
+///
+/// fn decode_this(file: &mut std::io::Read) {
+///     //Create a new decoder
+///     let mut frame_dec = ruzstd::FrameDecoder::new();
+///     let mut result = Vec::new();
 /// 
-/// // Use reset or init to make the decoder ready to decocde the frame from the io::Read
-/// frame_dec.reset(&mut file).unwrap();
+///     // Use reset or init to make the decoder ready to decocde the frame from the io::Read
+///     frame_dec.reset(file).unwrap();
 /// 
-/// // Loop until the frame has been decoded completely
-/// while !frame_dec.is_finished() {
-///     // decode (roughly) batch_size many bytes
-///     frame_dec.decode_blocks(&mut file, BlockDecodingStrategy::UptoBytes(batch_size)).unwrap();
+///     // Loop until the frame has been decoded completely
+///     while !frame_dec.is_finished() {
+///         // decode (roughly) batch_size many bytes
+///         frame_dec.decode_blocks(file, BlockDecodingStrategy::UptoBytes(1024)).unwrap();
 /// 
-///     // read from the decoder to collect bytes from the internal buffer 
-///     let bytes_read = frame_dec.read(result.as_mut_slice()).unwrap()
-///     
-///     // then do something with it
-///     do_something(&result[0..bytes_read]);
+///         // read from the decoder to collect bytes from the internal buffer
+///         let bytes_read = frame_dec.read(result.as_mut_slice()).unwrap();
+///         
+///         // then do something with it
+///         do_something(&result[0..bytes_read]);
+///     }
+/// 
+///     // handle the last chunk of data
+///     while frame_dec.can_collect() > 0 {
+///         let x = frame_dec.read(result.as_mut_slice()).unwrap();
+/// 
+///         do_something(&result[0..x]);
+///     }
 /// }
 /// 
-/// // handle the last chunk of data
-/// while frame_dec.can_collect() > 0 {
-///     let x = frame_dec.read(result.as_mut_slice()).unwrap();
-/// 
-///     do_something(&result[0..x]);
+/// fn do_something(data: &[u8]) {
+///     std::io::stdout().write_all(data).unwrap();
 /// }
 /// ```
 pub struct FrameDecoder {
@@ -405,7 +417,7 @@ impl FrameDecoder {
 
     /// Decodes as many blocks as possible from the source slice and reads from the decodebuffer into the target slice
     /// The source slice may contain only parts of a frame but must contain at least one full block to make progress
-    /// 
+    ///
     /// By all means use decode_blocks if you have a io.Reader available. This is just for compatibility with other decompressors
     /// which try to serve an old-style c api
     ///
@@ -455,7 +467,7 @@ impl FrameDecoder {
                         let chksum = crate::decoding::little_endian::read_little_endian_u32(chksum);
                         state.check_sum = Some(chksum);
                     }
-                    return Ok((4,0));
+                    return Ok((4, 0));
                 }
 
                 match state.frame.header.dictiornary_id() {

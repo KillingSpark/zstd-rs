@@ -3,9 +3,9 @@ pub mod decoding;
 pub mod errors;
 pub mod frame;
 pub mod frame_decoder;
-pub mod streaming_decoder;
 pub mod fse;
 pub mod huff0;
+pub mod streaming_decoder;
 mod tests;
 
 pub const VERBOSE: bool = false;

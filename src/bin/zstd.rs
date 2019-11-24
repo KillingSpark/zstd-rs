@@ -49,10 +49,7 @@ fn main() {
 
         while !frame_dec.is_finished() {
             frame_dec
-                .decode_blocks(
-                    &mut f,
-                    ruzstd::BlockDecodingStrategy::UptoBytes(batch_size),
-                )
+                .decode_blocks(&mut f, ruzstd::BlockDecodingStrategy::UptoBytes(batch_size))
                 .unwrap();
 
             if frame_dec.can_collect() > batch_size {

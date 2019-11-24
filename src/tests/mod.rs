@@ -69,24 +69,23 @@ fn test_decode_from_to() {
         .unwrap();
 
     //second part explicitely without checksum
-    let source2 = &content[read1..content.len()-4];
+    let source2 = &content[read1..content.len() - 4];
     let (read2, written2) = frame_dec
         .decode_from_to(source2, &mut target[written1..])
         .unwrap();
 
     //must have decoded until checksum
-    assert!(read1+read2 == content.len()-4);
+    assert!(read1 + read2 == content.len() - 4);
 
     //insert checksum separatly to test that this is handled correctly
-    let chksum_source = &content[read1+read2..];
+    let chksum_source = &content[read1 + read2..];
     let (read3, written3) = frame_dec
-        .decode_from_to(chksum_source, &mut target[written1+written2..])
+        .decode_from_to(chksum_source, &mut target[written1 + written2..])
         .unwrap();
 
     //this must result in these values because just the checksum was processed
     assert!(read3 == 4);
     assert!(written3 == 0);
-    
 
     let read = read1 + read2 + read3;
     let written = written1 + written2;
@@ -146,7 +145,6 @@ fn test_decode_from_to() {
         panic!("Result differs in at least {} bytes from original", counter);
     }
 }
-
 
 #[test]
 fn test_specific_file() {
@@ -215,7 +213,7 @@ fn test_streaming() {
 
     let mut content = fs::File::open("./decodecorpus_files/z000088.zst").unwrap();
     let mut stream = crate::streaming_decoder::StreamingDecoder::new(&mut content).unwrap();
-    
+
     let mut result = Vec::new();
     Read::read_to_end(&mut stream, &mut result).unwrap();
 
@@ -249,15 +247,16 @@ fn test_streaming() {
         panic!("Result differs in at least {} bytes from original", counter);
     }
 
-
     // Test resetting to a new file while keeping the old decoder
 
     let mut content = fs::File::open("./decodecorpus_files/z000068.zst").unwrap();
-    let mut stream = crate::streaming_decoder::StreamingDecoder::new_with_decoder(&mut content, stream.inner()).unwrap();
-    
+    let mut stream =
+        crate::streaming_decoder::StreamingDecoder::new_with_decoder(&mut content, stream.inner())
+            .unwrap();
+
     let mut result = Vec::new();
     Read::read_to_end(&mut stream, &mut result).unwrap();
-   
+
     let original_f = fs::File::open("./decodecorpus_files/z000068").unwrap();
     let original: Vec<u8> = original_f.bytes().map(|x| x.unwrap()).collect();
 
@@ -291,7 +290,7 @@ fn test_streaming() {
     }
 }
 
+pub mod bit_reader;
 pub mod decode_corpus;
 pub mod dict_test;
 pub mod fuzz_regressions;
-pub mod bit_reader;
