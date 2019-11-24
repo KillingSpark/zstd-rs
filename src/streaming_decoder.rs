@@ -1,8 +1,13 @@
 use crate::frame_decoder::{FrameDecoder, BlockDecodingStrategy};
 use std::io::{Read};
 
+/// High level decoder that implements a io::Read that can be used with 
+/// io::Read::read_to_end / io::Read::read_exact or passing this to another library / module as a source for the decoded content
+/// 
+/// The lower level FrameDecoder by comparison allows for finer grained control but need sto have it's decode_blocks method called continously
+/// to decode the zstd-frame.
 pub struct StreamingDecoder<'a> {
-    decoder: FrameDecoder,
+    pub decoder: FrameDecoder,
     source: &'a mut dyn Read, 
 }
 
