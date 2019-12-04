@@ -1,7 +1,9 @@
 # What is this
-A decoder for the zstd compression format as defined in: [This document](https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md).
+A feature-complete decoder for the zstd compression format as defined in: [This document](https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md).
 
 It is NOT a compressor. I dont plan on implementing that part either, at least not in the near future. (If someone is motivated enough I will of course accept a pull-request!)
+
+This crate might look like it is not active, this is because there isn't really anything to do anymore, unless a bug is found or a new API feature is requested. I will of course respond to and look into issues!
 
 # Current Status
 This is started just as a toy project but I think it is in a usable state now. It does work correctly at least for the test-set of files I used, YMMV, it is not yet battle tested by any means.
@@ -49,7 +51,7 @@ If (when) the fuzzer finds a crash it will be saved to the artifacts dir by the 
 This will tell you where the decoder panics exactly. If you are able to fix the issue please feel free to do a pullrequest. If not please still submit the offending input and I will see how to fix it myself.
 
 # How can you use it?
-### Easy
+## Easy
 The easiest is to wrap the io::Read into a StreamingDecoder which itself implements io::Read. It will decode blocks as necessary to fullfill the read requests
 ```
 let mut f = File::open(path).unwrap();
@@ -58,9 +60,17 @@ let mut decoder = StreamingDecoder::new(&mut f);
 let mut result = Vec::new();
 decoder.read_to_end(&mut buffer).unwrap();
 ```
+This might be a problem if you are accepting user provided data. Frames can be REALLY big when decoded. If this is the case you should either check how big the frame
+actually is or use the memory efficient approach described below.
 
-### Memory efficient
-If memory is a concern you can decode frames partially. For an example see the src/bin/zstd.rs file. Basically you can decode the frame until either a
+## Memory efficient
+If memory is a concern you can decode frames partially. There are two ways to do this:
+
+#### Streaming decoder
+Use the StreamingDecoder and use a while loop to fill your buffer (see src/bin/zstd_stream.rs for an example). This is the 
+recommended approach.
+#### Use the lower level FrameDecoder
+For an example see the src/bin/zstd.rs file. Basically you can decode the frame until either a
 given block count has been decoded or the decodebuffer has reached a certain size. Then you can collect no longer needed bytes from the buffer and do something with them, discard them and resume decoding the frame in a loop until the frame has been decoded completely.
 
 # What you might notice
