@@ -50,15 +50,13 @@ This will tell you where the decoder panics exactly. If you are able to fix the 
 
 # How can you use it?
 ### Easy
-The easiest is to just decode all blocks and then drain the buffer like this:
+The easiest is to wrap the io::Read into a StreamingDecoder which itself implements io::Read. It will decode blocks as necessary to fullfill the read requests
 ```
 let mut f = File::open(path).unwrap();
-let mut frame_dec = frame_decoder::FrameDecoder::new();
-frame_dec.init(&mut f).unwrap();
-frame_dec.decode_blocks(&mut f, frame_decoder::BlockDecodingStrategy::All).unwrap();
+let mut decoder = StreamingDecoder::new(&mut f);
 
-// result contains the whole decoded file
-let result = frame_dec.collect();
+let mut result = Vec::new();
+decoder.read_to_end(&mut buffer).unwrap();
 ```
 
 ### Memory efficient
