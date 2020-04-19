@@ -8,6 +8,9 @@ publish = false
 [package.metadata]
 cargo-fuzz = true
 
+[dependencies]
+zstd = "0.5.1+zstd.1.4.4"
+
 [dependencies.ruzstd]
 path = ".."
 [dependencies.libfuzzer-sys]
@@ -20,3 +23,7 @@ members = ["."]
 [[bin]]
 name = "fuzz_target_1"
 path = "fuzz_targets/fuzz_target_1.rs"
+
+[[bin]]
+name = "interop"
+path = "fuzz_targets/interop.rs"
