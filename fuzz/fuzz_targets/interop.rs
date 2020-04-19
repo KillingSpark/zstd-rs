@@ -15,8 +15,7 @@ fn encode_zstd(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
 }
 
 fuzz_target!(|data: &[u8]| {
-    if let Ok(compressed) = encode_zstd(data) {
-        let decoded = decode_ruzstd(&mut compressed.as_slice());
-        assert!(decoded == data, "Decoded data did not match the original input");
-    }
+    let mut compressed = encode_zstd(data).unwrap();
+    let decoded = decode_ruzstd(&mut compressed.as_slice());
+    assert!(decoded == data, "Decoded data did not match the original input");
 });
