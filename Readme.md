@@ -44,8 +44,7 @@ Fuzzing has been done on
 2. The *.zst in /fuzz_decodecorpus
 
 ### You wanna help fuzz?
-Use ```cargo +nightly fuzz run fuzz_target_1``` to start the fuzzer on random data.
-Use ```cargo +nightly fuzz run fuzz_target_1 fuzz_decodecorpus``` to start the fuzzer on files that have been created with decodecorpus. You can of course create your own corpus if you'd like to.
+Use ```cargo +nightly fuzz run decode``` to run the fuzzer. It is seeded with files created with decodecorpus.
 
 If (when) the fuzzer finds a crash it will be saved to the artifacts dir by the fuzzer. Run ``` cargo test artifacts ``` to run the artifacts tests. 
 This will tell you where the decoder panics exactly. If you are able to fix the issue please feel free to do a pullrequest. If not please still submit the offending input and I will see how to fix it myself.
