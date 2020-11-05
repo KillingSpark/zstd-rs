@@ -16,7 +16,7 @@ twox-hash = { version = "1.6.0", default-features = false }
 
 [dev-dependencies]
 criterion = "0.3"
-rand = "*"
+rand = "0.7.3"
 
 [[bench]]
 name = "reversedbitreader_bench"
