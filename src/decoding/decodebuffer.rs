@@ -204,11 +204,8 @@ impl Decodebuffer {
         sink: &mut dyn std::io::Write,
     ) -> Result<usize, std::io::Error> {
         self.hash.write(&self.buffer);
-        let mut buf = [0u8; 1]; //TODO batch to reasonable size
-        for x in &self.buffer {
-            buf[0] = *x;
-            sink.write_all(&buf[..])?;
-        }
+        sink.write_all(&self.buffer)?;
+
         let len = self.buffer.len();
         self.buffer.clear();
         Ok(len)
