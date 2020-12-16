@@ -28,8 +28,7 @@ impl std::io::Read for Decodebuffer {
         }
 
         self.hash.write(&self.buffer[0..amount]);
-        let mut buffer_slice = self.buffer.as_slice();
-        buffer_slice.read_exact(&mut target[..amount])?;
+        target[..amount].copy_from_slice(&self.buffer[..amount]);
         self.buffer.drain(0..amount);
 
         Ok(amount)
@@ -229,9 +228,7 @@ impl Decodebuffer {
         }
 
         self.hash.write(&self.buffer[0..amount]);
-        use std::io::Read;
-        let mut buffer_slice = self.buffer.as_slice();
-        buffer_slice.read_exact(&mut target[..amount])?;
+        target[..amount].copy_from_slice(&self.buffer[..amount]);
         self.buffer.drain(0..amount);
 
         Ok(amount)
