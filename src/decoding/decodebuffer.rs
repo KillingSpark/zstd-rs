@@ -196,7 +196,9 @@ impl Decodebuffer {
     //drain the buffer completely
     pub fn drain(&mut self) -> Vec<u8> {
         self.hash.write(&self.buffer);
-        std::mem::take(&mut self.buffer)
+
+        let new_buffer = Vec::with_capacity(self.buffer.capacity());
+        std::mem::replace(&mut self.buffer, new_buffer)
     }
 
     pub fn drain_to_writer(
