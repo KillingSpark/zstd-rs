@@ -40,7 +40,7 @@ fn highest_bit_set(x: u32) -> u32 {
 }
 
 impl<'t> FSEDecoder<'t> {
-    pub fn new(table: &'t FSETable) -> FSEDecoder {
+    pub fn new(table: &'t FSETable) -> FSEDecoder<'_> {
         FSEDecoder { state: 0, table }
     }
 
@@ -48,7 +48,7 @@ impl<'t> FSEDecoder<'t> {
         self.table.decode[self.state].symbol
     }
 
-    pub fn init_state(&mut self, bits: &mut BitReaderReversed) -> Result<(), String> {
+    pub fn init_state(&mut self, bits: &mut BitReaderReversed<'_>) -> Result<(), String> {
         if self.table.accuracy_log == 0 {
             return Err("Tried to use an unitizialized table!".to_owned());
         }
@@ -57,7 +57,7 @@ impl<'t> FSEDecoder<'t> {
         Ok(())
     }
 
-    pub fn update_state(&mut self, bits: &mut BitReaderReversed) -> Result<(), String> {
+    pub fn update_state(&mut self, bits: &mut BitReaderReversed<'_>) -> Result<(), String> {
         let num_bits = self.table.decode[self.state].num_bits as usize;
         let add = bits.get_bits(num_bits)?;
         let base_line = self.table.decode[self.state].base_line;
@@ -112,7 +112,7 @@ impl FSETable {
 
         let table_size = 1 << self.accuracy_log;
         if self.decode.len() < table_size {
-            self.decode.reserve(table_size as usize - self.decode.len());
+            self.decode.reserve(table_size - self.decode.len());
         }
         //fill with dummy entries
         self.decode.resize(
@@ -149,7 +149,7 @@ impl FSETable {
             let prob = self.symbol_probablilities[idx];
             for _ in 0..prob {
                 let entry = &mut self.decode[position];
-                entry.symbol = symbol as u8;
+                entry.symbol = symbol;
 
                 position = next_position(position, table_size);
                 while position >= negative_idx {
@@ -169,8 +169,7 @@ impl FSETable {
             let prob = self.symbol_probablilities[symbol as usize];
 
             let symbol_count = self.symbol_counter[symbol as usize];
-            let (bl, nb) =
-                calc_baseline_and_numbits(table_size as u32, prob as u32, symbol_count as u32);
+            let (bl, nb) = calc_baseline_and_numbits(table_size as u32, prob as u32, symbol_count);
 
             //println!("symbol: {:2}, table: {}, prob: {:3}, count: {:3}, bl: {:3}, nb: {:2}", symbol, table_size, prob, symbol_count, bl, nb);
 
@@ -206,7 +205,7 @@ impl FSETable {
 
             let unchecked_value = br.get_bits(bits_to_read as usize)? as u32;
 
-            let low_threshold = ((1 << bits_to_read) - 1) - (max_remaining_value as u32);
+            let low_threshold = ((1 << bits_to_read) - 1) - (max_remaining_value);
             let mask = (1 << (bits_to_read - 1)) - 1;
             let small_value = unchecked_value & mask;
 
@@ -234,11 +233,9 @@ impl FSETable {
             } else {
                 //fast skip further zero probabilities
                 loop {
-                    let skip_amount = br.get_bits(2)?;
+                    let skip_amount = br.get_bits(2)? as usize;
 
-                    for _ in 0..skip_amount {
-                        self.symbol_probablilities.push(0);
-                    }
+                    self.symbol_probablilities.resize(self.symbol_probablilities.len() + skip_amount, 0);
                     if skip_amount != 3 {
                         break;
                     }
@@ -261,7 +258,7 @@ impl FSETable {
         } else {
             (br.bits_read() / 8) + 1
         };
-        Ok(bytes_read as usize)
+        Ok(bytes_read)
     }
 }
 

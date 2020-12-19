@@ -85,7 +85,7 @@ fn test_decode_corpus_files() {
             fail_counter_size += 1;
         }
 
-        if frame_dec.bytes_read_from_source() != file_size as u64 {
+        if frame_dec.bytes_read_from_source() != file_size {
             println!(
                 "Framedecoder counted wrong amount of bytes: {}, should be: {}",
                 frame_dec.bytes_read_from_source(),

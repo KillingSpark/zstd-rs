@@ -1,5 +1,4 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use rand::rngs::ThreadRng;
 use rand::Rng;
 use ruzstd::decoding::bit_reader_reverse::BitReaderReversed;
 

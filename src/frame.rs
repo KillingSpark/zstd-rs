@@ -84,7 +84,7 @@ impl FrameHeader {
             let mantissa = self.window_descriptor & 0x7;
 
             let window_log = 10 + (exp as u64);
-            let window_base = 1 << (window_log as u64);
+            let window_base = 1 << window_log;
             let window_add = (window_base / 8) * (mantissa as u64);
 
             let window_size = window_base + window_add;
@@ -250,21 +250,13 @@ pub fn read_frame_header(r: &mut dyn Read) -> Result<(Frame, u8), String> {
         descriptor: FrameDescriptor(desc.0),
         dict_id: match desc.dictionary_id_bytes() {
             Ok(bytes) => {
-                let mut v = Vec::with_capacity(bytes as usize);
-                for _ in 0..bytes {
-                    v.push(0);
-                }
-                v
+                vec![0; bytes as usize]
             }
             Err(m) => return Err(m),
         },
         frame_content_size: match desc.frame_content_size_bytes() {
             Ok(bytes) => {
-                let mut v = Vec::with_capacity(bytes as usize);
-                for _ in 0..bytes {
-                    v.push(0);
-                }
-                v
+                vec![0; bytes as usize]
             }
             Err(m) => return Err(m),
         },

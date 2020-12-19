@@ -44,7 +44,7 @@ pub fn decode_sequences(
 
 fn decode_sequences_with_rle(
     section: &SequencesHeader,
-    br: &mut BitReaderReversed,
+    br: &mut BitReaderReversed<'_>,
     scratch: &mut FSEScratch,
     target: &mut Vec<Sequence>,
 ) -> Result<(), String> {
@@ -110,8 +110,8 @@ fn decode_sequences_with_rle(
         }
 
         target.push(Sequence {
-            ll: ll_value as u32 + ll_add as u32,
-            ml: ml_value as u32 + ml_add as u32,
+            ll: ll_value + ll_add as u32,
+            ml: ml_value + ml_add as u32,
             of: offset,
         });
 
@@ -152,7 +152,7 @@ fn decode_sequences_with_rle(
 
 fn decode_sequences_without_rle(
     section: &SequencesHeader,
-    br: &mut BitReaderReversed,
+    br: &mut BitReaderReversed<'_>,
     scratch: &mut FSEScratch,
     target: &mut Vec<Sequence>,
 ) -> Result<(), String> {
@@ -188,8 +188,8 @@ fn decode_sequences_without_rle(
         }
 
         target.push(Sequence {
-            ll: ll_value as u32 + ll_add as u32,
-            ml: ml_value as u32 + ml_add as u32,
+            ll: ll_value + ll_add as u32,
+            ml: ml_value + ml_add as u32,
             of: offset,
         });
 

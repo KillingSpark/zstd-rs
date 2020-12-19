@@ -6,7 +6,7 @@ pub enum BlockType {
 }
 
 impl std::fmt::Display for BlockType {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
             BlockType::Compressed => write!(f, "Compressed"),
             BlockType::Raw => write!(f, "Raw"),

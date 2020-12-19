@@ -53,19 +53,19 @@ impl<'t> HuffmanDecoder<'t> {
         self.table.decode[self.state as usize].symbol
     }
 
-    pub fn init_state(&mut self, br: &mut BitReaderReversed) -> Result<u8, String> {
+    pub fn init_state(&mut self, br: &mut BitReaderReversed<'_>) -> Result<u8, String> {
         let num_bits = self.table.max_num_bits;
         let new_bits = br.get_bits(num_bits as usize)?;
-        self.state = new_bits as u64;
+        self.state = new_bits;
         Ok(num_bits)
     }
 
-    pub fn next_state(&mut self, br: &mut BitReaderReversed) -> Result<u8, String> {
+    pub fn next_state(&mut self, br: &mut BitReaderReversed<'_>) -> Result<u8, String> {
         let num_bits = self.table.decode[self.state as usize].num_bits;
         let new_bits = br.get_bits(num_bits as usize)?;
         self.state <<= num_bits;
         self.state &= self.table.decode.len() as u64 - 1;
-        self.state |= new_bits as u64;
+        self.state |= new_bits;
         Ok(num_bits)
     }
 }
@@ -139,8 +139,8 @@ impl HuffmanTable {
                 let mut dec1 = FSEDecoder::new(&self.fse_table);
                 let mut dec2 = FSEDecoder::new(&self.fse_table);
 
-                let compressed_start = bytes_used_by_fse_header as usize;
-                let compressed_length = header as usize - bytes_used_by_fse_header as usize;
+                let compressed_start = bytes_used_by_fse_header;
+                let compressed_length = header as usize - bytes_used_by_fse_header;
 
                 let compressed_weights = &fse_stream[compressed_start..];
                 if compressed_weights.len() < compressed_length {
@@ -210,7 +210,7 @@ impl HuffmanTable {
                 self.weights.resize(num_weights as usize, 0);
 
                 let bytes_needed = if num_weights % 2 == 0 {
-                    (num_weights as usize / 2)
+                    num_weights as usize / 2
                 } else {
                     (num_weights as usize / 2) + 1
                 };
@@ -253,7 +253,7 @@ impl HuffmanTable {
                     *w, MAX_MAX_NUM_BITS
                 ));
             }
-            weight_sum += if *w > 0 { (1 as u32) << (*w - 1) } else { 0 };
+            weight_sum += if *w > 0 { 1_u32 << (*w - 1) } else { 0 };
         }
 
         if weight_sum == 0 {
@@ -261,7 +261,7 @@ impl HuffmanTable {
         }
 
         let max_bits = highest_bit_set(weight_sum) as u8;
-        let left_over = ((1 as u32) << max_bits) - weight_sum;
+        let left_over = (1 << max_bits) - weight_sum;
 
         //left_over must be power of two
         if left_over & (left_over - 1) != 0 {

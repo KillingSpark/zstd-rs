@@ -24,7 +24,7 @@ impl Dictionary {
         };
 
         let magic_num = &raw[..4];
-        if magic_num != &[0x37, 0xA4, 0x30, 0xEC] {
+        if magic_num != [0x37, 0xA4, 0x30, 0xEC] {
             return Err("Bad magic_num at start of the dictionary".to_owned());
         }
 
@@ -41,19 +41,19 @@ impl Dictionary {
             raw_tables,
             crate::decoding::sequence_section_decoder::OF_MAX_LOG,
         )?;
-        let raw_tables = &raw_tables[of_size as usize..];
+        let raw_tables = &raw_tables[of_size..];
 
         let ml_size = new_dict.fse.match_lengths.build_decoder(
             raw_tables,
             crate::decoding::sequence_section_decoder::ML_MAX_LOG,
         )?;
-        let raw_tables = &raw_tables[ml_size as usize..];
+        let raw_tables = &raw_tables[ml_size..];
 
         let ll_size = new_dict.fse.literal_lengths.build_decoder(
             raw_tables,
             crate::decoding::sequence_section_decoder::LL_MAX_LOG,
         )?;
-        let raw_tables = &raw_tables[ll_size as usize..];
+        let raw_tables = &raw_tables[ll_size..];
 
         let offset1 = raw_tables[0..4].try_into().expect("optimized away");
         let offset1 = u32::from_le_bytes(offset1);

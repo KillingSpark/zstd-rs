@@ -1,4 +1,3 @@
-extern crate byteorder;
 use byteorder::ByteOrder;
 use byteorder::LittleEndian;
 
@@ -15,7 +14,7 @@ impl<'s> BitReaderReversed<'s> {
         self.idx + self.bits_in_container as isize
     }
 
-    pub fn new(source: &'s [u8]) -> BitReaderReversed {
+    pub fn new(source: &'s [u8]) -> BitReaderReversed<'_> {
         BitReaderReversed {
             idx: source.len() as isize * 8,
             source,
@@ -69,7 +68,7 @@ impl<'s> BitReaderReversed<'s> {
     }
 
     fn byte_idx(&self) -> usize {
-        ((self.idx as usize - 1) / 8)
+        (self.idx as usize - 1) / 8
     }
 
     pub fn get_bits(&mut self, n: usize) -> Result<u64, String> {
@@ -91,7 +90,7 @@ impl<'s> BitReaderReversed<'s> {
             let emulated_read_shift = n - self.bits_remaining();
             let v = self.get_bits(self.bits_remaining() as usize)?;
             assert!(self.idx == 0);
-            let value = (v as u64) << emulated_read_shift;
+            let value = v << emulated_read_shift;
             self.idx -= emulated_read_shift;
             return Ok(value);
         }
