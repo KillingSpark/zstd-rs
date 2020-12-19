@@ -1,3 +1,5 @@
+use std::convert::TryInto;
+
 pub const MAGIC_NUM: u32 = 0xFD2F_B528;
 pub const MIN_WINDOW_SIZE: u64 = 1024;
 pub const MAX_WINDOW_SIZE: u64 = (1 << 41) + 7 * (1 << 38);
@@ -164,9 +166,8 @@ impl FrameHeader {
                 }
                 4 => {
                     if self.frame_content_size.len() == 4 {
-                        let val = crate::decoding::little_endian::read_little_endian_u32(
-                            self.frame_content_size.as_slice(),
-                        );
+                        let val = self.frame_content_size[..4].try_into().expect("optimized away");
+                        let val = u32::from_le_bytes(val);
                         Ok(u64::from(val))
                     } else {
                         Err(format!(
@@ -178,9 +179,8 @@ impl FrameHeader {
                 }
                 8 => {
                     if self.frame_content_size.len() == 8 {
-                        let val = crate::decoding::little_endian::read_little_endian_u64(
-                            &self.frame_content_size,
-                        );
+                        let val = self.frame_content_size[..8].try_into().expect("optimized away");
+                        let val = u64::from_le_bytes(val);
                         Ok(val)
                     } else {
                         Err(format!(
@@ -232,8 +232,8 @@ impl Frame {
 use std::io::Read;
 pub fn read_frame_header(r: &mut dyn Read) -> Result<(Frame, u8), String> {
     let mut buf = [0u8; 4];
-    let magic_num: u32 = match r.read_exact(&mut buf[0..4]) {
-        Ok(_) => crate::decoding::little_endian::read_little_endian_u32(&buf[..]),
+    let magic_num: u32 = match r.read_exact(&mut buf) {
+        Ok(_) => u32::from_le_bytes(buf),
         Err(_) => return Err("Error while reading magic number".to_owned()),
     };
 

@@ -1,3 +1,5 @@
+use std::convert::TryInto;
+
 use crate::decoding::scratch::FSEScratch;
 use crate::decoding::scratch::HuffmanScratch;
 
@@ -20,14 +22,14 @@ impl Dictionary {
             dict_content: Vec::new(),
             offset_hist: [2, 4, 8],
         };
-        let magic_num = Vec::from(&raw[..4]);
 
-        if !magic_num.eq(&vec![0x37, 0xA4, 0x30, 0xEC]) {
+        let magic_num = &raw[..4];
+        if magic_num != &[0x37, 0xA4, 0x30, 0xEC] {
             return Err("Bad magic_num at start of the dictionary".to_owned());
         }
 
-        let dict_id = &raw[4..8];
-        let dict_id = crate::decoding::little_endian::read_little_endian_u32(dict_id);
+        let dict_id = raw[4..8].try_into().expect("optimized away");
+        let dict_id = u32::from_le_bytes(dict_id);
         new_dict.id = dict_id;
 
         let raw_tables = &raw[8..];
@@ -53,14 +55,14 @@ impl Dictionary {
         )?;
         let raw_tables = &raw_tables[ll_size as usize..];
 
-        let offset1 = &raw_tables[0..4];
-        let offset1 = crate::decoding::little_endian::read_little_endian_u32(offset1);
+        let offset1 = raw_tables[0..4].try_into().expect("optimized away");
+        let offset1 = u32::from_le_bytes(offset1);
 
-        let offset2 = &raw_tables[4..8];
-        let offset2 = crate::decoding::little_endian::read_little_endian_u32(offset2);
+        let offset2 = raw_tables[4..8].try_into().expect("optimized away");
+        let offset2 = u32::from_le_bytes(offset2);
 
-        let offset3 = &raw_tables[8..12];
-        let offset3 = crate::decoding::little_endian::read_little_endian_u32(offset3);
+        let offset3 = raw_tables[8..12].try_into().expect("optimized away");
+        let offset3 = u32::from_le_bytes(offset3);
 
         new_dict.offset_hist[0] = offset1;
         new_dict.offset_hist[1] = offset2;

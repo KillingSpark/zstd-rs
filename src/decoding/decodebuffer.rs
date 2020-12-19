@@ -28,8 +28,7 @@ impl std::io::Read for Decodebuffer {
         }
 
         self.hash.write(&self.buffer[0..amount]);
-        let mut buffer_slice = self.buffer.as_slice();
-        buffer_slice.read_exact(&mut target[..amount])?;
+        target[..amount].copy_from_slice(&self.buffer[..amount]);
         self.buffer.drain(0..amount);
 
         Ok(amount)
@@ -197,9 +196,9 @@ impl Decodebuffer {
     //drain the buffer completely
     pub fn drain(&mut self) -> Vec<u8> {
         self.hash.write(&self.buffer);
-        let r = self.buffer.clone();
-        self.buffer.clear();
-        r
+
+        let new_buffer = Vec::with_capacity(self.buffer.capacity());
+        std::mem::replace(&mut self.buffer, new_buffer)
     }
 
     pub fn drain_to_writer(
@@ -207,11 +206,8 @@ impl Decodebuffer {
         sink: &mut dyn std::io::Write,
     ) -> Result<usize, std::io::Error> {
         self.hash.write(&self.buffer);
-        let mut buf = [0u8; 1]; //TODO batch to reasonable size
-        for x in &self.buffer {
-            buf[0] = *x;
-            sink.write_all(&buf[..])?;
-        }
+        sink.write_all(&self.buffer)?;
+
         let len = self.buffer.len();
         self.buffer.clear();
         Ok(len)
@@ -229,9 +225,7 @@ impl Decodebuffer {
         }
 
         self.hash.write(&self.buffer[0..amount]);
-        use std::io::Read;
-        let mut buffer_slice = self.buffer.as_slice();
-        buffer_slice.read_exact(&mut target[..amount])?;
+        target[..amount].copy_from_slice(&self.buffer[..amount]);
         self.buffer.drain(0..amount);
 
         Ok(amount)
