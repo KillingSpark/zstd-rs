@@ -12,10 +12,7 @@ pub struct Decodebuffer {
 
 impl std::io::Read for Decodebuffer {
     fn read(&mut self, target: &mut [u8]) -> std::result::Result<usize, std::io::Error> {
-        let max_amount = match self.can_drain_to_window_size() {
-            Some(x) => x,
-            None => 0,
-        };
+        let max_amount = self.can_drain_to_window_size().unwrap_or(0);
 
         let amount = if max_amount > target.len() {
             target.len()

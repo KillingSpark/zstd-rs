@@ -408,10 +408,7 @@ impl FrameDecoder {
         if finished {
             state.decoder_scratch.buffer.can_drain()
         } else {
-            match state.decoder_scratch.buffer.can_drain_to_window_size() {
-                Some(x) => x,
-                None => 0,
-            }
+            state.decoder_scratch.buffer.can_drain_to_window_size().unwrap_or(0)
         }
     }
 

@@ -12,7 +12,7 @@ pub struct StreamingDecoder<'a> {
 }
 
 impl<'a> StreamingDecoder<'a> {
-    pub fn new(source: &'a mut dyn Read) -> Result<StreamingDecoder, String> {
+    pub fn new(source: &'a mut dyn Read) -> Result<StreamingDecoder<'_>, String> {
         let mut decoder = FrameDecoder::new();
         decoder.init(source)?;
         Ok(StreamingDecoder { decoder, source })
@@ -21,7 +21,7 @@ impl<'a> StreamingDecoder<'a> {
     pub fn new_with_decoder(
         source: &'a mut dyn Read,
         mut decoder: FrameDecoder,
-    ) -> Result<StreamingDecoder, String> {
+    ) -> Result<StreamingDecoder<'_>, String> {
         decoder.init(source)?;
         Ok(StreamingDecoder { decoder, source })
     }
@@ -61,7 +61,6 @@ impl<'a> Read for StreamingDecoder<'a> {
             }
         }
 
-        let result = self.decoder.read(buf);
-        result
+        self.decoder.read(buf)
     }
 }

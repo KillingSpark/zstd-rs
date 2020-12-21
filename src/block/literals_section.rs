@@ -15,7 +15,7 @@ pub enum LiteralsSectionType {
 }
 
 impl std::fmt::Display for LiteralsSectionType {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         match self {
             LiteralsSectionType::Compressed => write!(f, "Compressed"),
             LiteralsSectionType::Raw => write!(f, "Raw"),

@@ -11,7 +11,7 @@ pub struct Sequence {
 }
 
 impl std::fmt::Display for Sequence {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "LL: {}, ML: {}, OF: {}", self.ll, self.ml, self.of)
     }
 }

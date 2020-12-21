@@ -4,7 +4,7 @@ pub struct BitReader<'s> {
 }
 
 impl<'s> BitReader<'s> {
-    pub fn new(source: &'s [u8]) -> BitReader {
+    pub fn new(source: &'s [u8]) -> BitReader<'_> {
         BitReader { idx: 0, source }
     }
 

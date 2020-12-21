@@ -74,7 +74,7 @@ fn decompress_literals(
         bytes_read += 6;
         let source = &source[6..];
 
-        if source.len() < jump3 as usize {
+        if source.len() < jump3 {
             return Err(format!(
                 "Need at least {} byte to decode literals. Have: {}",
                 jump3,
@@ -83,10 +83,10 @@ fn decompress_literals(
         }
 
         //decode 4 streams
-        let stream1 = &source[..jump1 as usize];
-        let stream2 = &source[jump1 as usize..jump2 as usize];
-        let stream3 = &source[jump2 as usize..jump3 as usize];
-        let stream4 = &source[jump3 as usize..];
+        let stream1 = &source[..jump1];
+        let stream2 = &source[jump1..jump2];
+        let stream3 = &source[jump2..jump3];
+        let stream4 = &source[jump3..];
 
         for stream in &[stream1, stream2, stream3, stream4] {
             let mut decoder = HuffmanDecoder::new(&scratch.table);
