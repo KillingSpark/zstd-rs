@@ -1,5 +1,5 @@
-use super::super::block::literals_section::LiteralsSection;
-use super::super::block::literals_section::LiteralsSectionType;
+use super::super::blocks::literals_section::LiteralsSection;
+use super::super::blocks::literals_section::LiteralsSectionType;
 use super::bit_reader_reverse::BitReaderReversed;
 use super::scratch::HuffmanScratch;
 use crate::huff0::HuffmanDecoder;

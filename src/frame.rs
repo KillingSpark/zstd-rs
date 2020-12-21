@@ -166,7 +166,9 @@ impl FrameHeader {
                 }
                 4 => {
                     if self.frame_content_size.len() == 4 {
-                        let val = self.frame_content_size[..4].try_into().expect("optimized away");
+                        let val = self.frame_content_size[..4]
+                            .try_into()
+                            .expect("optimized away");
                         let val = u32::from_le_bytes(val);
                         Ok(u64::from(val))
                     } else {
@@ -179,7 +181,9 @@ impl FrameHeader {
                 }
                 8 => {
                     if self.frame_content_size.len() == 8 {
-                        let val = self.frame_content_size[..8].try_into().expect("optimized away");
+                        let val = self.frame_content_size[..8]
+                            .try_into()
+                            .expect("optimized away");
                         let val = u64::from_le_bytes(val);
                         Ok(val)
                     } else {
@@ -249,15 +253,11 @@ pub fn read_frame_header(r: &mut dyn Read) -> Result<(Frame, u8), String> {
     let mut frame_header = FrameHeader {
         descriptor: FrameDescriptor(desc.0),
         dict_id: match desc.dictionary_id_bytes() {
-            Ok(bytes) => {
-                vec![0; bytes as usize]
-            }
+            Ok(bytes) => vec![0; bytes as usize],
             Err(m) => return Err(m),
         },
         frame_content_size: match desc.frame_content_size_bytes() {
-            Ok(bytes) => {
-                vec![0; bytes as usize]
-            }
+            Ok(bytes) => vec![0; bytes as usize],
             Err(m) => return Err(m),
         },
         window_descriptor: 0,

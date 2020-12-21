@@ -235,7 +235,8 @@ impl FSETable {
                 loop {
                     let skip_amount = br.get_bits(2)? as usize;
 
-                    self.symbol_probablilities.resize(self.symbol_probablilities.len() + skip_amount, 0);
+                    self.symbol_probablilities
+                        .resize(self.symbol_probablilities.len() + skip_amount, 0);
                     if skip_amount != 3 {
                         break;
                     }

@@ -1,6 +1,6 @@
-use super::super::block::sequence_section::ModeType;
-use super::super::block::sequence_section::Sequence;
-use super::super::block::sequence_section::SequencesHeader;
+use super::super::blocks::sequence_section::ModeType;
+use super::super::blocks::sequence_section::Sequence;
+use super::super::blocks::sequence_section::SequencesHeader;
 use super::bit_reader_reverse::BitReaderReversed;
 use super::scratch::FSEScratch;
 use crate::fse::FSEDecoder;
