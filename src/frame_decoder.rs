@@ -25,30 +25,30 @@ use std::io::Read;
 ///     //Create a new decoder
 ///     let mut frame_dec = ruzstd::FrameDecoder::new();
 ///     let mut result = Vec::new();
-/// 
+///
 ///     // Use reset or init to make the decoder ready to decocde the frame from the io::Read
 ///     frame_dec.reset(file).unwrap();
-/// 
+///
 ///     // Loop until the frame has been decoded completely
 ///     while !frame_dec.is_finished() {
 ///         // decode (roughly) batch_size many bytes
 ///         frame_dec.decode_blocks(file, BlockDecodingStrategy::UptoBytes(1024)).unwrap();
-/// 
+///
 ///         // read from the decoder to collect bytes from the internal buffer
 ///         let bytes_read = frame_dec.read(result.as_mut_slice()).unwrap();
 ///         
 ///         // then do something with it
 ///         do_something(&result[0..bytes_read]);
 ///     }
-/// 
+///
 ///     // handle the last chunk of data
 ///     while frame_dec.can_collect() > 0 {
 ///         let x = frame_dec.read(result.as_mut_slice()).unwrap();
-/// 
+///
 ///         do_something(&result[0..x]);
 ///     }
 /// }
-/// 
+///
 /// fn do_something(data: &[u8]) {
 ///     std::io::stdout().write_all(data).unwrap();
 /// }
@@ -408,7 +408,11 @@ impl FrameDecoder {
         if finished {
             state.decoder_scratch.buffer.can_drain()
         } else {
-            state.decoder_scratch.buffer.can_drain_to_window_size().unwrap_or(0)
+            state
+                .decoder_scratch
+                .buffer
+                .can_drain_to_window_size()
+                .unwrap_or(0)
         }
     }
 

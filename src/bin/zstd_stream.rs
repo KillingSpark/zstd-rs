@@ -2,7 +2,6 @@ extern crate ruzstd;
 use std::fs::File;
 use std::io::{Read, Write};
 
-
 fn main() {
     let mut file_paths: Vec<_> = std::env::args().filter(|f| !f.starts_with('-')).collect();
     let flags: Vec<_> = std::env::args().filter(|f| f.starts_with('-')).collect();
