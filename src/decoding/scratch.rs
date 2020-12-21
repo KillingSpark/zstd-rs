@@ -1,4 +1,4 @@
-use super::super::block::sequence_section::Sequence;
+use super::super::blocks::sequence_section::Sequence;
 use super::decodebuffer::Decodebuffer;
 use crate::decoding::dictionary::Dictionary;
 use crate::fse::FSETable;

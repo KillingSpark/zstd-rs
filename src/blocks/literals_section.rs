@@ -25,6 +25,12 @@ impl std::fmt::Display for LiteralsSectionType {
     }
 }
 
+impl Default for LiteralsSection {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LiteralsSection {
     pub fn new() -> LiteralsSection {
         LiteralsSection {

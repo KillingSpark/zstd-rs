@@ -1,8 +1,8 @@
-use super::super::block::block::BlockHeader;
-use super::super::block::block::BlockType;
-use super::super::block::literals_section::LiteralsSection;
-use super::super::block::literals_section::LiteralsSectionType;
-use super::super::block::sequence_section::SequencesHeader;
+use super::super::blocks::block::BlockHeader;
+use super::super::blocks::block::BlockType;
+use super::super::blocks::literals_section::LiteralsSection;
+use super::super::blocks::literals_section::LiteralsSectionType;
+use super::super::blocks::sequence_section::SequencesHeader;
 use super::literals_section_decoder::decode_literals;
 use super::sequence_section_decoder::decode_sequences;
 use crate::decoding::scratch::DecoderScratch;

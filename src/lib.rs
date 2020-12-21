@@ -1,6 +1,6 @@
 #![deny(trivial_casts, trivial_numeric_casts, rust_2018_idioms)]
 
-pub mod block;
+pub mod blocks;
 pub mod decoding;
 pub mod errors;
 pub mod frame;
