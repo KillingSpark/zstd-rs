@@ -440,7 +440,7 @@ impl FrameDecoder {
         };
 
         if !self.is_finished() || self.state.is_none() {
-            let mut mt_source = &source[..];
+            let mut mt_source = source;
 
             if self.state.is_none() {
                 match self.init(&mut mt_source) {

@@ -319,11 +319,9 @@ impl HuffmanTable {
 
         assert!(
             self.rank_indexes[0] == self.decode.len(),
-            format!(
-                "rank_idx[0]: {} should be: {}",
-                self.rank_indexes[0],
-                self.decode.len()
-            )
+            "rank_idx[0]: {} should be: {}",
+            self.rank_indexes[0],
+            self.decode.len()
         );
 
         for symbol in 0..self.bits.len() {
