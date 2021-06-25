@@ -1,6 +1,6 @@
 [package]
 name = "ruzstd"
-version = "0.2.3"
+version = "0.2.4"
 authors = ["Moritz Borcherding <moritz.borcherding@web.de>"]
 edition = "2018"
 license = "MIT"
