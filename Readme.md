@@ -6,7 +6,7 @@ It is NOT a compressor. I dont plan on implementing that part either, at least n
 This crate might look like it is not active, this is because there isn't really anything to do anymore, unless a bug is found or a new API feature is requested. I will of course respond to and look into issues!
 
 # Current Status
-[![Actions Status](https://github.com/KillingSpark/rustbus/workflows/CI/badge.svg)](https://github.com/KillingSpark/rustbus/actions?query=workflow%3A"CI")
+[![Actions Status](https://github.com/KillingSpark/zstd-rs/workflows/CI/badge.svg)](https://github.com/KillingSpark/rustbus/actions?query=workflow%3A"CI")
 
 This is started just as a toy project but I think it is in a usable state now. It does work correctly at least for the test-set of files I used, YMMV, it is not yet battle tested by any means.
 For production use (or if you need a compressor) I would (at the time of writing, this might get out of date and there might come better projects along!) recommend to use the C binding located [here](https://github.com/gyscos/zstd-rs).
