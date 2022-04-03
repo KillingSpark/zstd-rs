@@ -269,7 +269,7 @@ pub fn read_frame_header(r: &mut dyn Read) -> Result<(Frame, u8), String> {
     }
 
     if !frame_header.dict_id.is_empty() {
-        match r.read_exact(&mut frame_header.dict_id.as_mut_slice()) {
+        match r.read_exact(frame_header.dict_id.as_mut_slice()) {
             Ok(_) => {}
             Err(_) => return Err("Error while reading dcitionary id".to_owned()),
         }
@@ -277,7 +277,7 @@ pub fn read_frame_header(r: &mut dyn Read) -> Result<(Frame, u8), String> {
     }
 
     if !frame_header.frame_content_size.is_empty() {
-        match r.read_exact(&mut frame_header.frame_content_size.as_mut_slice()) {
+        match r.read_exact(frame_header.frame_content_size.as_mut_slice()) {
             Ok(_) => {}
             Err(_) => return Err("Error while reading frame content size".to_owned()),
         }
