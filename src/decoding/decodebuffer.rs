@@ -1,9 +1,11 @@
+use std::collections::VecDeque;
 use std::hash::Hasher;
-use std::io;
+use std::{io, mem};
+
 use twox_hash::XxHash64;
 
 pub struct Decodebuffer {
-    buffer: Vec<u8>,
+    buffer: VecDeque<u8>,
     pub dict_content: Vec<u8>,
 
     pub window_size: usize,
@@ -11,7 +13,7 @@ pub struct Decodebuffer {
     pub hash: XxHash64,
 }
 
-impl std::io::Read for Decodebuffer {
+impl io::Read for Decodebuffer {
     fn read(&mut self, target: &mut [u8]) -> io::Result<usize> {
         let max_amount = self.can_drain_to_window_size().unwrap_or(0);
 
@@ -21,8 +23,10 @@ impl std::io::Read for Decodebuffer {
             max_amount
         };
 
+        let mut written = 0;
         self.drain_to(amount, |buf| {
-            target[..amount].copy_from_slice(buf);
+            target[written..][..buf.len()].copy_from_slice(buf);
+            written += buf.len();
             Ok(())
         })?;
         Ok(amount)
@@ -32,7 +36,7 @@ impl std::io::Read for Decodebuffer {
 impl Decodebuffer {
     pub fn new(window_size: usize) -> Decodebuffer {
         Decodebuffer {
-            buffer: Vec::new(),
+            buffer: VecDeque::new(),
             dict_content: Vec::new(),
             window_size,
             total_output_counter: 0,
@@ -58,7 +62,7 @@ impl Decodebuffer {
     }
 
     pub fn push(&mut self, data: &[u8]) {
-        self.buffer.extend_from_slice(data);
+        self.buffer.extend(data);
         self.total_output_counter += data.len() as u64;
     }
 
@@ -99,19 +103,20 @@ impl Decodebuffer {
         } else {
             let start_idx = self.buffer.len() - offset;
 
-            if start_idx + match_length > self.buffer.len() {
-                self.buffer.reserve(match_length);
-                //need to copy byte by byte. can be optimized more but for now lets leave it like this
-                //TODO batch whats possible
-                for x in 0..match_length {
-                    self.buffer.push(self.buffer[start_idx + x]);
-                }
-            } else {
-                // can just copy parts of the existing buffer,
-                // which is exactly what Vec::extend_from_within was create for
-                let end_idx = start_idx + match_length;
-                self.buffer.extend_from_within(start_idx..end_idx);
+            // if start_idx + match_length > self.buffer.len() {
+            self.buffer.reserve(match_length);
+            //need to copy byte by byte. can be optimized more but for now lets leave it like this
+            //TODO batch whats possible
+            for x in 0..match_length {
+                self.buffer.push_back(self.buffer[start_idx + x]);
             }
+            // TODO: bring this back
+            //} else {
+            //    // can just copy parts of the existing buffer,
+            //    // which is exactly what Vec::extend_from_within was create for
+            //    let end_idx = start_idx + match_length;
+            //    self.buffer.extend_from_within(start_idx..end_idx);
+            //}
             self.total_output_counter += match_length as u64;
         }
 
@@ -165,15 +170,21 @@ impl Decodebuffer {
 
     //drain the buffer completely
     pub fn drain(&mut self) -> Vec<u8> {
-        self.hash.write(&self.buffer);
+        let (slice1, slice2) = self.buffer.as_slices();
+        self.hash.write(slice1);
+        self.hash.write(slice2);
 
-        let new_buffer = Vec::with_capacity(self.buffer.capacity());
-        std::mem::replace(&mut self.buffer, new_buffer)
+        let new_buffer = VecDeque::with_capacity(self.buffer.capacity());
+        mem::replace(&mut self.buffer, new_buffer).into()
     }
 
     pub fn drain_to_writer(&mut self, sink: &mut dyn io::Write) -> io::Result<usize> {
-        self.hash.write(&self.buffer);
-        sink.write_all(&self.buffer)?;
+        let (slice1, slice2) = self.buffer.as_slices();
+
+        self.hash.write(slice1);
+        self.hash.write(slice2);
+        sink.write_all(slice1)?;
+        sink.write_all(slice2)?;
 
         let len = self.buffer.len();
         self.buffer.clear();
@@ -187,8 +198,10 @@ impl Decodebuffer {
             self.buffer.len()
         };
 
+        let mut written = 0;
         self.drain_to(amount, |buf| {
-            target[..amount].copy_from_slice(buf);
+            target[written..][..buf.len()].copy_from_slice(buf);
+            written += buf.len();
             Ok(())
         })?;
         Ok(amount)
@@ -203,9 +216,17 @@ impl Decodebuffer {
             return Ok(());
         }
 
-        let drain = self.buffer.drain(0..amount);
-        self.hash.write(drain.as_slice());
+        let (slice1, slice2) = self.buffer.as_slices();
+        let n1 = slice1.len().min(amount);
+        let n2 = slice2.len().min(amount - n1);
 
-        f(drain.as_slice())
+        self.hash.write(&slice1[..n1]);
+        self.hash.write(&slice2[..n2]);
+
+        f(&slice1[..n1])?;
+        f(&slice2[..n2])?;
+
+        self.buffer.drain(..amount);
+        Ok(())
     }
 }
