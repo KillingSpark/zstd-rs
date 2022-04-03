@@ -2,7 +2,7 @@ use std::hash::Hasher;
 use twox_hash::XxHash64;
 
 pub struct Decodebuffer {
-    pub buffer: Vec<u8>,
+    buffer: Vec<u8>,
     pub dict_content: Vec<u8>,
 
     pub window_size: usize,
@@ -24,9 +24,9 @@ impl std::io::Read for Decodebuffer {
             return Ok(0);
         }
 
-        self.hash.write(&self.buffer[0..amount]);
-        target[..amount].copy_from_slice(&self.buffer[..amount]);
-        self.buffer.drain(0..amount);
+        let drain = self.buffer.drain(0..amount);
+        self.hash.write(drain.as_slice());
+        target[..amount].copy_from_slice(drain.as_slice());
 
         Ok(amount)
     }
@@ -142,8 +142,9 @@ impl Decodebuffer {
         match self.can_drain_to_window_size() {
             None => None,
             Some(can_drain) => {
-                self.hash.write(&self.buffer[0..can_drain]);
-                Some(self.buffer.drain(0..can_drain).collect())
+                let drain = self.buffer.drain(0..can_drain);
+                self.hash.write(drain.as_slice());
+                Some(drain.collect())
             }
         }
     }
@@ -155,12 +156,9 @@ impl Decodebuffer {
         match self.can_drain_to_window_size() {
             None => Ok(0),
             Some(can_drain) => {
-                self.hash.write(&self.buffer[0..can_drain]);
-                let mut buf = [0u8; 1]; //TODO batch to reasonable size
-                for x in self.buffer.drain(0..can_drain) {
-                    buf[0] = x;
-                    sink.write_all(&buf[..])?;
-                }
+                let drain = self.buffer.drain(0..can_drain);
+                self.hash.write(drain.as_slice());
+                sink.write_all(drain.as_slice())?;
                 Ok(can_drain)
             }
         }
@@ -197,9 +195,9 @@ impl Decodebuffer {
             return Ok(0);
         }
 
-        self.hash.write(&self.buffer[0..amount]);
-        target[..amount].copy_from_slice(&self.buffer[..amount]);
-        self.buffer.drain(0..amount);
+        let drain = self.buffer.drain(0..amount);
+        self.hash.write(drain.as_slice());
+        target[..amount].copy_from_slice(drain.as_slice());
 
         Ok(amount)
     }
