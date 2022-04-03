@@ -1,4 +1,5 @@
 use std::hash::Hasher;
+use std::io;
 use twox_hash::XxHash64;
 
 pub struct Decodebuffer {
@@ -11,7 +12,7 @@ pub struct Decodebuffer {
 }
 
 impl std::io::Read for Decodebuffer {
-    fn read(&mut self, target: &mut [u8]) -> std::result::Result<usize, std::io::Error> {
+    fn read(&mut self, target: &mut [u8]) -> io::Result<usize> {
         let max_amount = self.can_drain_to_window_size().unwrap_or(0);
 
         let amount = if max_amount > target.len() {
@@ -20,14 +21,10 @@ impl std::io::Read for Decodebuffer {
             max_amount
         };
 
-        if amount == 0 {
-            return Ok(0);
-        }
-
-        let drain = self.buffer.drain(0..amount);
-        self.hash.write(drain.as_slice());
-        target[..amount].copy_from_slice(drain.as_slice());
-
+        self.drain_to(amount, |buf| {
+            target[..amount].copy_from_slice(buf);
+            Ok(())
+        })?;
         Ok(amount)
     }
 }
@@ -142,23 +139,25 @@ impl Decodebuffer {
         match self.can_drain_to_window_size() {
             None => None,
             Some(can_drain) => {
-                let drain = self.buffer.drain(0..can_drain);
-                self.hash.write(drain.as_slice());
-                Some(drain.collect())
+                let mut vec = Vec::new();
+                self.drain_to(can_drain, |buf| {
+                    vec.extend_from_slice(buf);
+                    Ok(())
+                })
+                .ok()?;
+                Some(vec)
             }
         }
     }
 
-    pub fn drain_to_window_size_writer(
-        &mut self,
-        sink: &mut dyn std::io::Write,
-    ) -> Result<usize, std::io::Error> {
+    pub fn drain_to_window_size_writer(&mut self, sink: &mut dyn io::Write) -> io::Result<usize> {
         match self.can_drain_to_window_size() {
             None => Ok(0),
             Some(can_drain) => {
-                let drain = self.buffer.drain(0..can_drain);
-                self.hash.write(drain.as_slice());
-                sink.write_all(drain.as_slice())?;
+                self.drain_to(can_drain, |buf| {
+                    sink.write_all(buf)?;
+                    Ok(())
+                })?;
                 Ok(can_drain)
             }
         }
@@ -172,10 +171,7 @@ impl Decodebuffer {
         std::mem::replace(&mut self.buffer, new_buffer)
     }
 
-    pub fn drain_to_writer(
-        &mut self,
-        sink: &mut dyn std::io::Write,
-    ) -> Result<usize, std::io::Error> {
+    pub fn drain_to_writer(&mut self, sink: &mut dyn io::Write) -> io::Result<usize> {
         self.hash.write(&self.buffer);
         sink.write_all(&self.buffer)?;
 
@@ -184,21 +180,32 @@ impl Decodebuffer {
         Ok(len)
     }
 
-    pub fn read_all(&mut self, target: &mut [u8]) -> Result<usize, std::io::Error> {
+    pub fn read_all(&mut self, target: &mut [u8]) -> io::Result<usize> {
         let amount = if self.buffer.len() > target.len() {
             target.len()
         } else {
             self.buffer.len()
         };
 
+        self.drain_to(amount, |buf| {
+            target[..amount].copy_from_slice(buf);
+            Ok(())
+        })?;
+        Ok(amount)
+    }
+
+    fn drain_to(
+        &mut self,
+        amount: usize,
+        mut f: impl FnMut(&[u8]) -> io::Result<()>,
+    ) -> io::Result<()> {
         if amount == 0 {
-            return Ok(0);
+            return Ok(());
         }
 
         let drain = self.buffer.drain(0..amount);
         self.hash.write(drain.as_slice());
-        target[..amount].copy_from_slice(drain.as_slice());
 
-        Ok(amount)
+        f(drain.as_slice())
     }
 }
