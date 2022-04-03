@@ -1,5 +1,4 @@
 #![deny(trivial_casts, trivial_numeric_casts, rust_2018_idioms)]
-#![forbid(unsafe_code)]
 
 pub mod blocks;
 pub mod decoding;

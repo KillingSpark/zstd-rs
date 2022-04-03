@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use std::hash::Hasher;
-use std::{io, mem};
+use std::mem::{self, MaybeUninit};
+use std::{io, ptr, slice};
 
 use twox_hash::XxHash64;
 
@@ -103,20 +104,53 @@ impl Decodebuffer {
         } else {
             let start_idx = self.buffer.len() - offset;
 
-            // if start_idx + match_length > self.buffer.len() {
             self.buffer.reserve(match_length);
-            //need to copy byte by byte. can be optimized more but for now lets leave it like this
-            //TODO batch whats possible
-            for x in 0..match_length {
-                self.buffer.push_back(self.buffer[start_idx + x]);
+
+            if start_idx + match_length > self.buffer.len() {
+                //need to copy byte by byte. can be optimized more but for now lets leave it like this
+                //TODO batch whats possible
+                for x in 0..match_length {
+                    self.buffer.push_back(self.buffer[start_idx + x]);
+                }
+            } else {
+                let mut buf = [MaybeUninit::<u8>::uninit(); 4096];
+
+                // can just copy parts of the existing buffer
+
+                let mut start_idx = start_idx;
+                let mut match_length = match_length;
+                while match_length > 0 {
+                    let filled = {
+                        let (slice1, slice2) = self.buffer.as_slices();
+
+                        let slice = if slice1.len() > start_idx {
+                            &slice1[start_idx..]
+                        } else {
+                            &slice2[start_idx - slice1.len()..]
+                        };
+                        let slice = &slice[..match_length.min(slice.len()).min(buf.len())];
+
+                        // TODO: replace with MaybeUninit::write_slice once it's stable.
+                        // SAFETY: we initialize a portion of `buf` and then we return a slice
+                        // of the initialized portion of `buf`.
+                        unsafe {
+                            debug_assert!(slice.len() <= buf.len());
+
+                            ptr::copy_nonoverlapping(
+                                slice.as_ptr().cast::<MaybeUninit<u8>>(),
+                                buf.as_mut_ptr(),
+                                slice.len(),
+                            );
+                            slice::from_raw_parts(buf.as_ptr().cast::<u8>(), slice.len())
+                        }
+                    };
+
+                    self.buffer.extend(filled);
+                    start_idx += filled.len();
+                    match_length -= filled.len();
+                }
             }
-            // TODO: bring this back
-            //} else {
-            //    // can just copy parts of the existing buffer,
-            //    // which is exactly what Vec::extend_from_within was create for
-            //    let end_idx = start_idx + match_length;
-            //    self.buffer.extend_from_within(start_idx..end_idx);
-            //}
+
             self.total_output_counter += match_length as u64;
         }
 
