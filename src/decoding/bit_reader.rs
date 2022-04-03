@@ -37,13 +37,11 @@ impl<'s> BitReader<'s> {
 
         let old_idx = self.idx;
 
-        let mut value: u64;
-
         let bits_left_in_current_byte = 8 - (self.idx % 8);
         let bits_not_needed_in_current_byte = 8 - bits_left_in_current_byte;
 
         //collect bits from the currently pointed to byte
-        value = (self.source[self.idx / 8] >> bits_not_needed_in_current_byte) as u64;
+        let mut value = (self.source[self.idx / 8] >> bits_not_needed_in_current_byte) as u64;
 
         if bits_left_in_current_byte >= n {
             //no need for fancy stuff
