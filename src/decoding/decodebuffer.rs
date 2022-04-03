@@ -144,7 +144,7 @@ impl Decodebuffer {
         match self.can_drain_to_window_size() {
             None => None,
             Some(can_drain) => {
-                let mut vec = Vec::new();
+                let mut vec = Vec::with_capacity(can_drain);
                 self.drain_to(can_drain, |buf| {
                     vec.extend_from_slice(buf);
                     Ok(())
@@ -170,24 +170,22 @@ impl Decodebuffer {
 
     //drain the buffer completely
     pub fn drain(&mut self) -> Vec<u8> {
+        let new_buffer = VecDeque::with_capacity(self.buffer.capacity());
+
         let (slice1, slice2) = self.buffer.as_slices();
         self.hash.write(slice1);
         self.hash.write(slice2);
 
-        let new_buffer = VecDeque::with_capacity(self.buffer.capacity());
         mem::replace(&mut self.buffer, new_buffer).into()
     }
 
     pub fn drain_to_writer(&mut self, sink: &mut dyn io::Write) -> io::Result<usize> {
-        let (slice1, slice2) = self.buffer.as_slices();
-
-        self.hash.write(slice1);
-        self.hash.write(slice2);
-        sink.write_all(slice1)?;
-        sink.write_all(slice2)?;
-
         let len = self.buffer.len();
-        self.buffer.clear();
+        self.drain_to(len, |buf| {
+            sink.write_all(buf)?;
+            Ok(())
+        })?;
+
         Ok(len)
     }
 
@@ -220,11 +218,13 @@ impl Decodebuffer {
         let n1 = slice1.len().min(amount);
         let n2 = slice2.len().min(amount - n1);
 
-        self.hash.write(&slice1[..n1]);
-        self.hash.write(&slice2[..n2]);
-
         f(&slice1[..n1])?;
-        f(&slice2[..n2])?;
+        self.hash.write(&slice1[..n1]);
+
+        if n2 != 0 {
+            f(&slice2[..n2])?;
+            self.hash.write(&slice2[..n2]);
+        }
 
         self.buffer.drain(..amount);
         Ok(())
