@@ -59,8 +59,7 @@ fn test_decode_from_to() {
 
     let content: Vec<u8> = f.bytes().map(|x| x.unwrap()).collect();
 
-    let mut target = Vec::with_capacity(1024 * 1024);
-    target.resize(1024 * 1024, 0u8);
+    let mut target = vec![0u8; 1024 * 1024];
 
     // first part
     let source1 = &content[..50 * 1024];
