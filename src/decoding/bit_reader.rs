@@ -41,7 +41,7 @@ impl<'s> BitReader<'s> {
         let bits_not_needed_in_current_byte = 8 - bits_left_in_current_byte;
 
         //collect bits from the currently pointed to byte
-        let mut value = (self.source[self.idx / 8] >> bits_not_needed_in_current_byte) as u64;
+        let mut value = u64::from(self.source[self.idx / 8] >> bits_not_needed_in_current_byte);
 
         if bits_left_in_current_byte >= n {
             //no need for fancy stuff
@@ -66,7 +66,7 @@ impl<'s> BitReader<'s> {
 
             //collect full bytes
             for _ in 0..full_bytes_needed {
-                value |= (self.source[self.idx / 8] as u64) << bit_shift;
+                value |= u64::from(self.source[self.idx / 8]) << bit_shift;
                 self.idx += 8;
                 bit_shift += 8;
             }
@@ -75,7 +75,7 @@ impl<'s> BitReader<'s> {
 
             if bits_in_last_byte_needed > 0 {
                 let val_las_byte =
-                    (self.source[self.idx / 8] as u64) & ((1 << bits_in_last_byte_needed) - 1);
+                    u64::from(self.source[self.idx / 8]) & ((1 << bits_in_last_byte_needed) - 1);
                 value |= val_las_byte << bit_shift;
                 self.idx += bits_in_last_byte_needed;
             }

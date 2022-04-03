@@ -93,11 +93,11 @@ fn test_decode_from_to() {
     let result = &target.as_slice()[..written];
 
     if read != content.len() {
-        panic!(format!(
+        panic!(
             "Byte counter: {} was wrong. Should be: {}",
             read,
             content.len()
-        ));
+        );
     }
 
     match frame_dec.get_checksum_from_data() {

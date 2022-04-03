@@ -80,9 +80,9 @@ impl FrameHeader {
             let exp = self.window_descriptor >> 3;
             let mantissa = self.window_descriptor & 0x7;
 
-            let window_log = 10 + (exp as u64);
+            let window_log = 10 + u64::from(exp);
             let window_base = 1 << window_log;
-            let window_add = (window_base / 8) * (mantissa as u64);
+            let window_add = (window_base / 8) * u64::from(mantissa);
 
             let window_size = window_base + window_add;
 
@@ -121,7 +121,7 @@ impl FrameHeader {
                         let mut value: u32 = 0;
                         let mut shift = 0;
                         for x in &self.dict_id {
-                            value |= (*x as u32) << shift;
+                            value |= u32::from(*x) << shift;
                             shift += 8;
                         }
 

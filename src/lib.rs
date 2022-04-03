@@ -1,4 +1,9 @@
-#![deny(trivial_casts, trivial_numeric_casts, rust_2018_idioms)]
+#![deny(
+    trivial_casts,
+    clippy::cast_lossless,
+    trivial_numeric_casts,
+    rust_2018_idioms
+)]
 #![forbid(unsafe_code)]
 
 pub mod blocks;

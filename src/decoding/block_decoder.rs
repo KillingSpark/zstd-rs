@@ -98,7 +98,7 @@ impl BlockDecoder {
 
 
                 self.internal_state = DecoderState::ReadyToDecodeNextHeader;
-                Ok(header.decompressed_size as u64)
+                Ok(u64::from(header.decompressed_size))
             }
 
             BlockType::Reserved => {
@@ -110,7 +110,7 @@ impl BlockDecoder {
                 //unimplemented!("Decompression is not yet implemented...");
 
                 self.internal_state = DecoderState::ReadyToDecodeNextHeader;
-                Ok(header.content_size as u64)
+                Ok(u64::from(header.content_size))
             }
         }
     }
@@ -192,9 +192,9 @@ impl BlockDecoder {
         }
 
         assert!(
-            bytes_in_literals_header as u32
+            u32::from(bytes_in_literals_header)
                 + bytes_used_in_literals_section
-                + bytes_in_sequence_header as u32
+                + u32::from(bytes_in_sequence_header)
                 + raw.len() as u32
                 == header.content_size
         );
@@ -312,8 +312,8 @@ impl BlockDecoder {
     }
 
     fn block_content_size_unchecked(&self) -> u32 {
-        ((self.header_buffer[0] >> 3) as u32) //push out type and last_block flags. Retain 5 bit
-            | ((self.header_buffer[1] as u32) << 5)
-            | ((self.header_buffer[2] as u32) << 13)
+        u32::from(self.header_buffer[0] >> 3) //push out type and last_block flags. Retain 5 bit
+            | (u32::from(self.header_buffer[1]) << 5)
+            | (u32::from(self.header_buffer[2]) << 13)
     }
 }
