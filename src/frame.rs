@@ -75,10 +75,7 @@ impl FrameDescriptor {
 impl FrameHeader {
     pub fn window_size(&self) -> Result<u64, String> {
         if self.descriptor.single_segment_flag() {
-            match self.frame_content_size() {
-                Ok(x) => Ok(x),
-                Err(m) => Err(m),
-            }
+            self.frame_content_size()
         } else {
             let exp = self.window_descriptor >> 3;
             let mantissa = self.window_descriptor & 0x7;
