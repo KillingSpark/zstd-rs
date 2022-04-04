@@ -17,12 +17,7 @@ pub struct Decodebuffer {
 impl io::Read for Decodebuffer {
     fn read(&mut self, target: &mut [u8]) -> io::Result<usize> {
         let max_amount = self.can_drain_to_window_size().unwrap_or(0);
-
-        let amount = if max_amount > target.len() {
-            target.len()
-        } else {
-            max_amount
-        };
+        let amount = max_amount.min(target.len());
 
         let mut written = 0;
         self.drain_to(amount, |buf| {
@@ -224,11 +219,7 @@ impl Decodebuffer {
     }
 
     pub fn read_all(&mut self, target: &mut [u8]) -> io::Result<usize> {
-        let amount = if self.buffer.len() > target.len() {
-            target.len()
-        } else {
-            self.buffer.len()
-        };
+        let amount = self.buffer.len().min(target.len());
 
         let mut written = 0;
         self.drain_to(amount, |buf| {
