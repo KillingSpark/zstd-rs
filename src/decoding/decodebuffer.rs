@@ -248,19 +248,41 @@ impl Decodebuffer {
             return Ok(());
         }
 
-        let (slice1, slice2) = self.buffer.as_slices();
+        struct DrainGuard<'a> {
+            buffer: &'a mut VecDeque<u8>,
+            amount: usize,
+        }
+
+        impl<'a> Drop for DrainGuard<'a> {
+            fn drop(&mut self) {
+                if self.amount != 0 {
+                    self.buffer.drain(..self.amount);
+                }
+            }
+        }
+
+        let mut drain_guard = DrainGuard {
+            buffer: &mut self.buffer,
+            amount: 0,
+        };
+
+        let (slice1, slice2) = drain_guard.buffer.as_slices();
         let n1 = slice1.len().min(amount);
         let n2 = slice2.len().min(amount - n1);
 
         f(&slice1[..n1])?;
         self.hash.write(&slice1[..n1]);
+        drain_guard.amount += n1;
 
         if n2 != 0 {
             f(&slice2[..n2])?;
             self.hash.write(&slice2[..n2]);
+            drain_guard.amount += n2;
         }
 
-        self.buffer.drain(..amount);
+        // Make sure we don't accidentally drop `DrainGuard` earlier.
+        drop(drain_guard);
+
         Ok(())
     }
 }
