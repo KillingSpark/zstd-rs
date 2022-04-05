@@ -21,18 +21,18 @@ use std::io::Read;
 /// use std::io::Write;
 ///
 ///
-/// fn decode_this(file: &mut std::io::Read) {
+/// fn decode_this(mut file: impl std::io::Read) {
 ///     //Create a new decoder
 ///     let mut frame_dec = ruzstd::FrameDecoder::new();
 ///     let mut result = Vec::new();
 ///
 ///     // Use reset or init to make the decoder ready to decocde the frame from the io::Read
-///     frame_dec.reset(file).unwrap();
+///     frame_dec.reset(&mut file).unwrap();
 ///
 ///     // Loop until the frame has been decoded completely
 ///     while !frame_dec.is_finished() {
 ///         // decode (roughly) batch_size many bytes
-///         frame_dec.decode_blocks(file, BlockDecodingStrategy::UptoBytes(1024)).unwrap();
+///         frame_dec.decode_blocks(&mut file, BlockDecodingStrategy::UptoBytes(1024)).unwrap();
 ///
 ///         // read from the decoder to collect bytes from the internal buffer
 ///         let bytes_read = frame_dec.read(result.as_mut_slice()).unwrap();
@@ -77,7 +77,7 @@ pub enum BlockDecodingStrategy {
 const MAX_WINDOW_SIZE: u64 = 1024 * 1024 * 100;
 
 impl FrameDecoderState {
-    pub fn new(source: &mut dyn Read) -> Result<FrameDecoderState, String> {
+    pub fn new(source: impl Read) -> Result<FrameDecoderState, String> {
         let (frame, header_size) = frame::read_frame_header(source)?;
         let window_size = frame.header.window_size()?;
         frame.check_valid()?;
@@ -92,7 +92,7 @@ impl FrameDecoderState {
         })
     }
 
-    pub fn reset(&mut self, source: &mut dyn Read) -> Result<(), String> {
+    pub fn reset(&mut self, source: impl Read) -> Result<(), String> {
         let (frame, header_size) = frame::read_frame_header(source)?;
         let window_size = frame.header.window_size()?;
         frame.check_valid()?;
@@ -138,11 +138,11 @@ impl FrameDecoder {
     /// Note that all bytes currently in the decodebuffer from any previous frame will be lost. Collect them with collect()/collect_to_writer()
     ///
     /// equivalent to reset()
-    pub fn init(&mut self, source: &mut dyn Read) -> Result<(), String> {
+    pub fn init(&mut self, source: impl Read) -> Result<(), String> {
         self.reset(source)
     }
     /// Like init but provides the dict to use for the next frame
-    pub fn init_with_dict(&mut self, source: &mut dyn Read, dict: &[u8]) -> Result<(), String> {
+    pub fn init_with_dict(&mut self, source: impl Read, dict: &[u8]) -> Result<(), String> {
         self.reset_with_dict(source, dict)
     }
 
@@ -152,7 +152,7 @@ impl FrameDecoder {
     /// Note that all bytes currently in the decodebuffer from any previous frame will be lost. Collect them with collect()/collect_to_writer()
     ///
     /// equivalent to init()
-    pub fn reset(&mut self, source: &mut dyn Read) -> Result<(), String> {
+    pub fn reset(&mut self, source: impl Read) -> Result<(), String> {
         match &mut self.state {
             Some(s) => s.reset(source),
             None => {
@@ -163,7 +163,7 @@ impl FrameDecoder {
     }
 
     /// Like reset but provides the dict to use for the next frame
-    pub fn reset_with_dict(&mut self, source: &mut dyn Read, dict: &[u8]) -> Result<(), String> {
+    pub fn reset_with_dict(&mut self, source: impl Read, dict: &[u8]) -> Result<(), String> {
         self.reset(source)?;
         if let Some(state) = &mut self.state {
             let id = state.decoder_scratch.load_dict(dict)?;
@@ -253,7 +253,7 @@ impl FrameDecoder {
     /// about that you can just choose the strategy "All" and have all blocks of the frame decoded into the buffer
     pub fn decode_blocks(
         &mut self,
-        source: &mut dyn Read,
+        mut source: impl Read,
         strat: BlockDecodingStrategy,
     ) -> Result<bool, crate::errors::FrameDecoderError> {
         let state = match &mut self.state {
@@ -295,7 +295,7 @@ impl FrameDecoder {
                 println!("Next Block: {}", state.block_counter);
                 println!("################");
             }
-            let (block_header, block_header_size) = match block_dec.read_block_header(source) {
+            let (block_header, block_header_size) = match block_dec.read_block_header(&mut source) {
                 Ok(h) => h,
                 Err(m) => return Err(crate::errors::FrameDecoderError::FailedToReadBlockHeader(m)),
             };
@@ -314,7 +314,7 @@ impl FrameDecoder {
             let bytes_read_in_block_body = match block_dec.decode_block_content(
                 &block_header,
                 &mut state.decoder_scratch,
-                source,
+                &mut source,
             ) {
                 Ok(h) => h,
                 Err(m) => return Err(crate::errors::FrameDecoderError::FailedToReadBlockBody(m)),
@@ -380,10 +380,7 @@ impl FrameDecoder {
 
     /// Collect bytes and retain window_size bytes while decoding is still going on.
     /// After decoding of the frame (is_finished() == true) has finished it will collect all remaining bytes
-    pub fn collect_to_writer(
-        &mut self,
-        w: &mut dyn std::io::Write,
-    ) -> Result<usize, std::io::Error> {
+    pub fn collect_to_writer(&mut self, w: impl std::io::Write) -> Result<usize, std::io::Error> {
         let finished = self.is_finished();
         let state = match &mut self.state {
             None => return Ok(0),

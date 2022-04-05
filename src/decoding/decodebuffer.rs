@@ -23,7 +23,7 @@ impl io::Read for Decodebuffer {
         self.drain_to(amount, |buf| {
             target[written..][..buf.len()].copy_from_slice(buf);
             written += buf.len();
-            Ok(())
+            (buf.len(), Ok(()))
         })?;
         Ok(amount)
     }
@@ -176,7 +176,7 @@ impl Decodebuffer {
                 let mut vec = Vec::with_capacity(can_drain);
                 self.drain_to(can_drain, |buf| {
                     vec.extend_from_slice(buf);
-                    Ok(())
+                    (buf.len(), Ok(()))
                 })
                 .ok()?;
                 Some(vec)
@@ -184,14 +184,11 @@ impl Decodebuffer {
         }
     }
 
-    pub fn drain_to_window_size_writer(&mut self, sink: &mut dyn io::Write) -> io::Result<usize> {
+    pub fn drain_to_window_size_writer(&mut self, mut sink: impl io::Write) -> io::Result<usize> {
         match self.can_drain_to_window_size() {
             None => Ok(0),
             Some(can_drain) => {
-                self.drain_to(can_drain, |buf| {
-                    sink.write_all(buf)?;
-                    Ok(())
-                })?;
+                self.drain_to(can_drain, |buf| write_all_bytes(&mut sink, buf))?;
                 Ok(can_drain)
             }
         }
@@ -208,12 +205,9 @@ impl Decodebuffer {
         mem::replace(&mut self.buffer, new_buffer).into()
     }
 
-    pub fn drain_to_writer(&mut self, sink: &mut dyn io::Write) -> io::Result<usize> {
+    pub fn drain_to_writer(&mut self, mut sink: impl io::Write) -> io::Result<usize> {
         let len = self.buffer.len();
-        self.drain_to(len, |buf| {
-            sink.write_all(buf)?;
-            Ok(())
-        })?;
+        self.drain_to(len, |buf| write_all_bytes(&mut sink, buf))?;
 
         Ok(len)
     }
@@ -225,15 +219,18 @@ impl Decodebuffer {
         self.drain_to(amount, |buf| {
             target[written..][..buf.len()].copy_from_slice(buf);
             written += buf.len();
-            Ok(())
+            (buf.len(), Ok(()))
         })?;
         Ok(amount)
     }
 
+    /// Semantics of write_bytes:
+    /// Should dump as many of the provided bytes as possible to whatever sink until no bytes are left or an error is encountered
+    /// Return how many bytes have actually been dumped to the sink.
     fn drain_to(
         &mut self,
         amount: usize,
-        mut f: impl FnMut(&[u8]) -> io::Result<()>,
+        mut write_bytes: impl FnMut(&[u8]) -> (usize, io::Result<()>),
     ) -> io::Result<()> {
         if amount == 0 {
             return Ok(());
@@ -261,14 +258,27 @@ impl Decodebuffer {
         let n1 = slice1.len().min(amount);
         let n2 = slice2.len().min(amount - n1);
 
-        f(&slice1[..n1])?;
-        self.hash.write(&slice1[..n1]);
-        drain_guard.amount += n1;
+        if n1 != 0 {
+            let (written1, res1) = write_bytes(&slice1[..n1]);
+            self.hash.write(&slice1[..written1]);
+            drain_guard.amount += written1;
 
-        if n2 != 0 {
-            f(&slice2[..n2])?;
-            self.hash.write(&slice2[..n2]);
-            drain_guard.amount += n2;
+            if res1.is_err() {
+                return res1;
+            }
+
+            // Only if the first call to write_bytes was not a partial write we can continue with slice2
+            // Partial writes SHOULD never happen without res1 being an error, but lets just protect against it anyways.
+            if written1 == n1 {
+                if n2 != 0 {
+                    let (written2, res2) = write_bytes(&slice2[..n2]);
+                    self.hash.write(&slice2[..written2]);
+                    drain_guard.amount += written2;
+                    if res2.is_err() {
+                        return res2;
+                    }
+                }
+            }
         }
 
         // Make sure we don't accidentally drop `DrainGuard` earlier.
@@ -276,4 +286,16 @@ impl Decodebuffer {
 
         Ok(())
     }
+}
+
+/// Like Write::write_all but returns partial write length even on error
+fn write_all_bytes(mut sink: impl io::Write, buf: &[u8]) -> (usize, io::Result<()>) {
+    let mut written = 0;
+    while written < buf.len() {
+        match sink.write(buf) {
+            Ok(w) => written += w,
+            Err(e) => return (written, Err(e)),
+        }
+    }
+    (written, Ok(()))
 }

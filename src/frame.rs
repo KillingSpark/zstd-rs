@@ -231,7 +231,7 @@ impl Frame {
 }
 
 use std::io::Read;
-pub fn read_frame_header(r: &mut dyn Read) -> Result<(Frame, u8), String> {
+pub fn read_frame_header(mut r: impl Read) -> Result<(Frame, u8), String> {
     let mut buf = [0u8; 4];
     let magic_num: u32 = match r.read_exact(&mut buf) {
         Ok(_) => u32::from_le_bytes(buf),
