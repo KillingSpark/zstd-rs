@@ -263,21 +263,17 @@ impl Decodebuffer {
             self.hash.write(&slice1[..written1]);
             drain_guard.amount += written1;
 
-            if res1.is_err() {
-                return res1;
-            }
+            // Shut clippy up. I liked the explicit if better but oh well...
+            let _: () = res1?;
 
             // Only if the first call to write_bytes was not a partial write we can continue with slice2
             // Partial writes SHOULD never happen without res1 being an error, but lets just protect against it anyways.
-            if written1 == n1 {
-                if n2 != 0 {
-                    let (written2, res2) = write_bytes(&slice2[..n2]);
-                    self.hash.write(&slice2[..written2]);
-                    drain_guard.amount += written2;
-                    if res2.is_err() {
-                        return res2;
-                    }
-                }
+            if written1 == n1 && n2 != 0 {
+                let (written2, res2) = write_bytes(&slice2[..n2]);
+                self.hash.write(&slice2[..written2]);
+                drain_guard.amount += written2;
+                // Shut clippy up. I liked the explicit if better but oh well...
+                let _: () = res2?;
             }
         }
 
