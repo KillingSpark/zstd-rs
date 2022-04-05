@@ -84,7 +84,7 @@ impl SequencesHeader {
                         2
                     ));
                 }
-                self.num_sequences = source[0] as u32;
+                self.num_sequences = u32::from(source[0]);
                 bytes_read += 1;
                 &source[1..]
             }
@@ -95,7 +95,7 @@ impl SequencesHeader {
                         3
                     ));
                 }
-                self.num_sequences = ((source[0] as u32 - 128) << 8) + source[1] as u32;
+                self.num_sequences = ((u32::from(source[0]) - 128) << 8) + u32::from(source[1]);
                 bytes_read += 2;
                 &source[2..]
             }
@@ -106,7 +106,7 @@ impl SequencesHeader {
                         4
                     ));
                 }
-                self.num_sequences = source[1] as u32 + ((source[2] as u32) << 8) + 0x7F00;
+                self.num_sequences = u32::from(source[1]) + (u32::from(source[2]) << 8) + 0x7F00;
                 bytes_read += 3;
                 &source[3..]
             }

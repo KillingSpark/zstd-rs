@@ -24,7 +24,7 @@ fn test_bitreader_reversed() {
 
         let bits = br.get_bits(num_bits).unwrap();
         bits_read += num_bits;
-        accumulator |= (bits as u128) << (128 - bits_read);
+        accumulator |= u128::from(bits) << (128 - bits_read);
         if bits_read >= 128 {
             break;
         }
@@ -63,7 +63,7 @@ fn test_bitreader_normal() {
         }
 
         let bits = br.get_bits(num_bits).unwrap();
-        accumulator |= (bits as u128) << bits_read;
+        accumulator |= u128::from(bits) << bits_read;
         bits_read += num_bits;
         if bits_read >= 128 {
             break;

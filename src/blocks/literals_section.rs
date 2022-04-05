@@ -113,20 +113,21 @@ impl LiteralsSection {
                     0 | 2 => {
                         //size_format actually only uses one bit
                         //regenerated_size uses 5 bits
-                        self.regenerated_size = raw[0] as u32 >> 3;
+                        self.regenerated_size = u32::from(raw[0]) >> 3;
                         Ok(1)
                     }
                     1 => {
                         //size_format uses 2 bit
                         //regenerated_size uses 12 bits
-                        self.regenerated_size = (raw[0] as u32 >> 4) + ((raw[1] as u32) << 4);
+                        self.regenerated_size = (u32::from(raw[0]) >> 4) + (u32::from(raw[1]) << 4);
                         Ok(2)
                     }
                     3 => {
                         //size_format uses 2 bit
                         //regenerated_size uses 20 bits
-                        self.regenerated_size =
-                            (raw[0] as u32 >> 4) + ((raw[1] as u32) << 4) + ((raw[2] as u32) << 12);
+                        self.regenerated_size = (u32::from(raw[0]) >> 4)
+                            + (u32::from(raw[1]) << 4)
+                            + (u32::from(raw[2]) << 12);
                         Ok(3)
                     }
                     _ => panic!(
@@ -154,36 +155,39 @@ impl LiteralsSection {
 
                         //4 from the first, six from the second byte
                         self.regenerated_size =
-                            (raw[0] as u32 >> 4) + ((raw[1] as u32 & 0x3f) << 4);
+                            (u32::from(raw[0]) >> 4) + ((u32::from(raw[1]) & 0x3f) << 4);
 
                         // 2 from the second, full last byte
                         self.compressed_size =
-                            Some(((raw[1] >> 6) as u32) + ((raw[2] as u32) << 2));
+                            Some(u32::from(raw[1] >> 6) + (u32::from(raw[2]) << 2));
                         Ok(3)
                     }
                     2 => {
                         //both regenerated and compressed sizes use 14 bit
 
                         //4 from first, full second, 2 from the third byte
-                        self.regenerated_size = (raw[0] as u32 >> 4)
-                            + ((raw[1] as u32) << 4)
-                            + ((raw[2] as u32 & 0x3) << 12);
+                        self.regenerated_size = (u32::from(raw[0]) >> 4)
+                            + (u32::from(raw[1]) << 4)
+                            + ((u32::from(raw[2]) & 0x3) << 12);
 
                         //6 from the third, full last byte
-                        self.compressed_size = Some((raw[2] as u32 >> 2) + ((raw[3] as u32) << 6));
+                        self.compressed_size =
+                            Some((u32::from(raw[2]) >> 2) + (u32::from(raw[3]) << 6));
                         Ok(4)
                     }
                     3 => {
                         //both regenerated and compressed sizes use 18 bit
 
                         //4 from first, full second, six from third byte
-                        self.regenerated_size = (raw[0] as u32 >> 4)
-                            + ((raw[1] as u32) << 4)
-                            + ((raw[2] as u32 & 0x3F) << 12);
+                        self.regenerated_size = (u32::from(raw[0]) >> 4)
+                            + (u32::from(raw[1]) << 4)
+                            + ((u32::from(raw[2]) & 0x3F) << 12);
 
                         //2 from third, full fourth, full fifth byte
                         self.compressed_size = Some(
-                            (raw[2] as u32 >> 6) + ((raw[3] as u32) << 2) + ((raw[4] as u32) << 10),
+                            (u32::from(raw[2]) >> 6)
+                                + (u32::from(raw[3]) << 2)
+                                + (u32::from(raw[4]) << 10),
                         );
                         Ok(5)
                     }

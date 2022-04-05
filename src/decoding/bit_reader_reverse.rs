@@ -47,20 +47,20 @@ impl<'s> BitReaderReversed<'s> {
                 self.bit_container <<= 32;
                 self.bits_in_container += 32;
                 self.bit_container |=
-                    LittleEndian::read_u32(&self.source[self.byte_idx() - 3..]) as u64;
+                    u64::from(LittleEndian::read_u32(&self.source[self.byte_idx() - 3..]));
                 self.idx -= 32;
             }
             16..=31 => {
                 self.bit_container <<= 16;
                 self.bits_in_container += 16;
                 self.bit_container |=
-                    LittleEndian::read_u16(&self.source[self.byte_idx() - 1..]) as u64;
+                    u64::from(LittleEndian::read_u16(&self.source[self.byte_idx() - 1..]));
                 self.idx -= 16;
             }
             8..=15 => {
                 self.bit_container <<= 8;
                 self.bits_in_container += 8;
-                self.bit_container |= self.source[self.byte_idx()] as u64;
+                self.bit_container |= u64::from(self.source[self.byte_idx()]);
                 self.idx -= 8;
             }
             _ => panic!("For now panic"),

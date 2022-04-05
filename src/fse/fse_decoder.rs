@@ -30,13 +30,9 @@ pub struct Entry {
 
 const ACC_LOG_OFFSET: u8 = 5;
 
-const fn num_bits<T>() -> usize {
-    std::mem::size_of::<T>() * 8
-}
-
 fn highest_bit_set(x: u32) -> u32 {
     assert!(x > 0);
-    num_bits::<u32>() as u32 - x.leading_zeros()
+    u32::BITS - x.leading_zeros()
 }
 
 impl<'t> FSEDecoder<'t> {
