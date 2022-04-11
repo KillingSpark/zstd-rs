@@ -24,6 +24,15 @@ impl RingBuffer {
         x + y
     }
 
+    pub fn clear(&mut self) {
+        self.head = 0;
+        self.tail = 0;
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.head == self.tail
+    }
+
     pub fn reserve(&mut self, amount: usize) {
         if self.cap - self.len() > amount {
             return;
@@ -49,7 +58,20 @@ impl RingBuffer {
             self.layout = new_layout;
             self.cap = new_cap;
         }
-        eprintln!("reserve cap {} head {} tail {}", self.cap, self.head, self.tail);
+    }
+
+    pub fn push_back(&mut self, byte: u8) {
+        self.reserve(1);
+        unsafe { self.buf.add(self.tail).write(byte) };
+        self.tail = (self.tail + 1) % self.cap;
+    }
+
+    pub fn get(&self, idx: usize) -> Option<u8> {
+        if idx < self.len() {
+            Some(unsafe { self.buf.add(self.head).read() })
+        } else {
+            None
+        }
     }
 
     pub fn extend(&mut self, data: &[u8]) {
@@ -70,7 +92,6 @@ impl RingBuffer {
             f2_ptr.copy_from_nonoverlapping(ptr.add(in_f1), in_f2);
         }
         self.tail = (self.tail + len) % self.cap;
-        eprintln!("extend cap {} head {} tail {}", self.cap, self.head, self.tail);
     }
 
     pub fn drain(&mut self, amount: usize) {
@@ -101,7 +122,7 @@ impl RingBuffer {
             (self.buf, len_to_tail),
         )
     }
-    pub fn data_slices(&self) -> (&[u8], &[u8]) {
+    pub fn as_slices(&self) -> (&[u8], &[u8]) {
         let (s1, s2) = self.data_slice_parts();
         unsafe {
             let s1 = &*slice_from_raw_parts(s1.0, s1.1);
@@ -134,7 +155,7 @@ impl RingBuffer {
         )
     }
 
-    fn extend_from_within(&mut self, start: usize, len: usize) {
+    pub fn extend_from_within(&mut self, start: usize, len: usize) {
         if start + len > self.len() {
             panic!("This is illegal!");
         }
@@ -184,20 +205,149 @@ impl RingBuffer {
 
         debug_assert!((m1_in_f2 > 0) ^ (m2_in_f1 > 0) || (m1_in_f2 == 0 && m2_in_f1 == 0));
 
-        unsafe {
+        copy_with_checks(
+            m1_ptr, m2_ptr, f1_ptr, f2_ptr, m1_in_f1, m2_in_f1, m1_in_f2, m2_in_f2,
+        );
+
+        self.tail = (self.tail + len) % self.cap;
+    }
+}
+
+#[allow(dead_code)]
+fn copy_without_checks(
+    m1_ptr: *const u8,
+    m2_ptr: *const u8,
+    f1_ptr: *mut u8,
+    f2_ptr: *mut u8,
+    m1_in_f1: usize,
+    m2_in_f1: usize,
+    m1_in_f2: usize,
+    m2_in_f2: usize,
+) {
+    unsafe {
+        f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
+        f1_ptr
+            .add(m1_in_f1)
+            .copy_from_nonoverlapping(m2_ptr, m2_in_f1);
+
+        f2_ptr.copy_from_nonoverlapping(m1_ptr.add(m1_in_f1), m1_in_f2);
+        f2_ptr
+            .add(m1_in_f2)
+            .copy_from_nonoverlapping(m2_ptr.add(m2_in_f1), m2_in_f2);
+    }
+}
+
+fn copy_with_checks(
+    m1_ptr: *const u8,
+    m2_ptr: *const u8,
+    f1_ptr: *mut u8,
+    f2_ptr: *mut u8,
+    m1_in_f1: usize,
+    m2_in_f1: usize,
+    m1_in_f2: usize,
+    m2_in_f2: usize,
+) {
+    unsafe {
+        if m1_in_f1 != 0 {
             f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
+        }
+        if m2_in_f1 != 0 {
             f1_ptr
                 .add(m1_in_f1)
                 .copy_from_nonoverlapping(m2_ptr, m2_in_f1);
+        }
 
+        if m1_in_f2 != 0 {
             f2_ptr.copy_from_nonoverlapping(m1_ptr.add(m1_in_f1), m1_in_f2);
+        }
+        if m2_in_f2 != 0 {
             f2_ptr
                 .add(m1_in_f2)
                 .copy_from_nonoverlapping(m2_ptr.add(m2_in_f1), m2_in_f2);
         }
+    }
+}
 
-        self.tail = (self.tail + len) % self.cap;
-        eprintln!("extend_within cap {} head {} tail {}", self.cap, self.head, self.tail);
+#[allow(dead_code)]
+fn copy_with_nobranch_check(
+    m1_ptr: *const u8,
+    m2_ptr: *const u8,
+    f1_ptr: *mut u8,
+    f2_ptr: *mut u8,
+    m1_in_f1: usize,
+    m2_in_f1: usize,
+    m1_in_f2: usize,
+    m2_in_f2: usize,
+) {
+    let case = (m1_in_f1 > 0) as usize
+        | (((m2_in_f1 > 0) as usize) << 1)
+        | (((m1_in_f2 > 0) as usize) << 2)
+        | (((m2_in_f2 > 0) as usize) << 3);
+    unsafe {
+        match case {
+            0 => {}
+
+            // one bit set
+            1 => {
+                f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
+            }
+            2 => {
+                f1_ptr.copy_from_nonoverlapping(m2_ptr, m2_in_f1);
+            }
+            4 => {
+                f2_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f2);
+            }
+            8 => {
+                f2_ptr.copy_from_nonoverlapping(m2_ptr, m2_in_f2);
+            }
+
+            // two bit set
+            3 => {
+                f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
+                f1_ptr
+                    .add(m1_in_f1)
+                    .copy_from_nonoverlapping(m2_ptr, m2_in_f1);
+            }
+            5 => {
+                f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
+                f2_ptr.copy_from_nonoverlapping(m1_ptr.add(m1_in_f1), m1_in_f2);
+            }
+            6 => std::hint::unreachable_unchecked(),
+            7 => std::hint::unreachable_unchecked(),
+            9 => {
+                f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
+                f2_ptr.copy_from_nonoverlapping(m2_ptr, m2_in_f2);
+            }
+            10 => {
+                f1_ptr.copy_from_nonoverlapping(m2_ptr, m2_in_f1);
+                f2_ptr.copy_from_nonoverlapping(m2_ptr.add(m2_in_f1), m2_in_f2);
+            }
+            12 => {
+                f2_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f2);
+                f2_ptr
+                    .add(m1_in_f2)
+                    .copy_from_nonoverlapping(m2_ptr, m2_in_f2);
+            }
+
+            // three bit set
+            11 => {
+                f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
+                f1_ptr
+                    .add(m1_in_f1)
+                    .copy_from_nonoverlapping(m2_ptr, m2_in_f1);
+                f2_ptr.copy_from_nonoverlapping(m2_ptr.add(m2_in_f1), m2_in_f2);
+            }
+            13 => {
+                f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
+                f2_ptr.copy_from_nonoverlapping(m1_ptr.add(m1_in_f1), m1_in_f2);
+                f2_ptr
+                    .add(m1_in_f2)
+                    .copy_from_nonoverlapping(m2_ptr, m2_in_f2);
+            }
+            14 => std::hint::unreachable_unchecked(),
+            15 => std::hint::unreachable_unchecked(),
+            _ => std::hint::unreachable_unchecked(),
+        }
     }
 }
 
@@ -206,44 +356,42 @@ fn smoke() {
     let mut rb = RingBuffer::new();
 
     rb.extend(b"abcdefghijklmnop");
-    assert_eq!(rb.data_slices().0, b"abcdefghijklmnop");
-    assert_eq!(rb.data_slices().1, b"");
-
+    assert_eq!(rb.as_slices().0, b"abcdefghijklmnop");
+    assert_eq!(rb.as_slices().1, b"");
 
     rb.extend_from_within(4, 6);
-    assert_eq!(rb.data_slices().0, b"abcdefghijklmnopefghij");
-    assert_eq!(rb.data_slices().1, b"");
-
+    assert_eq!(rb.as_slices().0, b"abcdefghijklmnopefghij");
+    assert_eq!(rb.as_slices().1, b"");
 
     rb.drain(6);
-    assert_eq!(rb.data_slices().0, b"ghijklmnopefghij");
-    assert_eq!(rb.data_slices().1, b"");
+    assert_eq!(rb.as_slices().0, b"ghijklmnopefghij");
+    assert_eq!(rb.as_slices().1, b"");
 
     rb.extend_from_within(4, 6);
-    assert_eq!(rb.data_slices().0, b"ghijklmnopefghijklmnop");
-    assert_eq!(rb.data_slices().1, b"");
+    assert_eq!(rb.as_slices().0, b"ghijklmnopefghijklmnop");
+    assert_eq!(rb.as_slices().1, b"");
 
     rb.extend_from_within(4, 10);
-    assert_eq!(rb.data_slices().0, b"ghijklmnopefghijklmnopklmnop");
-    assert_eq!(rb.data_slices().1, b"efgh");
+    assert_eq!(rb.as_slices().0, b"ghijklmnopefghijklmnopklmnop");
+    assert_eq!(rb.as_slices().1, b"efgh");
 
     rb.extend(b"1");
-    assert_eq!(rb.data_slices().0, b"ghijklmnopefghijklmnopklmnop");
-    assert_eq!(rb.data_slices().1, b"efgh1");
+    assert_eq!(rb.as_slices().0, b"ghijklmnopefghijklmnopklmnop");
+    assert_eq!(rb.as_slices().1, b"efgh1");
 
     rb.drain(9);
-    assert_eq!(rb.data_slices().0, b"pefghijklmnopklmnop");
-    assert_eq!(rb.data_slices().1, b"efgh1");
+    assert_eq!(rb.as_slices().0, b"pefghijklmnopklmnop");
+    assert_eq!(rb.as_slices().1, b"efgh1");
 
     rb.extend(b"234567890");
-    assert_eq!(rb.data_slices().0, b"pefghijklmnopklmnop");
-    assert_eq!(rb.data_slices().1, b"efgh1234567890");
+    assert_eq!(rb.as_slices().0, b"pefghijklmnopklmnop");
+    assert_eq!(rb.as_slices().1, b"efgh1234567890");
 
     rb.drain(11);
-    assert_eq!(rb.data_slices().0, b"opklmnop");
-    assert_eq!(rb.data_slices().1, b"efgh1234567890");
+    assert_eq!(rb.as_slices().0, b"opklmnop");
+    assert_eq!(rb.as_slices().1, b"efgh1234567890");
 
     rb.extend_from_within(12, 10);
-    assert_eq!(rb.data_slices().0, b"opklmnop");
-    assert_eq!(rb.data_slices().1, b"efgh12345678901234567890");
+    assert_eq!(rb.as_slices().0, b"opklmnop");
+    assert_eq!(rb.as_slices().1, b"efgh12345678901234567890");
 }

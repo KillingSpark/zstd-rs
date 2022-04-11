@@ -1,12 +1,12 @@
-use std::collections::VecDeque;
 use std::hash::Hasher;
-use std::mem::{self, MaybeUninit};
-use std::{io, ptr, slice};
+use std::io;
 
 use twox_hash::XxHash64;
 
+use super::ringbuffer::RingBuffer;
+
 pub struct Decodebuffer {
-    buffer: VecDeque<u8>,
+    buffer: RingBuffer,
     pub dict_content: Vec<u8>,
 
     pub window_size: usize,
@@ -32,7 +32,7 @@ impl io::Read for Decodebuffer {
 impl Decodebuffer {
     pub fn new(window_size: usize) -> Decodebuffer {
         Decodebuffer {
-            buffer: VecDeque::new(),
+            buffer: RingBuffer::new(),
             dict_content: Vec::new(),
             window_size,
             total_output_counter: 0,
@@ -105,45 +105,12 @@ impl Decodebuffer {
                 //need to copy byte by byte. can be optimized more but for now lets leave it like this
                 //TODO batch whats possible
                 for x in 0..match_length {
-                    self.buffer.push_back(self.buffer[start_idx + x]);
+                    self.buffer
+                        .push_back(self.buffer.get(start_idx + x).unwrap());
                 }
             } else {
-                let mut buf = [MaybeUninit::<u8>::uninit(); 4096];
-
                 // can just copy parts of the existing buffer
-
-                let mut start_idx = start_idx;
-                let mut match_length = match_length;
-                while match_length > 0 {
-                    let filled = {
-                        let (slice1, slice2) = self.buffer.as_slices();
-
-                        let slice = if slice1.len() > start_idx {
-                            &slice1[start_idx..]
-                        } else {
-                            &slice2[start_idx - slice1.len()..]
-                        };
-                        let slice = &slice[..match_length.min(slice.len()).min(buf.len())];
-
-                        // TODO: replace with MaybeUninit::write_slice once it's stable.
-                        // SAFETY: we initialize a portion of `buf` and then we return a slice
-                        // of the initialized portion of `buf`.
-                        unsafe {
-                            debug_assert!(slice.len() <= buf.len());
-
-                            ptr::copy_nonoverlapping(
-                                slice.as_ptr().cast::<MaybeUninit<u8>>(),
-                                buf.as_mut_ptr(),
-                                slice.len(),
-                            );
-                            slice::from_raw_parts(buf.as_ptr().cast::<u8>(), slice.len())
-                        }
-                    };
-
-                    self.buffer.extend(filled);
-                    start_idx += filled.len();
-                    match_length -= filled.len();
-                }
+                self.buffer.extend_from_within(start_idx, match_length);
             }
 
             self.total_output_counter += match_length as u64;
@@ -196,13 +163,15 @@ impl Decodebuffer {
 
     //drain the buffer completely
     pub fn drain(&mut self) -> Vec<u8> {
-        let new_buffer = VecDeque::with_capacity(self.buffer.capacity());
-
         let (slice1, slice2) = self.buffer.as_slices();
         self.hash.write(slice1);
         self.hash.write(slice2);
 
-        mem::replace(&mut self.buffer, new_buffer).into()
+        let mut vec = Vec::with_capacity(slice1.len() + slice2.len());
+        vec.extend_from_slice(slice1);
+        vec.extend_from_slice(slice2);
+        self.buffer.clear();
+        vec
     }
 
     pub fn drain_to_writer(&mut self, mut sink: impl io::Write) -> io::Result<usize> {
@@ -237,14 +206,14 @@ impl Decodebuffer {
         }
 
         struct DrainGuard<'a> {
-            buffer: &'a mut VecDeque<u8>,
+            buffer: &'a mut RingBuffer,
             amount: usize,
         }
 
         impl<'a> Drop for DrainGuard<'a> {
             fn drop(&mut self) {
                 if self.amount != 0 {
-                    self.buffer.drain(..self.amount);
+                    self.buffer.drain(self.amount);
                 }
             }
         }
