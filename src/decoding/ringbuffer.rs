@@ -74,6 +74,7 @@ impl RingBuffer {
         }
     }
 
+    #[inline(always)]
     pub fn extend(&mut self, data: &[u8]) {
         let len = data.len();
         let ptr = data.as_ptr();
@@ -155,6 +156,7 @@ impl RingBuffer {
         )
     }
 
+    #[inline(always)]
     pub fn extend_from_within(&mut self, start: usize, len: usize) {
         if start + len > self.len() {
             panic!("This is illegal!");
@@ -214,6 +216,7 @@ impl RingBuffer {
 }
 
 #[allow(dead_code)]
+#[inline(always)]
 fn copy_without_checks(
     m1_ptr: *const u8,
     m2_ptr: *const u8,
@@ -237,6 +240,8 @@ fn copy_without_checks(
     }
 }
 
+#[allow(dead_code)]
+#[inline(always)]
 fn copy_with_checks(
     m1_ptr: *const u8,
     m2_ptr: *const u8,
@@ -269,6 +274,7 @@ fn copy_with_checks(
 }
 
 #[allow(dead_code)]
+#[inline(always)]
 fn copy_with_nobranch_check(
     m1_ptr: *const u8,
     m2_ptr: *const u8,
