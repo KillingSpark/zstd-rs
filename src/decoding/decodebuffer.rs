@@ -98,14 +98,20 @@ impl Decodebuffer {
             }
         } else {
             let start_idx = self.buffer.len() - offset;
+            let end_idx = start_idx + match_length;
+            let buf_len = self.buffer.len();
 
-            if start_idx + match_length > self.buffer.len() {
+            if end_idx > buf_len {
+                // We need to copy in chunks. 
+                // We have at max offset bytes in one chunk, the last one can be smaller 
                 self.buffer.reserve(match_length);
-                //need to copy byte by byte. can be optimized more but for now lets leave it like this
-                //TODO batch whats possible
-                for x in 0..match_length {
-                    self.buffer
-                        .push_back(self.buffer.get(start_idx + x).unwrap());
+                let mut start_idx = start_idx;
+                let mut copied_counter_left = match_length;
+                while copied_counter_left > 0 {
+                    let chunksize = usize::min(offset, copied_counter_left);
+                    self.buffer.extend_from_within(start_idx, chunksize);
+                    copied_counter_left -= chunksize;
+                    start_idx += chunksize;
                 }
             } else {
                 // can just copy parts of the existing buffer
