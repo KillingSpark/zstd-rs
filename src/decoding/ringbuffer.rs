@@ -68,7 +68,7 @@ impl RingBuffer {
 
     pub fn get(&self, idx: usize) -> Option<u8> {
         if idx < self.len() {
-            Some(unsafe { self.buf.add(self.head).read() })
+            Some(unsafe { self.buf.add(self.head + idx).read() })
         } else {
             None
         }
@@ -96,7 +96,9 @@ impl RingBuffer {
     }
 
     pub fn drain(&mut self, amount: usize) {
-        let amount = usize::min(self.len(), amount);
+        if amount > self.len() {
+            panic!("Thats illegal");
+        }
         self.head = (self.head + amount) % self.cap;
     }
 
@@ -158,7 +160,7 @@ impl RingBuffer {
 
     #[inline(always)]
     pub fn extend_from_within(&mut self, start: usize, len: usize) {
-        if start + len > self.len() {
+        if start > self.len() || start + len > self.len() {
             panic!("This is illegal!");
         }
 
@@ -362,42 +364,57 @@ fn smoke() {
     let mut rb = RingBuffer::new();
 
     rb.extend(b"abcdefghijklmnop");
+    assert_eq!(16, rb.len());
     assert_eq!(rb.as_slices().0, b"abcdefghijklmnop");
     assert_eq!(rb.as_slices().1, b"");
 
     rb.extend_from_within(4, 6);
+    assert_eq!(22, rb.len());
     assert_eq!(rb.as_slices().0, b"abcdefghijklmnopefghij");
     assert_eq!(rb.as_slices().1, b"");
 
     rb.drain(6);
+    assert_eq!(16, rb.len());
     assert_eq!(rb.as_slices().0, b"ghijklmnopefghij");
     assert_eq!(rb.as_slices().1, b"");
 
     rb.extend_from_within(4, 6);
+    assert_eq!(22, rb.len());
     assert_eq!(rb.as_slices().0, b"ghijklmnopefghijklmnop");
     assert_eq!(rb.as_slices().1, b"");
 
     rb.extend_from_within(4, 10);
+    assert_eq!(32, rb.len());
     assert_eq!(rb.as_slices().0, b"ghijklmnopefghijklmnopklmnop");
     assert_eq!(rb.as_slices().1, b"efgh");
 
     rb.extend(b"1");
+    assert_eq!(33, rb.len());
     assert_eq!(rb.as_slices().0, b"ghijklmnopefghijklmnopklmnop");
     assert_eq!(rb.as_slices().1, b"efgh1");
 
     rb.drain(9);
+    assert_eq!(24, rb.len());
     assert_eq!(rb.as_slices().0, b"pefghijklmnopklmnop");
     assert_eq!(rb.as_slices().1, b"efgh1");
 
     rb.extend(b"234567890");
+    assert_eq!(33, rb.len());
     assert_eq!(rb.as_slices().0, b"pefghijklmnopklmnop");
     assert_eq!(rb.as_slices().1, b"efgh1234567890");
 
     rb.drain(11);
+    assert_eq!(22, rb.len());
     assert_eq!(rb.as_slices().0, b"opklmnop");
     assert_eq!(rb.as_slices().1, b"efgh1234567890");
 
     rb.extend_from_within(12, 10);
+    assert_eq!(32, rb.len());
     assert_eq!(rb.as_slices().0, b"opklmnop");
     assert_eq!(rb.as_slices().1, b"efgh12345678901234567890");
+
+    rb.drain(10);
+    assert_eq!(22, rb.len());
+    assert_eq!(rb.as_slices().0, b"gh12345678901234567890");
+    assert_eq!(rb.as_slices().1, b"");
 }
