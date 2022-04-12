@@ -99,9 +99,8 @@ impl Decodebuffer {
         } else {
             let start_idx = self.buffer.len() - offset;
 
-            self.buffer.reserve(match_length);
-
             if start_idx + match_length > self.buffer.len() {
+                self.buffer.reserve(match_length);
                 //need to copy byte by byte. can be optimized more but for now lets leave it like this
                 //TODO batch whats possible
                 for x in 0..match_length {

@@ -68,7 +68,8 @@ impl RingBuffer {
 
     pub fn get(&self, idx: usize) -> Option<u8> {
         if idx < self.len() {
-            Some(unsafe { self.buf.add(self.head + idx).read() })
+            let idx = (self.head + idx) % self.cap;
+            Some(unsafe { self.buf.add(idx).read() })
         } else {
             None
         }
@@ -209,9 +210,11 @@ impl RingBuffer {
 
         debug_assert!((m1_in_f2 > 0) ^ (m2_in_f1 > 0) || (m1_in_f2 == 0 && m2_in_f1 == 0));
 
-        copy_with_checks(
-            m1_ptr, m2_ptr, f1_ptr, f2_ptr, m1_in_f1, m2_in_f1, m1_in_f2, m2_in_f2,
-        );
+        unsafe {
+            copy_with_checks(
+                m1_ptr, m2_ptr, f1_ptr, f2_ptr, m1_in_f1, m2_in_f1, m1_in_f2, m2_in_f2,
+            );
+        }
 
         self.tail = (self.tail + len) % self.cap;
     }
@@ -219,7 +222,7 @@ impl RingBuffer {
 
 #[allow(dead_code)]
 #[inline(always)]
-fn copy_without_checks(
+unsafe fn copy_without_checks(
     m1_ptr: *const u8,
     m2_ptr: *const u8,
     f1_ptr: *mut u8,
@@ -229,13 +232,42 @@ fn copy_without_checks(
     m1_in_f2: usize,
     m2_in_f2: usize,
 ) {
-    unsafe {
+    f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
+    f1_ptr
+        .add(m1_in_f1)
+        .copy_from_nonoverlapping(m2_ptr, m2_in_f1);
+
+    f2_ptr.copy_from_nonoverlapping(m1_ptr.add(m1_in_f1), m1_in_f2);
+    f2_ptr
+        .add(m1_in_f2)
+        .copy_from_nonoverlapping(m2_ptr.add(m2_in_f1), m2_in_f2);
+}
+
+#[allow(dead_code)]
+#[inline(always)]
+unsafe fn copy_with_checks(
+    m1_ptr: *const u8,
+    m2_ptr: *const u8,
+    f1_ptr: *mut u8,
+    f2_ptr: *mut u8,
+    m1_in_f1: usize,
+    m2_in_f1: usize,
+    m1_in_f2: usize,
+    m2_in_f2: usize,
+) {
+    if m1_in_f1 != 0 {
         f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
+    }
+    if m2_in_f1 != 0 {
         f1_ptr
             .add(m1_in_f1)
             .copy_from_nonoverlapping(m2_ptr, m2_in_f1);
+    }
 
+    if m1_in_f2 != 0 {
         f2_ptr.copy_from_nonoverlapping(m1_ptr.add(m1_in_f1), m1_in_f2);
+    }
+    if m2_in_f2 != 0 {
         f2_ptr
             .add(m1_in_f2)
             .copy_from_nonoverlapping(m2_ptr.add(m2_in_f1), m2_in_f2);
@@ -244,40 +276,7 @@ fn copy_without_checks(
 
 #[allow(dead_code)]
 #[inline(always)]
-fn copy_with_checks(
-    m1_ptr: *const u8,
-    m2_ptr: *const u8,
-    f1_ptr: *mut u8,
-    f2_ptr: *mut u8,
-    m1_in_f1: usize,
-    m2_in_f1: usize,
-    m1_in_f2: usize,
-    m2_in_f2: usize,
-) {
-    unsafe {
-        if m1_in_f1 != 0 {
-            f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
-        }
-        if m2_in_f1 != 0 {
-            f1_ptr
-                .add(m1_in_f1)
-                .copy_from_nonoverlapping(m2_ptr, m2_in_f1);
-        }
-
-        if m1_in_f2 != 0 {
-            f2_ptr.copy_from_nonoverlapping(m1_ptr.add(m1_in_f1), m1_in_f2);
-        }
-        if m2_in_f2 != 0 {
-            f2_ptr
-                .add(m1_in_f2)
-                .copy_from_nonoverlapping(m2_ptr.add(m2_in_f1), m2_in_f2);
-        }
-    }
-}
-
-#[allow(dead_code)]
-#[inline(always)]
-fn copy_with_nobranch_check(
+unsafe fn copy_with_nobranch_check(
     m1_ptr: *const u8,
     m2_ptr: *const u8,
     f1_ptr: *mut u8,
@@ -291,71 +290,70 @@ fn copy_with_nobranch_check(
         | (((m2_in_f1 > 0) as usize) << 1)
         | (((m1_in_f2 > 0) as usize) << 2)
         | (((m2_in_f2 > 0) as usize) << 3);
-    unsafe {
-        match case {
-            0 => {}
 
-            // one bit set
-            1 => {
-                f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
-            }
-            2 => {
-                f1_ptr.copy_from_nonoverlapping(m2_ptr, m2_in_f1);
-            }
-            4 => {
-                f2_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f2);
-            }
-            8 => {
-                f2_ptr.copy_from_nonoverlapping(m2_ptr, m2_in_f2);
-            }
+    match case {
+        0 => {}
 
-            // two bit set
-            3 => {
-                f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
-                f1_ptr
-                    .add(m1_in_f1)
-                    .copy_from_nonoverlapping(m2_ptr, m2_in_f1);
-            }
-            5 => {
-                f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
-                f2_ptr.copy_from_nonoverlapping(m1_ptr.add(m1_in_f1), m1_in_f2);
-            }
-            6 => std::hint::unreachable_unchecked(),
-            7 => std::hint::unreachable_unchecked(),
-            9 => {
-                f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
-                f2_ptr.copy_from_nonoverlapping(m2_ptr, m2_in_f2);
-            }
-            10 => {
-                f1_ptr.copy_from_nonoverlapping(m2_ptr, m2_in_f1);
-                f2_ptr.copy_from_nonoverlapping(m2_ptr.add(m2_in_f1), m2_in_f2);
-            }
-            12 => {
-                f2_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f2);
-                f2_ptr
-                    .add(m1_in_f2)
-                    .copy_from_nonoverlapping(m2_ptr, m2_in_f2);
-            }
-
-            // three bit set
-            11 => {
-                f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
-                f1_ptr
-                    .add(m1_in_f1)
-                    .copy_from_nonoverlapping(m2_ptr, m2_in_f1);
-                f2_ptr.copy_from_nonoverlapping(m2_ptr.add(m2_in_f1), m2_in_f2);
-            }
-            13 => {
-                f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
-                f2_ptr.copy_from_nonoverlapping(m1_ptr.add(m1_in_f1), m1_in_f2);
-                f2_ptr
-                    .add(m1_in_f2)
-                    .copy_from_nonoverlapping(m2_ptr, m2_in_f2);
-            }
-            14 => std::hint::unreachable_unchecked(),
-            15 => std::hint::unreachable_unchecked(),
-            _ => std::hint::unreachable_unchecked(),
+        // one bit set
+        1 => {
+            f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
         }
+        2 => {
+            f1_ptr.copy_from_nonoverlapping(m2_ptr, m2_in_f1);
+        }
+        4 => {
+            f2_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f2);
+        }
+        8 => {
+            f2_ptr.copy_from_nonoverlapping(m2_ptr, m2_in_f2);
+        }
+
+        // two bit set
+        3 => {
+            f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
+            f1_ptr
+                .add(m1_in_f1)
+                .copy_from_nonoverlapping(m2_ptr, m2_in_f1);
+        }
+        5 => {
+            f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
+            f2_ptr.copy_from_nonoverlapping(m1_ptr.add(m1_in_f1), m1_in_f2);
+        }
+        6 => std::hint::unreachable_unchecked(),
+        7 => std::hint::unreachable_unchecked(),
+        9 => {
+            f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
+            f2_ptr.copy_from_nonoverlapping(m2_ptr, m2_in_f2);
+        }
+        10 => {
+            f1_ptr.copy_from_nonoverlapping(m2_ptr, m2_in_f1);
+            f2_ptr.copy_from_nonoverlapping(m2_ptr.add(m2_in_f1), m2_in_f2);
+        }
+        12 => {
+            f2_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f2);
+            f2_ptr
+                .add(m1_in_f2)
+                .copy_from_nonoverlapping(m2_ptr, m2_in_f2);
+        }
+
+        // three bit set
+        11 => {
+            f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
+            f1_ptr
+                .add(m1_in_f1)
+                .copy_from_nonoverlapping(m2_ptr, m2_in_f1);
+            f2_ptr.copy_from_nonoverlapping(m2_ptr.add(m2_in_f1), m2_in_f2);
+        }
+        13 => {
+            f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
+            f2_ptr.copy_from_nonoverlapping(m1_ptr.add(m1_in_f1), m1_in_f2);
+            f2_ptr
+                .add(m1_in_f2)
+                .copy_from_nonoverlapping(m2_ptr, m2_in_f2);
+        }
+        14 => std::hint::unreachable_unchecked(),
+        15 => std::hint::unreachable_unchecked(),
+        _ => std::hint::unreachable_unchecked(),
     }
 }
 
