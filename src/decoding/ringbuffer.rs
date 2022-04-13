@@ -38,6 +38,14 @@ impl RingBuffer {
             return;
         }
 
+        unsafe {
+            self.reserve_amortized(amount);
+        }
+    }
+
+    #[inline(never)]
+    #[cold]
+    unsafe fn reserve_amortized(&mut self, amount: usize) {
         // TODO make this the next biggest 2^x?
         let new_cap = usize::max(self.cap * 2, self.cap + amount + 1);
         let new_layout = Layout::array::<u8>(new_cap).unwrap();
@@ -62,6 +70,7 @@ impl RingBuffer {
 
     pub fn push_back(&mut self, byte: u8) {
         self.reserve(1);
+
         unsafe { self.buf.add(self.tail).write(byte) };
         self.tail = (self.tail + 1) % self.cap;
     }
@@ -75,12 +84,12 @@ impl RingBuffer {
         }
     }
 
-    #[inline(always)]
     pub fn extend(&mut self, data: &[u8]) {
         let len = data.len();
         let ptr = data.as_ptr();
 
         self.reserve(len);
+
         let ((f1_ptr, f1_len), (f2_ptr, f2_len)) = self.free_slice_parts();
         debug_assert!(f1_len + f2_len >= len, "{} + {} < {}", f1_len, f2_len, len);
 
@@ -159,7 +168,6 @@ impl RingBuffer {
         )
     }
 
-    #[inline(always)]
     pub fn extend_from_within(&mut self, start: usize, len: usize) {
         if start > self.len() || start + len > self.len() {
             panic!("This is illegal!");
