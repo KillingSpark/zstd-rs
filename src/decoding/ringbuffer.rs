@@ -1,5 +1,7 @@
 use std::{alloc::Layout, ptr::slice_from_raw_parts};
 
+const MIN_CAPACITY: usize = 1024;
+
 pub struct RingBuffer {
     buf: *mut u8,
     layout: Layout,
@@ -47,7 +49,8 @@ impl RingBuffer {
     #[cold]
     unsafe fn reserve_amortized(&mut self, amount: usize) {
         // TODO make this the next biggest 2^x?
-        let new_cap = usize::max(self.cap * 2, self.cap + amount + 1);
+        let min_cap = usize::max(self.cap, MIN_CAPACITY / 2);
+        let new_cap = usize::max(min_cap * 2, (self.cap + amount + 1).next_power_of_two());
         let new_layout = Layout::array::<u8>(new_cap).unwrap();
         let new_buf = unsafe { std::alloc::alloc(new_layout) };
 
