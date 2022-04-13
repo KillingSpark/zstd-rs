@@ -56,7 +56,7 @@ impl RingBuffer {
         let new_cap = usize::max(min_cap * 2, (self.cap + amount + 1).next_power_of_two());
 
         // Check that the capacity isn't bigger than isize::MAX, which is the max allowed by LLVM, or that
-        // we are on a >= 64 bit system which will never to allow that much memory to be allocated
+        // we are on a >= 64 bit system which will never allow that much memory to be allocated
         assert!(usize::BITS >= 64 || new_cap < isize::MAX as usize);
 
         let new_layout = Layout::array::<u8>(new_cap).unwrap();
@@ -233,6 +233,21 @@ impl RingBuffer {
         }
 
         self.tail = (self.tail + len) % self.cap;
+    }
+}
+
+impl Drop for RingBuffer {
+    fn drop(&mut self) {
+        if self.cap == 0 {
+            return;
+        }
+
+        // SAFETY: is we were succesfully able to construct this layout when we allocated then it's also valid do so now
+        let current_layout = unsafe { Layout::array::<u8>(self.cap).unwrap_unchecked() };
+
+        unsafe {
+            std::alloc::dealloc(self.buf, current_layout);
+        }
     }
 }
 
