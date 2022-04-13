@@ -55,9 +55,9 @@ impl RingBuffer {
         let min_cap = usize::max(self.cap, MIN_CAPACITY / 2);
         let new_cap = usize::max(min_cap * 2, (self.cap + amount + 1).next_power_of_two());
 
-	// Check that the capacity isn't bigger than isize::MAX; which is the max allowed by LLVM, or that
-	// we are on a >= 64 bit system which will never to allow that much memory to be allocated
-	assert!(usize::BITS >= 64 || new_cap < isize::MAX as usize);
+        // Check that the capacity isn't bigger than isize::MAX, which is the max allowed by LLVM, or that
+        // we are on a >= 64 bit system which will never to allow that much memory to be allocated
+        assert!(usize::BITS >= 64 || new_cap < isize::MAX as usize);
 
         let new_layout = Layout::array::<u8>(new_cap).unwrap();
         let new_buf = unsafe { std::alloc::alloc(new_layout) };
