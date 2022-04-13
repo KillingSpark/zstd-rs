@@ -1,8 +1,9 @@
 use std::{alloc::Layout, ptr::slice_from_raw_parts};
 
+const MIN_CAPACITY: usize = 1024;
+
 pub struct RingBuffer {
     buf: *mut u8,
-    layout: Layout,
     cap: usize,
     head: usize,
     tail: usize,
@@ -12,7 +13,6 @@ impl RingBuffer {
     pub fn new() -> Self {
         RingBuffer {
             buf: std::ptr::null_mut(),
-            layout: Layout::new::<u8>(),
             cap: 0,
             head: 0,
             tail: 0,
@@ -38,30 +38,47 @@ impl RingBuffer {
             return;
         }
 
+        unsafe {
+            self.reserve_amortized(amount);
+        }
+    }
+
+    #[inline(never)]
+    #[cold]
+    unsafe fn reserve_amortized(&mut self, amount: usize) {
+        debug_assert!(amount > 0);
+
+        // SAFETY: is we were succesfully able to construct this layout when we allocated then it's also valid do so now
+        let current_layout = unsafe { Layout::array::<u8>(self.cap).unwrap_unchecked() };
+
         // TODO make this the next biggest 2^x?
-        let new_cap = usize::max(self.cap * 2, self.cap + amount + 1);
+        let min_cap = usize::max(self.cap, MIN_CAPACITY / 2);
+        let new_cap = usize::max(min_cap * 2, (self.cap + amount + 1).next_power_of_two());
+
+        // Check that the capacity isn't bigger than isize::MAX, which is the max allowed by LLVM, or that
+        // we are on a >= 64 bit system which will never allow that much memory to be allocated
+        assert!(usize::BITS >= 64 || new_cap < isize::MAX as usize);
+
         let new_layout = Layout::array::<u8>(new_cap).unwrap();
         let new_buf = unsafe { std::alloc::alloc(new_layout) };
 
-        if new_buf != std::ptr::null_mut() {
-            if self.cap > 0 {
-                let ((s1_ptr, s1_len), (s2_ptr, s2_len)) = self.data_slice_parts();
-                unsafe {
-                    new_buf.copy_from_nonoverlapping(s1_ptr, s1_len);
-                    new_buf.add(s1_len).copy_from_nonoverlapping(s2_ptr, s2_len);
-                    std::alloc::dealloc(self.buf, self.layout);
-                }
-                self.tail = s1_len + s2_len;
-                self.head = 0;
+        if self.cap > 0 {
+            let ((s1_ptr, s1_len), (s2_ptr, s2_len)) = self.data_slice_parts();
+            unsafe {
+                new_buf.copy_from_nonoverlapping(s1_ptr, s1_len);
+                new_buf.add(s1_len).copy_from_nonoverlapping(s2_ptr, s2_len);
+                std::alloc::dealloc(self.buf, current_layout);
             }
-            self.buf = new_buf;
-            self.layout = new_layout;
-            self.cap = new_cap;
+            self.tail = s1_len + s2_len;
+            self.head = 0;
         }
+        self.buf = new_buf;
+        self.cap = new_cap;
     }
 
     pub fn push_back(&mut self, byte: u8) {
         self.reserve(1);
+
         unsafe { self.buf.add(self.tail).write(byte) };
         self.tail = (self.tail + 1) % self.cap;
     }
@@ -75,12 +92,12 @@ impl RingBuffer {
         }
     }
 
-    #[inline(always)]
     pub fn extend(&mut self, data: &[u8]) {
         let len = data.len();
         let ptr = data.as_ptr();
 
         self.reserve(len);
+
         let ((f1_ptr, f1_len), (f2_ptr, f2_len)) = self.free_slice_parts();
         debug_assert!(f1_len + f2_len >= len, "{} + {} < {}", f1_len, f2_len, len);
 
@@ -159,7 +176,6 @@ impl RingBuffer {
         )
     }
 
-    #[inline(always)]
     pub fn extend_from_within(&mut self, start: usize, len: usize) {
         if start > self.len() || start + len > self.len() {
             panic!("This is illegal!");
@@ -217,6 +233,21 @@ impl RingBuffer {
         }
 
         self.tail = (self.tail + len) % self.cap;
+    }
+}
+
+impl Drop for RingBuffer {
+    fn drop(&mut self) {
+        if self.cap == 0 {
+            return;
+        }
+
+        // SAFETY: is we were succesfully able to construct this layout when we allocated then it's also valid do so now
+        let current_layout = unsafe { Layout::array::<u8>(self.cap).unwrap_unchecked() };
+
+        unsafe {
+            std::alloc::dealloc(self.buf, current_layout);
+        }
     }
 }
 
