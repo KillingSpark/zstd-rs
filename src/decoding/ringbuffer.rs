@@ -57,20 +57,18 @@ impl RingBuffer {
         let new_layout = Layout::array::<u8>(new_cap).unwrap();
         let new_buf = unsafe { std::alloc::alloc(new_layout) };
 
-        if new_buf != std::ptr::null_mut() {
-            if self.cap > 0 {
-                let ((s1_ptr, s1_len), (s2_ptr, s2_len)) = self.data_slice_parts();
-                unsafe {
-                    new_buf.copy_from_nonoverlapping(s1_ptr, s1_len);
-                    new_buf.add(s1_len).copy_from_nonoverlapping(s2_ptr, s2_len);
-                    std::alloc::dealloc(self.buf, current_layout);
-                }
-                self.tail = s1_len + s2_len;
-                self.head = 0;
+        if self.cap > 0 {
+            let ((s1_ptr, s1_len), (s2_ptr, s2_len)) = self.data_slice_parts();
+            unsafe {
+                new_buf.copy_from_nonoverlapping(s1_ptr, s1_len);
+                new_buf.add(s1_len).copy_from_nonoverlapping(s2_ptr, s2_len);
+                std::alloc::dealloc(self.buf, current_layout);
             }
-            self.buf = new_buf;
-            self.cap = new_cap;
+            self.tail = s1_len + s2_len;
+            self.head = 0;
         }
+        self.buf = new_buf;
+        self.cap = new_cap;
     }
 
     pub fn push_back(&mut self, byte: u8) {
