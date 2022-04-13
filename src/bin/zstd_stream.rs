@@ -33,7 +33,7 @@ fn main() {
         let mut decoder = ruzstd::StreamingDecoder::new(&mut buf_read).unwrap();
         let mut buf = [0u8; 1024 * 1024];
         let mut stdout = std::io::stdout();
-        while !decoder.decoder.is_finished() {
+        while !decoder.decoder.is_finished() || decoder.decoder.can_collect() > 0 {
             let bytes = decoder.read(&mut buf[..]).unwrap();
             stdout.write_all(&buf[..bytes]).unwrap();
         }

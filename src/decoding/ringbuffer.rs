@@ -49,7 +49,7 @@ impl RingBuffer {
         debug_assert!(amount > 0);
 
         // SAFETY: is we were succesfully able to construct this layout when we allocated then it's also valid do so now
-        let current_layout = unsafe { Layout::array::<u8>(self.cap).unwrap_unchecked() };
+        let current_layout = Layout::array::<u8>(self.cap).unwrap_unchecked();
 
         // TODO make this the next biggest 2^x?
         let min_cap = usize::max(self.cap, MIN_CAPACITY / 2);
@@ -60,15 +60,20 @@ impl RingBuffer {
         assert!(usize::BITS >= 64 || new_cap < isize::MAX as usize);
 
         let new_layout = Layout::array::<u8>(new_cap).unwrap();
-        let new_buf = unsafe { std::alloc::alloc(new_layout) };
+
+        let new_buf = std::alloc::alloc(new_layout);
+
+        if new_buf == std::ptr::null_mut() {
+            panic!("THIS DID NOT WORK!");
+        }
 
         if self.cap > 0 {
             let ((s1_ptr, s1_len), (s2_ptr, s2_len)) = self.data_slice_parts();
-            unsafe {
-                new_buf.copy_from_nonoverlapping(s1_ptr, s1_len);
-                new_buf.add(s1_len).copy_from_nonoverlapping(s2_ptr, s2_len);
-                std::alloc::dealloc(self.buf, current_layout);
-            }
+
+            new_buf.copy_from_nonoverlapping(s1_ptr, s1_len);
+            new_buf.add(s1_len).copy_from_nonoverlapping(s2_ptr, s2_len);
+            std::alloc::dealloc(self.buf, current_layout);
+
             self.tail = s1_len + s2_len;
             self.head = 0;
         }
@@ -76,6 +81,7 @@ impl RingBuffer {
         self.cap = new_cap;
     }
 
+    #[allow(dead_code)]
     pub fn push_back(&mut self, byte: u8) {
         self.reserve(1);
 
@@ -83,6 +89,7 @@ impl RingBuffer {
         self.tail = (self.tail + 1) % self.cap;
     }
 
+    #[allow(dead_code)]
     pub fn get(&self, idx: usize) -> Option<u8> {
         if idx < self.len() {
             let idx = (self.head + idx) % self.cap;
@@ -177,6 +184,57 @@ impl RingBuffer {
     }
 
     pub fn extend_from_within(&mut self, start: usize, len: usize) {
+        if start > self.len() || start + len > self.len() {
+            panic!("This is illegal!");
+        }
+
+        self.reserve(len);
+
+        assert!(self.buf != std::ptr::null_mut());
+
+        if self.head < self.tail {
+            // continous data slice  |____HDDDDDDDT_____|
+            let after_tail = usize::min(len, self.cap - self.tail);
+            unsafe {
+                self.buf
+                    .add(self.tail)
+                    .copy_to_nonoverlapping(self.buf.add(self.head + start), after_tail);
+                if after_tail < len {
+                    self.buf.copy_to_nonoverlapping(
+                        self.buf.add(self.head + start + after_tail),
+                        len - after_tail,
+                    );
+                }
+            }
+        } else {
+            // continous free slice |DDDT_________HDDDD|
+            if self.head + start > self.cap {
+                let start = (self.head + len) % self.cap;
+                unsafe {
+                    self.buf
+                        .add(self.tail)
+                        .copy_to_nonoverlapping(self.buf.add(start), len)
+                }
+            } else {
+                let after_head = usize::min(len, self.cap - self.head);
+                unsafe {
+                    self.buf
+                        .add(self.tail)
+                        .copy_to_nonoverlapping(self.buf.add(self.head + start), after_head);
+                    if after_head < len {
+                        self.buf
+                            .add(self.tail + after_head)
+                            .copy_to_nonoverlapping(self.buf, len - after_head);
+                    }
+                }
+            }
+        }
+
+        self.tail = (self.tail + len) % self.cap;
+    }
+
+    #[allow(dead_code)]
+    pub fn extend_from_within_branchless(&mut self, start: usize, len: usize) {
         if start > self.len() || start + len > self.len() {
             panic!("This is illegal!");
         }
