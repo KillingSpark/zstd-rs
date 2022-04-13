@@ -48,6 +48,8 @@ impl RingBuffer {
     #[inline(never)]
     #[cold]
     unsafe fn reserve_amortized(&mut self, amount: usize) {
+        debug_assert!(amount > 0);
+
         // TODO make this the next biggest 2^x?
         let min_cap = usize::max(self.cap, MIN_CAPACITY / 2);
         let new_cap = usize::max(min_cap * 2, (self.cap + amount + 1).next_power_of_two());
