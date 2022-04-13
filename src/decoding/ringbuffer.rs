@@ -4,7 +4,6 @@ const MIN_CAPACITY: usize = 1024;
 
 pub struct RingBuffer {
     buf: *mut u8,
-    layout: Layout,
     cap: usize,
     head: usize,
     tail: usize,
@@ -14,7 +13,6 @@ impl RingBuffer {
     pub fn new() -> Self {
         RingBuffer {
             buf: std::ptr::null_mut(),
-            layout: Layout::new::<u8>(),
             cap: 0,
             head: 0,
             tail: 0,
@@ -50,6 +48,9 @@ impl RingBuffer {
     unsafe fn reserve_amortized(&mut self, amount: usize) {
         debug_assert!(amount > 0);
 
+        // SAFETY: is we were succesfully able to construct this layout when we allocated then it's also valid do so now
+        let current_layout = unsafe { Layout::array::<u8>(self.cap).unwrap_unchecked() };
+
         // TODO make this the next biggest 2^x?
         let min_cap = usize::max(self.cap, MIN_CAPACITY / 2);
         let new_cap = usize::max(min_cap * 2, (self.cap + amount + 1).next_power_of_two());
@@ -62,13 +63,12 @@ impl RingBuffer {
                 unsafe {
                     new_buf.copy_from_nonoverlapping(s1_ptr, s1_len);
                     new_buf.add(s1_len).copy_from_nonoverlapping(s2_ptr, s2_len);
-                    std::alloc::dealloc(self.buf, self.layout);
+                    std::alloc::dealloc(self.buf, current_layout);
                 }
                 self.tail = s1_len + s2_len;
                 self.head = 0;
             }
             self.buf = new_buf;
-            self.layout = new_layout;
             self.cap = new_cap;
         }
     }
