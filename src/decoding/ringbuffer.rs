@@ -194,6 +194,7 @@ impl RingBuffer {
 
     /// SAFETY:
     /// Needs start + len <= self.len()
+    /// And more then len reserved space
     #[warn(unsafe_op_in_unsafe_fn)]
     pub unsafe fn extend_from_within_unchecked(&mut self, start: usize, len: usize) {
         debug_assert!(self.buf != std::ptr::null_mut());
@@ -240,13 +241,10 @@ impl RingBuffer {
     }
 
     #[allow(dead_code)]
-    pub fn extend_from_within_branchless(&mut self, start: usize, len: usize) {
-        if start > self.len() || start + len > self.len() {
-            panic!("This is illegal!");
-        }
-
-        self.reserve(len);
-
+    /// SAFETY:
+    /// Needs start + len <= self.len()
+    /// And more then len reserved space
+    pub unsafe fn extend_from_within_unchecked_branchless(&mut self, start: usize, len: usize) {
         // data slices in raw parts
         let ((s1_ptr, s1_len), (s2_ptr, s2_len)) = self.data_slice_parts();
 
