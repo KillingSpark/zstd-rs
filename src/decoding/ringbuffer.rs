@@ -1,7 +1,5 @@
 use std::{alloc::Layout, ptr::slice_from_raw_parts};
 
-const MIN_CAPACITY: usize = 1024;
-
 pub struct RingBuffer {
     buf: *mut u8,
     cap: usize,
@@ -51,9 +49,7 @@ impl RingBuffer {
         // SAFETY: is we were succesfully able to construct this layout when we allocated then it's also valid do so now
         let current_layout = Layout::array::<u8>(self.cap).unwrap_unchecked();
 
-        // TODO make this the next biggest 2^x?
-        let min_cap = usize::max(self.cap, MIN_CAPACITY / 2);
-        let new_cap = usize::max(min_cap * 2, (self.cap + amount + 1).next_power_of_two());
+        let new_cap = usize::max(self.cap * 2, (self.cap + amount + 1).next_power_of_two());
 
         // Check that the capacity isn't bigger than isize::MAX, which is the max allowed by LLVM, or that
         // we are on a >= 64 bit system which will never allow that much memory to be allocated
@@ -460,58 +456,51 @@ unsafe fn copy_with_nobranch_check(
 fn smoke() {
     let mut rb = RingBuffer::new();
 
-    rb.extend(b"abcdefghijklmnop");
-    assert_eq!(16, rb.len());
-    assert_eq!(rb.as_slices().0, b"abcdefghijklmnop");
+    rb.reserve(15);
+    assert_eq!(16, rb.cap);
+
+    rb.extend(b"0123456789");
+    assert_eq!(rb.len(), 10);
+    assert_eq!(rb.as_slices().0, b"0123456789");
     assert_eq!(rb.as_slices().1, b"");
 
-    rb.extend_from_within(4, 6);
-    assert_eq!(22, rb.len());
-    assert_eq!(rb.as_slices().0, b"abcdefghijklmnopefghij");
+    rb.drain(5);
+    assert_eq!(rb.len(), 5);
+    assert_eq!(rb.as_slices().0, b"56789");
     assert_eq!(rb.as_slices().1, b"");
 
-    rb.drain(6);
-    assert_eq!(16, rb.len());
-    assert_eq!(rb.as_slices().0, b"ghijklmnopefghij");
+    rb.extend_from_within(2, 3);
+    assert_eq!(rb.len(), 8);
+    assert_eq!(rb.as_slices().0, b"56789789");
     assert_eq!(rb.as_slices().1, b"");
 
-    rb.extend_from_within(4, 6);
-    assert_eq!(22, rb.len());
-    assert_eq!(rb.as_slices().0, b"ghijklmnopefghijklmnop");
+    rb.extend_from_within(0, 3);
+    assert_eq!(rb.len(), 11);
+    assert_eq!(rb.as_slices().0, b"56789789567");
     assert_eq!(rb.as_slices().1, b"");
 
-    rb.extend_from_within(4, 10);
-    assert_eq!(32, rb.len());
-    assert_eq!(rb.as_slices().0, b"ghijklmnopefghijklmnopklmnop");
-    assert_eq!(rb.as_slices().1, b"efgh");
-
-    rb.extend(b"1");
-    assert_eq!(33, rb.len());
-    assert_eq!(rb.as_slices().0, b"ghijklmnopefghijklmnopklmnop");
-    assert_eq!(rb.as_slices().1, b"efgh1");
-
-    rb.drain(9);
-    assert_eq!(24, rb.len());
-    assert_eq!(rb.as_slices().0, b"pefghijklmnopklmnop");
-    assert_eq!(rb.as_slices().1, b"efgh1");
-
-    rb.extend(b"234567890");
-    assert_eq!(33, rb.len());
-    assert_eq!(rb.as_slices().0, b"pefghijklmnopklmnop");
-    assert_eq!(rb.as_slices().1, b"efgh1234567890");
+    rb.extend_from_within(0, 2);
+    assert_eq!(rb.len(), 13);
+    assert_eq!(rb.as_slices().0, b"56789789567");
+    assert_eq!(rb.as_slices().1, b"56");
 
     rb.drain(11);
-    assert_eq!(22, rb.len());
-    assert_eq!(rb.as_slices().0, b"opklmnop");
-    assert_eq!(rb.as_slices().1, b"efgh1234567890");
-
-    rb.extend_from_within(12, 10);
-    assert_eq!(32, rb.len());
-    assert_eq!(rb.as_slices().0, b"opklmnop");
-    assert_eq!(rb.as_slices().1, b"efgh12345678901234567890");
-
-    rb.drain(10);
-    assert_eq!(22, rb.len());
-    assert_eq!(rb.as_slices().0, b"gh12345678901234567890");
+    assert_eq!(rb.len(), 2);
+    assert_eq!(rb.as_slices().0, b"56");
     assert_eq!(rb.as_slices().1, b"");
+
+    rb.extend(b"0123456789");
+    assert_eq!(rb.len(), 12);
+    assert_eq!(rb.as_slices().0, b"560123456789");
+    assert_eq!(rb.as_slices().1, b"");
+
+    rb.drain(11);
+    assert_eq!(rb.len(), 1);
+    assert_eq!(rb.as_slices().0, b"9");
+    assert_eq!(rb.as_slices().1, b"");
+
+    rb.extend(b"0123456789");
+    assert_eq!(rb.len(), 11);
+    assert_eq!(rb.as_slices().0, b"90123");
+    assert_eq!(rb.as_slices().1, b"456789");
 }
