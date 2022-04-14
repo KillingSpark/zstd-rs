@@ -121,9 +121,8 @@ impl RingBuffer {
     }
 
     pub fn drain(&mut self, amount: usize) {
-        if amount > self.len() {
-            panic!("Thats illegal");
-        }
+        debug_assert!(amount <= self.len());
+        let amount = usize::min(amount, self.len());
         self.head = (self.head + amount) % self.cap;
     }
 
