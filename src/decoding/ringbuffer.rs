@@ -183,14 +183,24 @@ impl RingBuffer {
         )
     }
 
+    #[allow(dead_code)]
     pub fn extend_from_within(&mut self, start: usize, len: usize) {
-        if start > self.len() || start + len > self.len() {
+        if start + len > self.len() {
             panic!("This is illegal!");
         }
 
         self.reserve(len);
+        unsafe {
+            self.extend_from_within_unchecked(start, len)
+        }
+    }
+    
+    /// SAFETY:
+    /// Needs start + len <= self.len()
+    #[warn(unsafe_op_in_unsafe_fn)]
+    pub unsafe fn extend_from_within_unchecked(&mut self, start: usize, len: usize) {
 
-        assert!(self.buf != std::ptr::null_mut());
+        debug_assert!(self.buf != std::ptr::null_mut());
 
         if self.head < self.tail {
             // continous data slice  |____HDDDDDDDT_____|

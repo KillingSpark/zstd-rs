@@ -97,25 +97,36 @@ impl Decodebuffer {
                 ));
             }
         } else {
-            let start_idx = self.buffer.len() - offset;
-            let end_idx = start_idx + match_length;
             let buf_len = self.buffer.len();
+            let start_idx = buf_len - offset;
+            let end_idx = start_idx + match_length;
 
+            self.buffer.reserve(match_length);
             if end_idx > buf_len {
-                // We need to copy in chunks. 
-                // We have at max offset bytes in one chunk, the last one can be smaller 
-                self.buffer.reserve(match_length);
+                // We need to copy in chunks.
+                // We have at max offset bytes in one chunk, the last one can be smaller
                 let mut start_idx = start_idx;
                 let mut copied_counter_left = match_length;
                 while copied_counter_left > 0 {
                     let chunksize = usize::min(offset, copied_counter_left);
-                    self.buffer.extend_from_within(start_idx, chunksize);
+
+                    // SAFETY:
+                    // we know that start_idx <= buf_len and start_idx + offset == buf_len and we reserverd match_length space
+                    unsafe {
+                        self.buffer
+                            .extend_from_within_unchecked(start_idx, chunksize)
+                    };
                     copied_counter_left -= chunksize;
                     start_idx += chunksize;
                 }
             } else {
                 // can just copy parts of the existing buffer
-                self.buffer.extend_from_within(start_idx, match_length);
+                // SAFETY:
+                // we know that start_idx and end_idx <= buf_len and we reserverd match_length space
+                unsafe {
+                    self.buffer
+                        .extend_from_within_unchecked(start_idx, match_length)
+                };
             }
 
             self.total_output_counter += match_length as u64;
