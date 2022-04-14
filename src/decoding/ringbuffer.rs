@@ -110,8 +110,12 @@ impl RingBuffer {
         debug_assert!(in_f1 + in_f2 == len);
 
         unsafe {
-            f1_ptr.copy_from_nonoverlapping(ptr, in_f1);
-            f2_ptr.copy_from_nonoverlapping(ptr.add(in_f1), in_f2);
+            if in_f1 > 0 {
+                f1_ptr.copy_from_nonoverlapping(ptr, in_f1);
+            }
+            if in_f2 > 0 {
+                f2_ptr.copy_from_nonoverlapping(ptr.add(in_f1), in_f2);
+            }
         }
         self.tail = (self.tail + len) % self.cap;
     }
@@ -186,16 +190,13 @@ impl RingBuffer {
         }
 
         self.reserve(len);
-        unsafe {
-            self.extend_from_within_unchecked(start, len)
-        }
+        unsafe { self.extend_from_within_unchecked(start, len) }
     }
-    
+
     /// SAFETY:
     /// Needs start + len <= self.len()
     #[warn(unsafe_op_in_unsafe_fn)]
     pub unsafe fn extend_from_within_unchecked(&mut self, start: usize, len: usize) {
-
         debug_assert!(self.buf != std::ptr::null_mut());
 
         if self.head < self.tail {
