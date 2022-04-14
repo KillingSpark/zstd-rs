@@ -198,9 +198,9 @@ impl RingBuffer {
             unsafe {
                 self.buf
                     .add(self.tail)
-                    .copy_to_nonoverlapping(self.buf.add(self.head + start), after_tail);
+                    .copy_from_nonoverlapping(self.buf.add(self.head + start), after_tail);
                 if after_tail < len {
-                    self.buf.copy_to_nonoverlapping(
+                    self.buf.copy_from_nonoverlapping(
                         self.buf.add(self.head + start + after_tail),
                         len - after_tail,
                     );
@@ -209,22 +209,22 @@ impl RingBuffer {
         } else {
             // continous free slice |DDDT_________HDDDD|
             if self.head + start > self.cap {
-                let start = (self.head + len) % self.cap;
+                let start = (self.head + start) % self.cap;
                 unsafe {
                     self.buf
                         .add(self.tail)
-                        .copy_to_nonoverlapping(self.buf.add(start), len)
+                        .copy_from_nonoverlapping(self.buf.add(start), len)
                 }
             } else {
                 let after_head = usize::min(len, self.cap - self.head);
                 unsafe {
                     self.buf
                         .add(self.tail)
-                        .copy_to_nonoverlapping(self.buf.add(self.head + start), after_head);
+                        .copy_from_nonoverlapping(self.buf.add(self.head + start), after_head);
                     if after_head < len {
                         self.buf
                             .add(self.tail + after_head)
-                            .copy_to_nonoverlapping(self.buf, len - after_head);
+                            .copy_from_nonoverlapping(self.buf, len - after_head);
                     }
                 }
             }
