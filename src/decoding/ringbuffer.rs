@@ -200,7 +200,7 @@ impl RingBuffer {
     /// And more then len reserved space
     #[warn(unsafe_op_in_unsafe_fn)]
     pub unsafe fn extend_from_within_unchecked(&mut self, start: usize, len: usize) {
-        debug_assert!(self.buf != std::ptr::null_mut());
+        debug_assert!(!self.buf.is_null());
 
         if self.head < self.tail {
             // continous data slice  |____HDDDDDDDT_____|
