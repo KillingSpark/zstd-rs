@@ -1,4 +1,7 @@
-use std::{alloc::Layout, ptr::slice_from_raw_parts};
+use std::{
+    alloc::{handle_alloc_error, Layout},
+    ptr::slice_from_raw_parts,
+};
 
 pub struct RingBuffer {
     buf: *mut u8,
@@ -59,8 +62,8 @@ impl RingBuffer {
 
         let new_buf = std::alloc::alloc(new_layout);
 
-        if new_buf == std::ptr::null_mut() {
-            panic!("THIS DID NOT WORK!");
+        if new_buf.is_null() {
+            handle_alloc_error(new_layout);
         }
 
         if self.cap > 0 {
