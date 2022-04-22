@@ -188,7 +188,7 @@ impl RingBuffer {
     #[allow(dead_code)]
     pub fn extend_from_within(&mut self, start: usize, len: usize) {
         if start + len > self.len() {
-            panic!("This is illegal!");
+            ring_buffer_out_of_bounds();
         }
 
         self.reserve(len);
@@ -314,6 +314,13 @@ impl Drop for RingBuffer {
             std::alloc::dealloc(self.buf, current_layout);
         }
     }
+}
+
+#[track_caller]
+#[inline(never)]
+#[cold]
+fn ring_buffer_out_of_bounds() {
+    panic!("This is illegal!");
 }
 
 #[allow(dead_code)]
