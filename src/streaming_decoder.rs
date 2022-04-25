@@ -38,7 +38,7 @@ impl<READ: Read> Read for StreamingDecoder<READ> {
             return Ok(0);
         }
 
-        // need to loop. The UpToBytes strategy doesnt take any effort to actually reach that limit.
+        // need to loop. The UpToBytes strategy doesn't take any effort to actually reach that limit.
         // The first few calls can result in just filling the decode buffer but these bytes can not be collected.
         // So we need to call this until we can actually collect enough bytes
 

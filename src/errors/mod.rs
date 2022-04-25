@@ -36,7 +36,7 @@ impl std::fmt::Display for FrameDecoderError {
             ),
             FrameDecoderError::DictNotProvided => write!(
                 f,
-                "Frame header specified dictionary id that wasnt provided by add_dict() or reset_with_dict()"
+                "Frame header specified dictionary id that wasn't provided by add_dict() or reset_with_dict()"
             ),
         }
     }

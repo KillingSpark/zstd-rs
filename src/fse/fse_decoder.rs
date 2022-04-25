@@ -46,7 +46,7 @@ impl<'t> FSEDecoder<'t> {
 
     pub fn init_state(&mut self, bits: &mut BitReaderReversed<'_>) -> Result<(), String> {
         if self.table.accuracy_log == 0 {
-            return Err("Tried to use an unitizialized table!".to_owned());
+            return Err("Tried to use an uninitialized table!".to_owned());
         }
         self.state = bits.get_bits(self.table.accuracy_log as usize)? as usize;
 
@@ -155,7 +155,7 @@ impl FSETable {
             }
         }
 
-        // baselines and num_bits can only be caluclated when all symbols have been spread
+        // baselines and num_bits can only be calculated when all symbols have been spread
         self.symbol_counter.clear();
         self.symbol_counter
             .resize(self.symbol_probablilities.len(), 0);
@@ -277,7 +277,7 @@ fn calc_baseline_and_numbits(
         1 << (highest_bit_set(num_states_symbol))
     }; //always power of two
 
-    let num_double_width_state_slices = num_state_slices - num_states_symbol; //leftovers to the powerof two need to be distributed
+    let num_double_width_state_slices = num_state_slices - num_states_symbol; //leftovers to the power of two need to be distributed
     let num_single_width_state_slices = num_states_symbol - num_double_width_state_slices; //these will not receive a double width slice of states
     let slice_width = num_states_total / num_state_slices; //size of a single width slice of states
     let num_bits = highest_bit_set(slice_width) - 1; //number of bits needed to read for one slice

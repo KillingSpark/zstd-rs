@@ -18,7 +18,7 @@ enum DecoderState {
     ReadyToDecodeNextHeader,
     ReadyToDecodeNextBody,
     #[allow(dead_code)]
-    Failed, //TODO put "self.internal_state = DecoderState::Failed;" everywhere a unresolveable error occurs
+    Failed, //TODO put "self.internal_state = DecoderState::Failed;" everywhere a unresolvable error occurs
 }
 
 pub fn new() -> BlockDecoder {
@@ -236,7 +236,7 @@ impl BlockDecoder {
         let btype = match self.block_type() {
             Ok(t) => match t {
                 BlockType::Reserved => return Err(
-                    "Reserved block occured. This is considered corruption by the documentation"
+                    "Reserved block occurred. This is considered corruption by the documentation"
                         .to_string(),
                 ),
                 _ => t,
