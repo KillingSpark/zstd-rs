@@ -8,7 +8,7 @@ use std::hash::Hasher;
 use std::io::Read;
 
 /// This implements a decoder for zstd frames. This decoder is able to decode frames only partially and gives control
-/// over how many bytes/blocks will be decoded at a time (so you dont have to decode a 10GB file into memory all at once).
+/// over how many bytes/blocks will be decoded at a time (so you don't have to decode a 10GB file into memory all at once).
 /// It reads bytes as needed from a provided source and can be read from to collect partial results.
 ///
 /// If you want to just read the whole frame with an io::Read without having to deal with manually calling decode_blocks
@@ -26,7 +26,7 @@ use std::io::Read;
 ///     let mut frame_dec = ruzstd::FrameDecoder::new();
 ///     let mut result = Vec::new();
 ///
-///     // Use reset or init to make the decoder ready to decocde the frame from the io::Read
+///     // Use reset or init to make the decoder ready to decode the frame from the io::Read
 ///     frame_dec.reset(&mut file).unwrap();
 ///
 ///     // Loop until the frame has been decoded completely
@@ -214,7 +214,7 @@ impl FrameDecoder {
         Some(cksum_64bit as u32)
     }
 
-    /// Counter for how many bytes have been consumed while deocidng the frame
+    /// Counter for how many bytes have been consumed while decoding the frame
     pub fn bytes_read_from_source(&self) -> u64 {
         let state = match &self.state {
             None => return 0,
@@ -249,7 +249,7 @@ impl FrameDecoder {
 
     /// Decodes blocks from a reader. It requires that the framedecoder has been initialized first.
     /// The Strategy influences how many blocks will be decoded before the function returns
-    /// This is important if you want to manage memory consumption carefully. If you dont care
+    /// This is important if you want to manage memory consumption carefully. If you don't care
     /// about that you can just choose the strategy "All" and have all blocks of the frame decoded into the buffer
     pub fn decode_blocks(
         &mut self,
@@ -393,7 +393,7 @@ impl FrameDecoder {
         }
     }
 
-    /// How many bytes can currently be collected from the decodebuffer, while decoding is going on this will be lower than the ectual decodbuffer size
+    /// How many bytes can currently be collected from the decodebuffer, while decoding is going on this will be lower than the actual decodbuffer size
     /// because window_size bytes need to be retained for decoding.
     /// After decoding of the frame (is_finished() == true) has finished it will report all remaining bytes
     pub fn can_collect(&self) -> usize {
@@ -425,7 +425,7 @@ impl FrameDecoder {
     /// Note that no kind of block can be bigger than 128kb.
     /// So to be safe use at least 128*1024 (max block content size) + 3 (block_header size) + 18 (max frame_header size) bytes as your source buffer
     ///
-    /// You may call this function with an empty source after all bytes have been decoded. This is equivalent to just call decoder.read(&mut traget)
+    /// You may call this function with an empty source after all bytes have been decoded. This is equivalent to just call decoder.read(&mut target)
     pub fn decode_from_to(
         &mut self,
         source: &[u8],

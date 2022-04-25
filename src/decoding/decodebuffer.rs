@@ -161,12 +161,12 @@ impl Decodebuffer {
         }
     }
 
-    //How many bytes can be drained if the windowsize does not have to be maintained
+    //How many bytes can be drained if the window_size does not have to be maintained
     pub fn can_drain(&self) -> usize {
         self.buffer.len()
     }
 
-    //drain as much as possible while retaining enough so that decoding si still possible with the requeired windowsize
+    //drain as much as possible while retaining enough so that decoding si still possible with the required window_size
     //At best call only if can_drain_to_window_size reports a 'high' number of bytes to reduce allocations
     pub fn drain_to_window_size(&mut self) -> Option<Vec<u8>> {
         //TODO investigate if it is possible to return the std::vec::Drain iterator directly without collecting here

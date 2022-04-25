@@ -190,7 +190,7 @@ impl HuffmanTable {
                         self.weights.push(dec1.decode_symbol());
                         break;
                     }
-                    //maximum number of weights is 255 because we use u8 symbols and the last weight is infered from the sum of all others
+                    //maximum number of weights is 255 because we use u8 symbols and the last weight is inferred from the sum of all others
                     if self.weights.len() > 255 {
                         return Err(
                             "More than 255 weights decoded. Stream is probably corrupted"
