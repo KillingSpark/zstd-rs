@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use std::hash::Hasher;
 use std::mem::{self, MaybeUninit};
+use std::ops::Range;
 use std::{io, ptr, slice};
 
 use twox_hash::XxHash64;
@@ -108,41 +109,9 @@ impl Decodebuffer {
                     self.buffer.push_back(self.buffer[start_idx + x]);
                 }
             } else {
-                let mut buf = [MaybeUninit::<u8>::uninit(); 4096];
-
-                // can just copy parts of the existing buffer
-
-                let mut start_idx = start_idx;
-                let mut match_length = match_length;
-                while match_length > 0 {
-                    let filled = {
-                        let (slice1, slice2) = self.buffer.as_slices();
-
-                        let slice = if slice1.len() > start_idx {
-                            &slice1[start_idx..]
-                        } else {
-                            &slice2[start_idx - slice1.len()..]
-                        };
-                        let slice = &slice[..match_length.min(slice.len()).min(buf.len())];
-
-                        // TODO: replace with MaybeUninit::write_slice once it's stable.
-                        // SAFETY: we initialize a portion of `buf` and then we return a slice
-                        // of the initialized portion of `buf`.
-                        unsafe {
-                            debug_assert!(slice.len() <= buf.len());
-
-                            ptr::copy_nonoverlapping(
-                                slice.as_ptr().cast::<MaybeUninit<u8>>(),
-                                buf.as_mut_ptr(),
-                                slice.len(),
-                            );
-                            slice::from_raw_parts(buf.as_ptr().cast::<u8>(), slice.len())
-                        }
-                    };
-
-                    self.buffer.extend(filled);
-                    start_idx += filled.len();
-                    match_length -= filled.len();
+                let end_idx = start_idx + match_length;
+                unsafe {
+                    extend_from_within(&mut self.buffer, start_idx..end_idx);
                 }
             }
 
@@ -294,4 +263,62 @@ fn write_all_bytes(mut sink: impl io::Write, buf: &[u8]) -> (usize, io::Result<(
         }
     }
     (written, Ok(()))
+}
+
+/// VecDeque::extend_from_within if it had it
+///
+/// # Safety
+///
+/// The conditions in the `debug_assert!`s at the beginning of the function
+/// are assumed to always be met.
+unsafe fn extend_from_within(buffer: &mut VecDeque<u8>, range: Range<usize>) {
+    debug_assert!(
+        range.start <= range.end,
+        "`Range.start` start must be <= `Range.end`"
+    );
+    debug_assert!(
+        range.end <= buffer.len(),
+        "`Range.end` must be within the `buffer` length"
+    );
+    debug_assert!(
+        buffer.capacity() - buffer.len() >= range.end - range.start,
+        "`buffer` must have enough capacity"
+    );
+
+    let mut buf = [MaybeUninit::<u8>::uninit(); 4096];
+
+    // can just copy parts of the existing buffer
+
+    let mut start_idx = range.start;
+    let mut match_length = range.end - range.start;
+    while match_length > 0 {
+        let filled = {
+            let (slice1, slice2) = buffer.as_slices();
+
+            let slice = if slice1.len() > start_idx {
+                &slice1[start_idx..]
+            } else {
+                &slice2[start_idx - slice1.len()..]
+            };
+            let slice = &slice[..match_length.min(slice.len()).min(buf.len())];
+
+            // TODO: replace with MaybeUninit::write_slice once it's stable.
+            // SAFETY: we initialize a portion of `buf` and then we return a slice
+            // of the initialized portion of `buf`.
+            unsafe {
+                debug_assert!(slice.len() <= buf.len());
+
+                ptr::copy_nonoverlapping(
+                    slice.as_ptr().cast::<MaybeUninit<u8>>(),
+                    buf.as_mut_ptr(),
+                    slice.len(),
+                );
+                slice::from_raw_parts(buf.as_ptr().cast::<u8>(), slice.len())
+            }
+        };
+
+        buffer.extend(filled);
+        start_idx += filled.len();
+        match_length -= filled.len();
+    }
 }
