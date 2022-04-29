@@ -285,7 +285,8 @@ unsafe fn extend_from_within(buffer: &mut VecDeque<u8>, range: Range<usize>) {
         "`buffer` must have enough capacity"
     );
 
-    let mut buf = [MaybeUninit::<u8>::uninit(); 4096];
+    // Must be under 4096 to avoid having rustc emit stack probes
+    let mut buf = [MaybeUninit::<u8>::uninit(); 2048];
 
     // can just copy parts of the existing buffer
 
