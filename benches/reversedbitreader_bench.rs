@@ -21,7 +21,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     let mut access_vec = vec![];
     let mut br = BitReaderReversed::new(&rand_vec);
     while br.bits_remaining() > 0 {
-        let x = rng.gen_range(1, 20);
+        let x = rng.gen_range(1..20);
         br.get_bits(x).unwrap();
         access_vec.push(x);
     }
