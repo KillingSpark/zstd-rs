@@ -56,7 +56,7 @@ impl RingBuffer {
             debug_assert!(usize::BITS >= 64 || new_cap < isize::MAX as usize);
         }
 
-        let new_layout = Layout::array::<u8>(new_cap).expect(&format!("Could not create layout for u8 array of size {}", new_cap));
+        let new_layout = Layout::array::<u8>(new_cap).unwrap_or_else(|_| panic!("Could not create layout for u8 array of size {}", new_cap));
 
         // alloc the new memory region and panic if alloc fails
         // TODO maybe rework this to generate an error?
