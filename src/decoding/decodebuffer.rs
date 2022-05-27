@@ -107,6 +107,8 @@ impl Decodebuffer {
                 // We have at max offset bytes in one chunk, the last one can be smaller
                 let mut start_idx = start_idx;
                 let mut copied_counter_left = match_length;
+                // TODO this can  be optimized further I think.
+                // Each time we copy a chunk we have a repetiton of length 'offset', so we can copy offset * iteration many bytes from start_idx
                 while copied_counter_left > 0 {
                     let chunksize = usize::min(offset, copied_counter_left);
 
