@@ -53,14 +53,17 @@ impl RingBuffer {
 
         // Check that the capacity isn't bigger than isize::MAX, which is the max allowed by LLVM, or that
         // we are on a >= 64 bit system which will never allow that much memory to be allocated
-        assert!(usize::BITS >= 64 || new_cap < isize::MAX as usize);
+        #[allow(clippy::assertions_on_constants)]
+        {
+            debug_assert!(usize::BITS >= 64 || new_cap < isize::MAX as usize);
+        }
 
         let new_layout = Layout::array::<u8>(new_cap).unwrap();
 
         let new_buf = std::alloc::alloc(new_layout);
 
-        if new_buf == std::ptr::null_mut() {
-            panic!("THIS DID NOT WORK!");
+        if new_buf.is_null() {
+            panic!("Allocating new space for the ringbuffer failed");
         }
 
         if self.cap > 0 {
@@ -185,7 +188,7 @@ impl RingBuffer {
     #[allow(dead_code)]
     pub fn extend_from_within(&mut self, start: usize, len: usize) {
         if start + len > self.len() {
-            panic!("This is illegal!");
+            panic!("Calls to this functions must respect start ({}) + len ({}) <= self.len() ({})!", start, len, self.len());
         }
 
         self.reserve(len);
@@ -197,7 +200,7 @@ impl RingBuffer {
     /// And more then len reserved space
     #[warn(unsafe_op_in_unsafe_fn)]
     pub unsafe fn extend_from_within_unchecked(&mut self, start: usize, len: usize) {
-        debug_assert!(self.buf != std::ptr::null_mut());
+        debug_assert!(!self.buf.is_null());
 
         if self.head < self.tail {
             // continous data slice  |____HDDDDDDDT_____|
@@ -253,7 +256,7 @@ impl RingBuffer {
         // calc the actually wanted slices in raw parts
         let start_in_s1 = usize::min(s1_len, start);
         let end_in_s1 = usize::min(s1_len, start + len);
-        let m1_ptr = unsafe { s1_ptr.add(start_in_s1) };
+        let m1_ptr = s1_ptr.add(start_in_s1);
         let m1_len = end_in_s1 - start_in_s1;
 
         debug_assert!(end_in_s1 <= s1_len);
@@ -261,7 +264,7 @@ impl RingBuffer {
 
         let start_in_s2 = start.saturating_sub(s1_len);
         let end_in_s2 = start_in_s2 + (len - m1_len);
-        let m2_ptr = unsafe { s2_ptr.add(start_in_s2) };
+        let m2_ptr = s2_ptr.add(start_in_s2);
         let m2_len = end_in_s2 - start_in_s2;
 
         debug_assert!(start_in_s2 <= s2_len);
@@ -288,12 +291,9 @@ impl RingBuffer {
 
         debug_assert!((m1_in_f2 > 0) ^ (m2_in_f1 > 0) || (m1_in_f2 == 0 && m2_in_f1 == 0));
 
-        unsafe {
-            copy_with_checks(
-                m1_ptr, m2_ptr, f1_ptr, f2_ptr, m1_in_f1, m2_in_f1, m1_in_f2, m2_in_f2,
-            );
-        }
-
+        copy_with_checks(
+            m1_ptr, m2_ptr, f1_ptr, f2_ptr, m1_in_f1, m2_in_f1, m1_in_f2, m2_in_f2,
+        );
         self.tail = (self.tail + len) % self.cap;
     }
 }
@@ -315,6 +315,7 @@ impl Drop for RingBuffer {
 
 #[allow(dead_code)]
 #[inline(always)]
+#[allow(clippy::too_many_arguments)]
 unsafe fn copy_without_checks(
     m1_ptr: *const u8,
     m2_ptr: *const u8,
@@ -338,6 +339,7 @@ unsafe fn copy_without_checks(
 
 #[allow(dead_code)]
 #[inline(always)]
+#[allow(clippy::too_many_arguments)]
 unsafe fn copy_with_checks(
     m1_ptr: *const u8,
     m2_ptr: *const u8,
@@ -369,6 +371,7 @@ unsafe fn copy_with_checks(
 
 #[allow(dead_code)]
 #[inline(always)]
+#[allow(clippy::too_many_arguments)]
 unsafe fn copy_with_nobranch_check(
     m1_ptr: *const u8,
     m2_ptr: *const u8,
