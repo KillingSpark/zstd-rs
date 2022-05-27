@@ -282,3 +282,56 @@ fn write_all_bytes(mut sink: impl io::Write, buf: &[u8]) -> (usize, io::Result<(
     }
     (written, Ok(()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Decodebuffer;
+    use std::io::Write;
+
+    #[test]
+    fn short_writer() {
+        struct ShortWriter {
+            buf: Vec<u8>,
+            write_len: usize,
+        }
+
+        impl Write for ShortWriter {
+            fn write(&mut self, buf: &[u8]) -> std::result::Result<usize, std::io::Error> {
+                if buf.len() > self.write_len {
+                    self.buf.extend_from_slice(&buf[..self.write_len]);
+                    Ok(self.write_len)
+                } else {
+                    self.buf.extend_from_slice(buf);
+                    Ok(buf.len())
+                }
+            }
+
+            fn flush(&mut self) -> std::result::Result<(), std::io::Error> {
+                Ok(())
+            }
+        }
+
+        let mut short_writer = ShortWriter {
+            buf: vec![],
+            write_len: 10,
+        };
+
+        let mut decode_buf = Decodebuffer::new(100);
+        decode_buf.push(b"0123456789");
+        decode_buf.repeat(10, 90).unwrap();
+        let repeats = 1000;
+        for _ in 0..repeats {
+            assert_eq!(decode_buf.len(), 100);
+            decode_buf.repeat(10, 50).unwrap();
+            assert_eq!(decode_buf.len(), 150);
+            decode_buf
+                .drain_to_window_size_writer(&mut short_writer)
+                .unwrap();
+            assert_eq!(decode_buf.len(), 100);
+        }
+
+        assert_eq!(short_writer.buf.len(), repeats * 50);
+        decode_buf.drain_to_writer(&mut short_writer).unwrap();
+        assert_eq!(short_writer.buf.len(), repeats * 50 + 100);
+    }
+}
