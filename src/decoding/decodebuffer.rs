@@ -229,7 +229,7 @@ impl Decodebuffer {
         impl<'a> Drop for DrainGuard<'a> {
             fn drop(&mut self) {
                 if self.amount != 0 {
-                    self.buffer.drain(self.amount);
+                    self.buffer.drop_first_n(self.amount);
                 }
             }
         }

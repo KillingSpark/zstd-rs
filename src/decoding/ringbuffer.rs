@@ -36,18 +36,16 @@ impl RingBuffer {
             return;
         }
 
-        unsafe {
-            self.reserve_amortized(amount);
-        }
+        self.reserve_amortized(amount);
     }
 
     #[inline(never)]
     #[cold]
-    unsafe fn reserve_amortized(&mut self, amount: usize) {
+    fn reserve_amortized(&mut self, amount: usize) {
         debug_assert!(amount > 0);
 
         // SAFETY: is we were succesfully able to construct this layout when we allocated then it's also valid do so now
-        let current_layout = Layout::array::<u8>(self.cap).unwrap_unchecked();
+        let current_layout = unsafe { Layout::array::<u8>(self.cap).unwrap_unchecked() };
 
         let new_cap = usize::max(self.cap * 2, (self.cap + amount + 1).next_power_of_two());
 
@@ -58,20 +56,28 @@ impl RingBuffer {
             debug_assert!(usize::BITS >= 64 || new_cap < isize::MAX as usize);
         }
 
-        let new_layout = Layout::array::<u8>(new_cap).unwrap();
+        let new_layout = Layout::array::<u8>(new_cap).expect(&format!("Could not create layout for u8 array of size {}", new_cap));
 
-        let new_buf = std::alloc::alloc(new_layout);
+        // alloc the new memory region and panic if alloc fails
+        // TODO maybe rework this to generate an error?
+        let new_buf = unsafe {
+            let new_buf = std::alloc::alloc(new_layout);
 
-        if new_buf.is_null() {
-            panic!("Allocating new space for the ringbuffer failed");
-        }
+            if new_buf.is_null() {
+                panic!("Allocating new space for the ringbuffer failed");
+            }
+            new_buf
+        };
 
+        // If we had data before, copy it over to the newly alloced memory region
         if self.cap > 0 {
             let ((s1_ptr, s1_len), (s2_ptr, s2_len)) = self.data_slice_parts();
 
-            new_buf.copy_from_nonoverlapping(s1_ptr, s1_len);
-            new_buf.add(s1_len).copy_from_nonoverlapping(s2_ptr, s2_len);
-            std::alloc::dealloc(self.buf, current_layout);
+            unsafe {
+                new_buf.copy_from_nonoverlapping(s1_ptr, s1_len);
+                new_buf.add(s1_len).copy_from_nonoverlapping(s2_ptr, s2_len);
+                std::alloc::dealloc(self.buf, current_layout);
+            }
 
             self.tail = s1_len + s2_len;
             self.head = 0;
@@ -123,7 +129,7 @@ impl RingBuffer {
         self.tail = (self.tail + len) % self.cap;
     }
 
-    pub fn drain(&mut self, amount: usize) {
+    pub fn drop_first_n(&mut self, amount: usize) {
         debug_assert!(amount <= self.len());
         let amount = usize::min(amount, self.len());
         self.head = (self.head + amount) % self.cap;
@@ -188,7 +194,12 @@ impl RingBuffer {
     #[allow(dead_code)]
     pub fn extend_from_within(&mut self, start: usize, len: usize) {
         if start + len > self.len() {
-            panic!("Calls to this functions must respect start ({}) + len ({}) <= self.len() ({})!", start, len, self.len());
+            panic!(
+                "Calls to this functions must respect start ({}) + len ({}) <= self.len() ({})!",
+                start,
+                len,
+                self.len()
+            );
         }
 
         self.reserve(len);
@@ -465,7 +476,7 @@ fn smoke() {
     assert_eq!(rb.as_slices().0, b"0123456789");
     assert_eq!(rb.as_slices().1, b"");
 
-    rb.drain(5);
+    rb.drop_first_n(5);
     assert_eq!(rb.len(), 5);
     assert_eq!(rb.as_slices().0, b"56789");
     assert_eq!(rb.as_slices().1, b"");
@@ -485,7 +496,7 @@ fn smoke() {
     assert_eq!(rb.as_slices().0, b"56789789567");
     assert_eq!(rb.as_slices().1, b"56");
 
-    rb.drain(11);
+    rb.drop_first_n(11);
     assert_eq!(rb.len(), 2);
     assert_eq!(rb.as_slices().0, b"56");
     assert_eq!(rb.as_slices().1, b"");
@@ -495,7 +506,7 @@ fn smoke() {
     assert_eq!(rb.as_slices().0, b"560123456789");
     assert_eq!(rb.as_slices().1, b"");
 
-    rb.drain(11);
+    rb.drop_first_n(11);
     assert_eq!(rb.len(), 1);
     assert_eq!(rb.as_slices().0, b"9");
     assert_eq!(rb.as_slices().1, b"");
