@@ -273,7 +273,7 @@ impl Decodebuffer {
 fn write_all_bytes(mut sink: impl io::Write, buf: &[u8]) -> (usize, io::Result<()>) {
     let mut written = 0;
     while written < buf.len() {
-        match sink.write(buf) {
+        match sink.write(&buf[written..]) {
             Ok(w) => written += w,
             Err(e) => return (written, Err(e)),
         }
