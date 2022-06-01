@@ -334,4 +334,82 @@ mod tests {
         decode_buf.drain_to_writer(&mut short_writer).unwrap();
         assert_eq!(short_writer.buf.len(), repeats * 50 + 100);
     }
+
+    #[test]
+    fn wouldblock_writer() {
+        struct WouldblockWriter {
+            buf: Vec<u8>,
+            last_blocked: usize,
+            block_every: usize,
+        }
+
+        impl Write for WouldblockWriter {
+            fn write(&mut self, buf: &[u8]) -> std::result::Result<usize, std::io::Error> {
+                if self.last_blocked < self.block_every {
+                    self.buf.extend_from_slice(buf);
+                    self.last_blocked += 1;
+                    Ok(buf.len())
+                } else {
+                    self.last_blocked = 0;
+                    Err(std::io::Error::from(std::io::ErrorKind::WouldBlock))
+                }
+            }
+
+            fn flush(&mut self) -> std::result::Result<(), std::io::Error> {
+                Ok(())
+            }
+        }
+
+        let mut short_writer = WouldblockWriter {
+            buf: vec![],
+            last_blocked: 0,
+            block_every: 5,
+        };
+
+        let mut decode_buf = Decodebuffer::new(100);
+        decode_buf.push(b"0123456789");
+        decode_buf.repeat(10, 90).unwrap();
+        let repeats = 1000;
+        for _ in 0..repeats {
+            assert_eq!(decode_buf.len(), 100);
+            decode_buf.repeat(10, 50).unwrap();
+            assert_eq!(decode_buf.len(), 150);
+            loop {
+                match decode_buf.drain_to_window_size_writer(&mut short_writer) {
+                    Ok(written) => {
+                        if written == 0 {
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        if e.kind() == std::io::ErrorKind::WouldBlock {
+                            continue;
+                        } else {
+                            panic!("Unexpected error {:?}", e);
+                        }
+                    }
+                }
+            }
+            assert_eq!(decode_buf.len(), 100);
+        }
+
+        assert_eq!(short_writer.buf.len(), repeats * 50);
+        loop {
+            match decode_buf.drain_to_writer(&mut short_writer) {
+                Ok(written) => {
+                    if written == 0 {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    if e.kind() == std::io::ErrorKind::WouldBlock {
+                        continue;
+                    } else {
+                        panic!("Unexpected error {:?}", e);
+                    }
+                }
+            }
+        }
+        assert_eq!(short_writer.buf.len(), repeats * 50 + 100);
+    }
 }
