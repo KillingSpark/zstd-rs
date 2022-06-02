@@ -22,6 +22,11 @@ impl RingBuffer {
         x + y
     }
 
+    pub fn free(&self) -> usize {
+        let (x, y) = self.free_slice_lengths();
+        (x + y).saturating_sub(1)
+    }
+
     pub fn clear(&mut self) {
         self.head = 0;
         self.tail = 0;
@@ -32,22 +37,25 @@ impl RingBuffer {
     }
 
     pub fn reserve(&mut self, amount: usize) {
-        if self.cap - self.len() > amount {
+        let free = self.free();
+        if free >= amount {
             return;
         }
 
-        self.reserve_amortized(amount);
+        self.reserve_amortized(amount - free);
     }
 
     #[inline(never)]
     #[cold]
     fn reserve_amortized(&mut self, amount: usize) {
-        debug_assert!(amount > 0);
-
-        // SAFETY: is we were succesfully able to construct this layout when we allocated then it's also valid do so now
+        // SAFETY: if we were succesfully able to construct this layout when we allocated then it's also valid do so now
         let current_layout = unsafe { Layout::array::<u8>(self.cap).unwrap_unchecked() };
 
-        let new_cap = usize::max(self.cap * 2, (self.cap + amount + 1).next_power_of_two());
+        // Always have at least 1 unused element as the sentinel.
+        let new_cap = usize::max(
+            self.cap.next_power_of_two(),
+            (self.cap + amount).next_power_of_two(),
+        ) + 1;
 
         // Check that the capacity isn't bigger than isize::MAX, which is the max allowed by LLVM, or that
         // we are on a >= 64 bit system which will never allow that much memory to be allocated
@@ -465,55 +473,136 @@ unsafe fn copy_with_nobranch_check(
     }
 }
 
-#[test]
-fn smoke() {
-    let mut rb = RingBuffer::new();
+#[cfg(test)]
+mod tests {
+    use super::RingBuffer;
 
-    rb.reserve(15);
-    assert_eq!(16, rb.cap);
+    #[test]
+    fn smoke() {
+        let mut rb = RingBuffer::new();
 
-    rb.extend(b"0123456789");
-    assert_eq!(rb.len(), 10);
-    assert_eq!(rb.as_slices().0, b"0123456789");
-    assert_eq!(rb.as_slices().1, b"");
+        rb.reserve(15);
+        assert_eq!(17, rb.cap);
 
-    rb.drop_first_n(5);
-    assert_eq!(rb.len(), 5);
-    assert_eq!(rb.as_slices().0, b"56789");
-    assert_eq!(rb.as_slices().1, b"");
+        rb.extend(b"0123456789");
+        assert_eq!(rb.len(), 10);
+        assert_eq!(rb.as_slices().0, b"0123456789");
+        assert_eq!(rb.as_slices().1, b"");
 
-    rb.extend_from_within(2, 3);
-    assert_eq!(rb.len(), 8);
-    assert_eq!(rb.as_slices().0, b"56789789");
-    assert_eq!(rb.as_slices().1, b"");
+        rb.drop_first_n(5);
+        assert_eq!(rb.len(), 5);
+        assert_eq!(rb.as_slices().0, b"56789");
+        assert_eq!(rb.as_slices().1, b"");
 
-    rb.extend_from_within(0, 3);
-    assert_eq!(rb.len(), 11);
-    assert_eq!(rb.as_slices().0, b"56789789567");
-    assert_eq!(rb.as_slices().1, b"");
+        rb.extend_from_within(2, 3);
+        assert_eq!(rb.len(), 8);
+        assert_eq!(rb.as_slices().0, b"56789789");
+        assert_eq!(rb.as_slices().1, b"");
 
-    rb.extend_from_within(0, 2);
-    assert_eq!(rb.len(), 13);
-    assert_eq!(rb.as_slices().0, b"56789789567");
-    assert_eq!(rb.as_slices().1, b"56");
+        rb.extend_from_within(0, 3);
+        assert_eq!(rb.len(), 11);
+        assert_eq!(rb.as_slices().0, b"56789789567");
+        assert_eq!(rb.as_slices().1, b"");
 
-    rb.drop_first_n(11);
-    assert_eq!(rb.len(), 2);
-    assert_eq!(rb.as_slices().0, b"56");
-    assert_eq!(rb.as_slices().1, b"");
+        rb.extend_from_within(0, 2);
+        assert_eq!(rb.len(), 13);
+        assert_eq!(rb.as_slices().0, b"567897895675");
+        assert_eq!(rb.as_slices().1, b"6");
 
-    rb.extend(b"0123456789");
-    assert_eq!(rb.len(), 12);
-    assert_eq!(rb.as_slices().0, b"560123456789");
-    assert_eq!(rb.as_slices().1, b"");
+        rb.drop_first_n(11);
+        assert_eq!(rb.len(), 2);
+        assert_eq!(rb.as_slices().0, b"5");
+        assert_eq!(rb.as_slices().1, b"6");
 
-    rb.drop_first_n(11);
-    assert_eq!(rb.len(), 1);
-    assert_eq!(rb.as_slices().0, b"9");
-    assert_eq!(rb.as_slices().1, b"");
+        rb.extend(b"0123456789");
+        assert_eq!(rb.len(), 12);
+        assert_eq!(rb.as_slices().0, b"5");
+        assert_eq!(rb.as_slices().1, b"60123456789");
 
-    rb.extend(b"0123456789");
-    assert_eq!(rb.len(), 11);
-    assert_eq!(rb.as_slices().0, b"90123");
-    assert_eq!(rb.as_slices().1, b"456789");
+        rb.drop_first_n(11);
+        assert_eq!(rb.len(), 1);
+        assert_eq!(rb.as_slices().0, b"9");
+        assert_eq!(rb.as_slices().1, b"");
+
+        rb.extend(b"0123456789");
+        assert_eq!(rb.len(), 11);
+        assert_eq!(rb.as_slices().0, b"9012345");
+        assert_eq!(rb.as_slices().1, b"6789");
+    }
+
+    #[test]
+    fn edge_cases() {
+        // Fill exactly, then empty then fill again
+        let mut rb = RingBuffer::new();
+        rb.reserve(16);
+        assert_eq!(17, rb.cap);
+        rb.extend(b"0123456789012345");
+        assert_eq!(17, rb.cap);
+        assert_eq!(16, rb.len());
+        assert_eq!(0, rb.free());
+        rb.drop_first_n(16);
+        assert_eq!(0, rb.len());
+        assert_eq!(16, rb.free());
+        rb.extend(b"0123456789012345");
+        assert_eq!(16, rb.len());
+        assert_eq!(0, rb.free());
+        assert_eq!(17, rb.cap);
+        assert_eq!(1, rb.as_slices().0.len());
+        assert_eq!(15, rb.as_slices().1.len());
+
+        rb.clear();
+
+        // data in both slices and then reserve
+        rb.extend(b"0123456789012345");
+        rb.drop_first_n(8);
+        rb.extend(b"67890123");
+        assert_eq!(16, rb.len());
+        assert_eq!(0, rb.free());
+        assert_eq!(17, rb.cap);
+        assert_eq!(9, rb.as_slices().0.len());
+        assert_eq!(7, rb.as_slices().1.len());
+        rb.reserve(1);
+        assert_eq!(16, rb.len());
+        assert_eq!(16, rb.free());
+        assert_eq!(33, rb.cap);
+        assert_eq!(16, rb.as_slices().0.len());
+        assert_eq!(0, rb.as_slices().1.len());
+
+        rb.clear();
+
+        // fill exactly, then extend from within
+        rb.extend(b"0123456789012345");
+        rb.extend_from_within(0, 16);
+        assert_eq!(32, rb.len());
+        assert_eq!(0, rb.free());
+        assert_eq!(33, rb.cap);
+        assert_eq!(32, rb.as_slices().0.len());
+        assert_eq!(0, rb.as_slices().1.len());
+
+        // extend from within cases
+        let mut rb = RingBuffer::new();
+        rb.reserve(8);
+        rb.extend(b"01234567");
+        rb.drop_first_n(5);
+        rb.extend_from_within(0, 3);
+        assert_eq!(4, rb.as_slices().0.len());
+        assert_eq!(2, rb.as_slices().1.len());
+
+        rb.drop_first_n(2);
+        assert_eq!(2, rb.as_slices().0.len());
+        assert_eq!(2, rb.as_slices().1.len());
+        rb.extend_from_within(0, 4);
+        assert_eq!(2, rb.as_slices().0.len());
+        assert_eq!(6, rb.as_slices().1.len());
+
+        rb.drop_first_n(2);
+        assert_eq!(6, rb.as_slices().0.len());
+        assert_eq!(0, rb.as_slices().1.len());
+        rb.drop_first_n(2);
+        assert_eq!(4, rb.as_slices().0.len());
+        assert_eq!(0, rb.as_slices().1.len());
+        rb.extend_from_within(0, 4);
+        assert_eq!(7, rb.as_slices().0.len());
+        assert_eq!(1, rb.as_slices().1.len());
+    }
 }
