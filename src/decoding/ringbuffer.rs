@@ -116,8 +116,14 @@ impl RingBuffer {
     pub fn extend(&mut self, data: &[u8]) {
         let len = data.len();
         let ptr = data.as_ptr();
+        if len == 0 {
+            return;
+        }
 
         self.reserve(len);
+
+        debug_assert!(self.len() + len <= self.cap - 1);
+        debug_assert!(self.free() >= len, "free: {} len: {}", self.free(), len);
 
         let ((f1_ptr, f1_len), (f2_ptr, f2_len)) = self.free_slice_parts();
         debug_assert!(f1_len + f2_len >= len, "{} + {} < {}", f1_len, f2_len, len);
@@ -246,15 +252,15 @@ impl RingBuffer {
                         .copy_from_nonoverlapping(self.buf.add(start), len)
                 }
             } else {
-                let after_head = usize::min(len, self.cap - self.head);
+                let after_start = usize::min(len, self.cap - self.head - start);
                 unsafe {
                     self.buf
                         .add(self.tail)
-                        .copy_from_nonoverlapping(self.buf.add(self.head + start), after_head);
-                    if after_head < len {
+                        .copy_from_nonoverlapping(self.buf.add(self.head + start), after_start);
+                    if after_start < len {
                         self.buf
-                            .add(self.tail + after_head)
-                            .copy_from_nonoverlapping(self.buf, len - after_head);
+                            .add(self.tail + after_start)
+                            .copy_from_nonoverlapping(self.buf, len - after_start);
                     }
                 }
             }
@@ -308,6 +314,9 @@ impl RingBuffer {
         debug_assert!(f1_len >= m1_in_f1 + m2_in_f1);
         debug_assert!(f2_len >= m1_in_f2 + m2_in_f2);
         debug_assert_eq!(len, m1_in_f1 + m2_in_f1 + m1_in_f2 + m2_in_f2);
+
+        debug_assert!(self.buf.add(self.cap) > f1_ptr.add(m1_in_f1 + m2_in_f1));
+        debug_assert!(self.buf.add(self.cap) > f2_ptr.add(m1_in_f2 + m2_in_f2));
 
         debug_assert!((m1_in_f2 > 0) ^ (m2_in_f1 > 0) || (m1_in_f2 == 0 && m2_in_f1 == 0));
 
@@ -604,5 +613,16 @@ mod tests {
         rb.extend_from_within(0, 4);
         assert_eq!(7, rb.as_slices().0.len());
         assert_eq!(1, rb.as_slices().1.len());
+
+        let mut rb = RingBuffer::new();
+        rb.reserve(8);
+        rb.extend(b"11111111");
+        rb.drop_first_n(7);
+        rb.extend(b"111");
+        assert_eq!(2, rb.as_slices().0.len());
+        assert_eq!(2, rb.as_slices().1.len());
+        rb.extend_from_within(0, 4);
+        assert_eq!(b"11", rb.as_slices().0);
+        assert_eq!(b"111111", rb.as_slices().1);
     }
 }
