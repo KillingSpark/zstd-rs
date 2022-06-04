@@ -51,14 +51,14 @@ impl<'t> HuffmanDecoder<'t> {
 
     pub fn init_state(&mut self, br: &mut BitReaderReversed<'_>) -> Result<u8, String> {
         let num_bits = self.table.max_num_bits;
-        let new_bits = br.get_bits(num_bits as usize)?;
+        let new_bits = br.get_bits(num_bits)?;
         self.state = new_bits;
         Ok(num_bits)
     }
 
     pub fn next_state(&mut self, br: &mut BitReaderReversed<'_>) -> Result<u8, String> {
         let num_bits = self.table.decode[self.state as usize].num_bits;
-        let new_bits = br.get_bits(num_bits as usize)?;
+        let new_bits = br.get_bits(num_bits)?;
         self.state <<= num_bits;
         self.state &= self.table.decode.len() as u64 - 1;
         self.state |= new_bits;

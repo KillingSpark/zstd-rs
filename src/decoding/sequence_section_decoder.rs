@@ -101,9 +101,8 @@ fn decode_sequences_with_rle(
             return Err("Do not support offsets bigger than 1<<32".to_owned());
         }
 
-        let offset = (br.get_bits(of_code as usize)? as u32) + (1u32 << of_code);
-        let ml_add = br.get_bits(ml_num_bits as usize)?;
-        let ll_add = br.get_bits(ll_num_bits as usize)?;
+        let (obits, ml_add, ll_add) = br.get_bits_triple(of_code, ml_num_bits, ll_num_bits)?;
+        let offset = obits as u32 + (1u32 << of_code);
 
         if offset == 0 {
             return Err("Read an offset == 0. That is an illegal value for offsets".to_owned());
@@ -179,9 +178,8 @@ fn decode_sequences_without_rle(
             return Err("Do not support offsets bigger than 1<<32".to_owned());
         }
 
-        let offset = (br.get_bits(of_code as usize)? as u32) + (1u32 << of_code);
-        let ml_add = br.get_bits(ml_num_bits as usize)?;
-        let ll_add = br.get_bits(ll_num_bits as usize)?;
+        let (obits, ml_add, ll_add) = br.get_bits_triple(of_code, ml_num_bits, ll_num_bits)?;
+        let offset = obits as u32 + (1u32 << of_code);
 
         if offset == 0 {
             return Err("Read an offset == 0. That is an illegal value for offsets".to_owned());

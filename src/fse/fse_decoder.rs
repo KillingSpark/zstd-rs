@@ -48,13 +48,13 @@ impl<'t> FSEDecoder<'t> {
         if self.table.accuracy_log == 0 {
             return Err("Tried to use an uninitialized table!".to_owned());
         }
-        self.state = bits.get_bits(self.table.accuracy_log as usize)? as usize;
+        self.state = bits.get_bits(self.table.accuracy_log)? as usize;
 
         Ok(())
     }
 
     pub fn update_state(&mut self, bits: &mut BitReaderReversed<'_>) -> Result<(), String> {
-        let num_bits = self.table.decode[self.state].num_bits as usize;
+        let num_bits = self.table.decode[self.state].num_bits;
         let add = bits.get_bits(num_bits)?;
         let base_line = self.table.decode[self.state].base_line;
         let new_state = base_line + add as usize;
