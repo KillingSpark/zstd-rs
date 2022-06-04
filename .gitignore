@@ -5,3 +5,4 @@ Cargo.lock
 /orig-zstd
 fuzz_decodecorpus
 perf.data*
+fuzz/corpus
