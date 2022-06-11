@@ -1,7 +1,7 @@
-use std::{alloc::Layout, ptr::slice_from_raw_parts};
+use std::{alloc::Layout, ptr::NonNull, slice};
 
 pub struct RingBuffer {
-    buf: *mut u8,
+    buf: NonNull<u8>,
     cap: usize,
     head: usize,
     tail: usize,
@@ -10,7 +10,7 @@ pub struct RingBuffer {
 impl RingBuffer {
     pub fn new() -> Self {
         RingBuffer {
-            buf: std::ptr::null_mut(),
+            buf: NonNull::dangling(),
             cap: 0,
             head: 0,
             tail: 0,
@@ -72,10 +72,7 @@ impl RingBuffer {
         let new_buf = unsafe {
             let new_buf = std::alloc::alloc(new_layout);
 
-            if new_buf.is_null() {
-                panic!("Allocating new space for the ringbuffer failed");
-            }
-            new_buf
+            NonNull::new(new_buf).expect("Allocating new space for the ringbuffer failed")
         };
 
         // If we had data before, copy it over to the newly alloced memory region
@@ -83,9 +80,12 @@ impl RingBuffer {
             let ((s1_ptr, s1_len), (s2_ptr, s2_len)) = self.data_slice_parts();
 
             unsafe {
-                new_buf.copy_from_nonoverlapping(s1_ptr, s1_len);
-                new_buf.add(s1_len).copy_from_nonoverlapping(s2_ptr, s2_len);
-                std::alloc::dealloc(self.buf, current_layout);
+                new_buf.as_ptr().copy_from_nonoverlapping(s1_ptr, s1_len);
+                new_buf
+                    .as_ptr()
+                    .add(s1_len)
+                    .copy_from_nonoverlapping(s2_ptr, s2_len);
+                std::alloc::dealloc(self.buf.as_ptr(), current_layout);
             }
 
             self.tail = s1_len + s2_len;
@@ -99,7 +99,7 @@ impl RingBuffer {
     pub fn push_back(&mut self, byte: u8) {
         self.reserve(1);
 
-        unsafe { self.buf.add(self.tail).write(byte) };
+        unsafe { self.buf.as_ptr().add(self.tail).write(byte) };
         self.tail = (self.tail + 1) % self.cap;
     }
 
@@ -107,7 +107,7 @@ impl RingBuffer {
     pub fn get(&self, idx: usize) -> Option<u8> {
         if idx < self.len() {
             let idx = (self.head + idx) % self.cap;
-            Some(unsafe { self.buf.add(idx).read() })
+            Some(unsafe { self.buf.as_ptr().add(idx).read() })
         } else {
             None
         }
@@ -169,15 +169,15 @@ impl RingBuffer {
         let (len_after_head, len_to_tail) = self.data_slice_lengths();
 
         (
-            (unsafe { self.buf.add(self.head) }, len_after_head),
-            (self.buf, len_to_tail),
+            (unsafe { self.buf.as_ptr().add(self.head) }, len_after_head),
+            (self.buf.as_ptr(), len_to_tail),
         )
     }
     pub fn as_slices(&self) -> (&[u8], &[u8]) {
         let (s1, s2) = self.data_slice_parts();
         unsafe {
-            let s1 = &*slice_from_raw_parts(s1.0, s1.1);
-            let s2 = &*slice_from_raw_parts(s2.0, s2.1);
+            let s1 = &*slice::from_raw_parts(s1.0, s1.1);
+            let s2 = &*slice::from_raw_parts(s2.0, s2.1);
             (s1, s2)
         }
     }
@@ -201,8 +201,8 @@ impl RingBuffer {
         let (len_to_head, len_after_tail) = self.free_slice_lengths();
 
         (
-            (unsafe { self.buf.add(self.tail) }, len_after_tail),
-            (self.buf, len_to_head),
+            (unsafe { self.buf.as_ptr().add(self.tail) }, len_after_tail),
+            (self.buf.as_ptr(), len_to_head),
         )
     }
 
@@ -226,18 +226,19 @@ impl RingBuffer {
     /// And more then len reserved space
     #[warn(unsafe_op_in_unsafe_fn)]
     pub unsafe fn extend_from_within_unchecked(&mut self, start: usize, len: usize) {
-        debug_assert!(!self.buf.is_null());
+        debug_assert!(!self.buf.as_ptr().is_null());
 
         if self.head < self.tail {
             // continous data slice  |____HDDDDDDDT_____|
             let after_tail = usize::min(len, self.cap - self.tail);
             unsafe {
                 self.buf
+                    .as_ptr()
                     .add(self.tail)
-                    .copy_from_nonoverlapping(self.buf.add(self.head + start), after_tail);
+                    .copy_from_nonoverlapping(self.buf.as_ptr().add(self.head + start), after_tail);
                 if after_tail < len {
-                    self.buf.copy_from_nonoverlapping(
-                        self.buf.add(self.head + start + after_tail),
+                    self.buf.as_ptr().copy_from_nonoverlapping(
+                        self.buf.as_ptr().add(self.head + start + after_tail),
                         len - after_tail,
                     );
                 }
@@ -248,19 +249,22 @@ impl RingBuffer {
                 let start = (self.head + start) % self.cap;
                 unsafe {
                     self.buf
+                        .as_ptr()
                         .add(self.tail)
-                        .copy_from_nonoverlapping(self.buf.add(start), len)
+                        .copy_from_nonoverlapping(self.buf.as_ptr().add(start), len)
                 }
             } else {
                 let after_start = usize::min(len, self.cap - self.head - start);
                 unsafe {
-                    self.buf
-                        .add(self.tail)
-                        .copy_from_nonoverlapping(self.buf.add(self.head + start), after_start);
+                    self.buf.as_ptr().add(self.tail).copy_from_nonoverlapping(
+                        self.buf.as_ptr().add(self.head + start),
+                        after_start,
+                    );
                     if after_start < len {
                         self.buf
+                            .as_ptr()
                             .add(self.tail + after_start)
-                            .copy_from_nonoverlapping(self.buf, len - after_start);
+                            .copy_from_nonoverlapping(self.buf.as_ptr(), len - after_start);
                     }
                 }
             }
@@ -315,8 +319,8 @@ impl RingBuffer {
         debug_assert!(f2_len >= m1_in_f2 + m2_in_f2);
         debug_assert_eq!(len, m1_in_f1 + m2_in_f1 + m1_in_f2 + m2_in_f2);
 
-        debug_assert!(self.buf.add(self.cap) > f1_ptr.add(m1_in_f1 + m2_in_f1));
-        debug_assert!(self.buf.add(self.cap) > f2_ptr.add(m1_in_f2 + m2_in_f2));
+        debug_assert!(self.buf.as_ptr().add(self.cap) > f1_ptr.add(m1_in_f1 + m2_in_f1));
+        debug_assert!(self.buf.as_ptr().add(self.cap) > f2_ptr.add(m1_in_f2 + m2_in_f2));
 
         debug_assert!((m1_in_f2 > 0) ^ (m2_in_f1 > 0) || (m1_in_f2 == 0 && m2_in_f1 == 0));
 
@@ -337,7 +341,7 @@ impl Drop for RingBuffer {
         let current_layout = unsafe { Layout::array::<u8>(self.cap).unwrap_unchecked() };
 
         unsafe {
-            std::alloc::dealloc(self.buf, current_layout);
+            std::alloc::dealloc(self.buf.as_ptr(), current_layout);
         }
     }
 }
