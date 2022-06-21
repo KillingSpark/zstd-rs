@@ -126,7 +126,7 @@ impl<'s> BitReaderReversed<'s> {
     }
 
     pub fn get_bits_triple(&mut self, n1: u8, n2: u8, n3: u8) -> Result<(u64, u64, u64), String> {
-        let sum = n1 + n2 + n3;
+        let sum = n1 as usize + n2 as usize + n3 as usize; 
         if sum == 0 {
             return Ok((0, 0, 0));
         }
@@ -134,6 +134,7 @@ impl<'s> BitReaderReversed<'s> {
             // try and get the values separatly
             return Ok((self.get_bits(n1)?, self.get_bits(n2)?, self.get_bits(n3)?));
         }
+        let sum = sum as u8;
 
         let sum_signed = sum as isize;
 
