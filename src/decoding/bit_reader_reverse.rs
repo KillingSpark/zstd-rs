@@ -26,7 +26,7 @@ impl<'s> BitReaderReversed<'s> {
     /// We refill the container in full bytes, shifting the still unread portion to the left, and filling the lower bits with new data
     #[inline(always)]
     fn refill_container(&mut self) {
-        let byte_idx = self.byte_idx();
+        let byte_idx = self.byte_idx() as usize;
 
         let retain_bytes = (self.bits_in_container + 7) / 8;
         let want_to_read_bits = 64 - (retain_bytes * 8);
@@ -39,7 +39,7 @@ impl<'s> BitReaderReversed<'s> {
             self.refill_fast(byte_idx, retain_bytes, want_to_read_bits)
         } else {
             // In the slow path we just read however many bytes we can
-            self.refill_slow(want_to_read_bits)
+            self.refill_slow(byte_idx, want_to_read_bits)
         }
     }
 
@@ -53,40 +53,40 @@ impl<'s> BitReaderReversed<'s> {
     }
 
     #[cold]
-    fn refill_slow(&mut self, want_to_read_bits: u8) {
+    fn refill_slow(&mut self, byte_idx: usize, want_to_read_bits: u8) {
         let can_read_bits = isize::min(want_to_read_bits as isize, self.idx);
         let can_read_bytes = can_read_bits / 8;
 
         match can_read_bytes {
             8 => {
-                self.bit_container = LittleEndian::read_u64(&self.source[self.byte_idx() - 7..]);
+                self.bit_container = LittleEndian::read_u64(&self.source[byte_idx - 7..]);
                 self.bits_in_container += 64;
                 self.idx -= 64;
             }
             6..=7 => {
                 self.bit_container <<= 48;
                 self.bits_in_container += 48;
-                self.bit_container |= LittleEndian::read_u48(&self.source[self.byte_idx() - 5..]);
+                self.bit_container |= LittleEndian::read_u48(&self.source[byte_idx - 5..]);
                 self.idx -= 48;
             }
             4..=5 => {
                 self.bit_container <<= 32;
                 self.bits_in_container += 32;
                 self.bit_container |=
-                    u64::from(LittleEndian::read_u32(&self.source[self.byte_idx() - 3..]));
+                    u64::from(LittleEndian::read_u32(&self.source[byte_idx - 3..]));
                 self.idx -= 32;
             }
             2..=3 => {
                 self.bit_container <<= 16;
                 self.bits_in_container += 16;
                 self.bit_container |=
-                    u64::from(LittleEndian::read_u16(&self.source[self.byte_idx() - 1..]));
+                    u64::from(LittleEndian::read_u16(&self.source[byte_idx - 1..]));
                 self.idx -= 16;
             }
             1 => {
                 self.bit_container <<= 8;
                 self.bits_in_container += 8;
-                self.bit_container |= u64::from(self.source[self.byte_idx()]);
+                self.bit_container |= u64::from(self.source[byte_idx]);
                 self.idx -= 8;
             }
             _ => {
@@ -95,8 +95,10 @@ impl<'s> BitReaderReversed<'s> {
         }
     }
 
-    fn byte_idx(&self) -> usize {
-        (self.idx as usize - 1) / 8
+    /// Next byte that should be read into the container
+    /// Negative values mean that the source buffer as been read into the container completetly.
+    fn byte_idx(&self) -> isize {
+        (self.idx - 1) / 8
     }
 
     #[inline(always)]
@@ -180,7 +182,13 @@ impl<'s> BitReaderReversed<'s> {
     }
 
     #[cold]
-    fn get_bits_triple_cold(&mut self, n1: u8, n2: u8, n3: u8, sum: u8) -> Result<(u64, u64, u64), String>{
+    fn get_bits_triple_cold(
+        &mut self,
+        n1: u8,
+        n2: u8,
+        n3: u8,
+        sum: u8,
+    ) -> Result<(u64, u64, u64), String> {
         let sum_signed = sum as isize;
 
         if self.bits_remaining() <= 0 {
