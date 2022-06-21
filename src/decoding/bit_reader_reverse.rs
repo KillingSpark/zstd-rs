@@ -24,6 +24,7 @@ impl<'s> BitReaderReversed<'s> {
     }
 
     /// We refill the container in full bytes, shifting the still unread portion to the left, and filling the lower bits with new data
+    #[inline(always)]
     fn refill_container(&mut self) {
         let byte_idx = self.byte_idx();
 
@@ -35,53 +36,61 @@ impl<'s> BitReaderReversed<'s> {
         // What we do is, we shift the container by a few bytes to the left by just reading a u64 from the correct position, rereading the portion we did not yet return from the conainer.
         // Technically this would still work for positions lower than 8 but this guarantees that enough bytes are in the source and generally makes for less edge cases
         if byte_idx >= 8 {
-            let load_from_byte_idx = byte_idx - 7 + retain_bytes as usize;
-            let refill = LittleEndian::read_u64(&self.source[load_from_byte_idx..]);
-            self.bit_container = refill;
-            self.bits_in_container += want_to_read_bits;
-            self.idx -= want_to_read_bits as isize;
+            self.refill_fast(byte_idx, retain_bytes, want_to_read_bits)
         } else {
             // In the slow path we just read however many bytes we can
-            let can_read_bits = isize::min(want_to_read_bits as isize, self.idx);
-            let can_read_bytes = can_read_bits / 8;
+            self.refill_slow(want_to_read_bits)
+        }
+    }
 
-            match can_read_bytes {
-                8 => {
-                    self.bit_container =
-                        LittleEndian::read_u64(&self.source[self.byte_idx() - 7..]);
-                    self.bits_in_container += 64;
-                    self.idx -= 64;
-                }
-                6..=7 => {
-                    self.bit_container <<= 48;
-                    self.bits_in_container += 48;
-                    self.bit_container |=
-                        LittleEndian::read_u48(&self.source[self.byte_idx() - 5..]);
-                    self.idx -= 48;
-                }
-                4..=5 => {
-                    self.bit_container <<= 32;
-                    self.bits_in_container += 32;
-                    self.bit_container |=
-                        u64::from(LittleEndian::read_u32(&self.source[self.byte_idx() - 3..]));
-                    self.idx -= 32;
-                }
-                2..=3 => {
-                    self.bit_container <<= 16;
-                    self.bits_in_container += 16;
-                    self.bit_container |=
-                        u64::from(LittleEndian::read_u16(&self.source[self.byte_idx() - 1..]));
-                    self.idx -= 16;
-                }
-                1 => {
-                    self.bit_container <<= 8;
-                    self.bits_in_container += 8;
-                    self.bit_container |= u64::from(self.source[self.byte_idx()]);
-                    self.idx -= 8;
-                }
-                _ => {
-                    panic!("This cannot be reached");
-                }
+    #[inline(always)]
+    fn refill_fast(&mut self, byte_idx: usize, retain_bytes: u8, want_to_read_bits: u8) {
+        let load_from_byte_idx = byte_idx - 7 + retain_bytes as usize;
+        let refill = LittleEndian::read_u64(&self.source[load_from_byte_idx..]);
+        self.bit_container = refill;
+        self.bits_in_container += want_to_read_bits;
+        self.idx -= want_to_read_bits as isize;
+    }
+
+    #[cold]
+    fn refill_slow(&mut self, want_to_read_bits: u8) {
+        let can_read_bits = isize::min(want_to_read_bits as isize, self.idx);
+        let can_read_bytes = can_read_bits / 8;
+
+        match can_read_bytes {
+            8 => {
+                self.bit_container = LittleEndian::read_u64(&self.source[self.byte_idx() - 7..]);
+                self.bits_in_container += 64;
+                self.idx -= 64;
+            }
+            6..=7 => {
+                self.bit_container <<= 48;
+                self.bits_in_container += 48;
+                self.bit_container |= LittleEndian::read_u48(&self.source[self.byte_idx() - 5..]);
+                self.idx -= 48;
+            }
+            4..=5 => {
+                self.bit_container <<= 32;
+                self.bits_in_container += 32;
+                self.bit_container |=
+                    u64::from(LittleEndian::read_u32(&self.source[self.byte_idx() - 3..]));
+                self.idx -= 32;
+            }
+            2..=3 => {
+                self.bit_container <<= 16;
+                self.bits_in_container += 16;
+                self.bit_container |=
+                    u64::from(LittleEndian::read_u16(&self.source[self.byte_idx() - 1..]));
+                self.idx -= 16;
+            }
+            1 => {
+                self.bit_container <<= 8;
+                self.bits_in_container += 8;
+                self.bit_container |= u64::from(self.source[self.byte_idx()]);
+                self.idx -= 8;
+            }
+            _ => {
+                panic!("This cannot be reached");
             }
         }
     }
