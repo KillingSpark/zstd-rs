@@ -144,6 +144,7 @@ impl<'s> BitReaderReversed<'s> {
         Ok(self.get_bits_unchecked(n))
     }
 
+    #[inline(always)]
     pub fn get_bits_triple(&mut self, n1: u8, n2: u8, n3: u8) -> Result<(u64, u64, u64), String> {
         let sum = n1 as usize + n2 as usize + n3 as usize;
         if sum == 0 {
@@ -175,6 +176,11 @@ impl<'s> BitReaderReversed<'s> {
             return Ok((v1, v2, v3));
         }
 
+        self.get_bits_triple_cold(n1, n2, n3, sum)
+    }
+
+    #[cold]
+    fn get_bits_triple_cold(&mut self, n1: u8, n2: u8, n3: u8, sum: u8) -> Result<(u64, u64, u64), String>{
         let sum_signed = sum as isize;
 
         if self.bits_remaining() <= 0 {
