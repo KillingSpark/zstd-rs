@@ -99,6 +99,7 @@ impl<'s> BitReaderReversed<'s> {
         (self.idx as usize - 1) / 8
     }
 
+    #[inline(always)]
     pub fn get_bits(&mut self, n: u8) -> Result<u64, String> {
         if n == 0 {
             return Ok(0);
@@ -106,6 +107,12 @@ impl<'s> BitReaderReversed<'s> {
         if self.bits_in_container >= n {
             return Ok(self.get_bits_unchecked(n));
         }
+
+        self.get_bits_cold(n)
+    }
+
+    #[cold]
+    fn get_bits_cold(&mut self, n: u8) -> Result<u64, String> {
         if n > 56 {
             return Err("Cant serve this request. The reader is limited to 56bit".to_owned());
         }
