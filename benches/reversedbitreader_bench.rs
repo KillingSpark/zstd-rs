@@ -2,7 +2,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use rand::Rng;
 use ruzstd::decoding::bit_reader_reverse::BitReaderReversed;
 
-fn fibonacci(br: &mut BitReaderReversed, accesses: &[usize]) -> u64 {
+fn fibonacci(br: &mut BitReaderReversed, accesses: &[u8]) -> u64 {
     let mut sum = 0;
     for x in accesses {
         sum += br.get_bits(*x).unwrap() as u64;
