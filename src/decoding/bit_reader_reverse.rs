@@ -94,6 +94,9 @@ impl<'s> BitReaderReversed<'s> {
         if n == 0 {
             return Ok(0);
         }
+        if self.bits_in_container >= n {
+            return Ok(self.get_bits_unchecked(n));
+        }
         if n > 56 {
             return Err("Cant serve this request. The reader is limited to 56bit".to_owned());
         }
@@ -126,7 +129,7 @@ impl<'s> BitReaderReversed<'s> {
     }
 
     pub fn get_bits_triple(&mut self, n1: u8, n2: u8, n3: u8) -> Result<(u64, u64, u64), String> {
-        let sum = n1 as usize + n2 as usize + n3 as usize; 
+        let sum = n1 as usize + n2 as usize + n3 as usize;
         if sum == 0 {
             return Ok((0, 0, 0));
         }
@@ -135,6 +138,26 @@ impl<'s> BitReaderReversed<'s> {
             return Ok((self.get_bits(n1)?, self.get_bits(n2)?, self.get_bits(n3)?));
         }
         let sum = sum as u8;
+
+        if self.bits_in_container >= sum {
+            let v1 = if n1 == 0 {
+                0
+            } else {
+                self.get_bits_unchecked(n1)
+            };
+            let v2 = if n2 == 0 {
+                0
+            } else {
+                self.get_bits_unchecked(n2)
+            };
+            let v3 = if n3 == 0 {
+                0
+            } else {
+                self.get_bits_unchecked(n3)
+            };
+
+            return Ok((v1, v2, v3));
+        }
 
         let sum_signed = sum as isize;
 
