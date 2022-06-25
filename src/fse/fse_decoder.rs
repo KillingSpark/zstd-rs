@@ -17,13 +17,13 @@ impl Default for FSETable {
 }
 
 pub struct FSEDecoder<'table> {
-    pub state: usize,
+    pub state: Entry,
     table: &'table FSETable,
 }
 
 #[derive(Copy, Clone)]
 pub struct Entry {
-    pub base_line: usize,
+    pub base_line: u32,
     pub num_bits: u8,
     pub symbol: u8,
 }
@@ -37,29 +37,35 @@ fn highest_bit_set(x: u32) -> u32 {
 
 impl<'t> FSEDecoder<'t> {
     pub fn new(table: &'t FSETable) -> FSEDecoder<'_> {
-        FSEDecoder { state: 0, table }
+        FSEDecoder {
+            state: table.decode.get(0).copied().unwrap_or(Entry {
+                base_line: 0,
+                num_bits: 0,
+                symbol: 0,
+            }),
+            table,
+        }
     }
 
     pub fn decode_symbol(&self) -> u8 {
-        self.table.decode[self.state].symbol
+        self.state.symbol
     }
 
     pub fn init_state(&mut self, bits: &mut BitReaderReversed<'_>) -> Result<(), String> {
         if self.table.accuracy_log == 0 {
             return Err("Tried to use an uninitialized table!".to_owned());
         }
-        self.state = bits.get_bits(self.table.accuracy_log)? as usize;
+        self.state = self.table.decode[bits.get_bits(self.table.accuracy_log)? as usize];
 
         Ok(())
     }
 
     pub fn update_state(&mut self, bits: &mut BitReaderReversed<'_>) -> Result<(), String> {
-        let num_bits = self.table.decode[self.state].num_bits;
+        let num_bits = self.state.num_bits;
         let add = bits.get_bits(num_bits)?;
-        let base_line = self.table.decode[self.state].base_line;
-        let new_state = base_line + add as usize;
-        assert!(new_state < self.table.decode.len());
-        self.state = new_state;
+        let base_line = self.state.base_line;
+        let new_state = base_line + add as u32;
+        self.state = self.table.decode[new_state as usize];
 
         //println!("Update: {}, {} -> {}", base_line, add,  self.state);
         Ok(())
@@ -270,7 +276,7 @@ fn calc_baseline_and_numbits(
     num_states_total: u32,
     num_states_symbol: u32,
     state_number: u32,
-) -> (usize, u8) {
+) -> (u32, u8) {
     let num_state_slices = if 1 << (highest_bit_set(num_states_symbol) - 1) == num_states_symbol {
         num_states_symbol
     } else {
@@ -284,9 +290,9 @@ fn calc_baseline_and_numbits(
 
     if state_number < num_double_width_state_slices {
         let baseline = num_single_width_state_slices * slice_width + state_number * slice_width * 2;
-        (baseline as usize, num_bits as u8 + 1)
+        (baseline, num_bits as u8 + 1)
     } else {
         let index_shifted = state_number - num_double_width_state_slices;
-        ((index_shifted * slice_width) as usize, num_bits as u8)
+        ((index_shifted * slice_width), num_bits as u8)
     }
 }
