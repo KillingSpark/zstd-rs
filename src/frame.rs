@@ -104,7 +104,7 @@ impl FrameHeader {
         }
     }
 
-    pub fn dictiornary_id(&self) -> Result<Option<u32>, String> {
+    pub fn dictionary_id(&self) -> Result<Option<u32>, String> {
         if self.descriptor.dict_id_flag() == 0 {
             Ok(None)
         } else {
@@ -210,7 +210,7 @@ impl Frame {
         } else if self.header.descriptor.reserved_flag() {
             Err("Reserved Flag set. Must be zero".to_string())
         } else {
-            match self.header.dictiornary_id() {
+            match self.header.dictionary_id() {
                 Ok(_) => match self.header.window_size() {
                     Ok(_) => {
                         if self.header.descriptor.single_segment_flag() {

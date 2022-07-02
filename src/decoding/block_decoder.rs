@@ -18,7 +18,7 @@ enum DecoderState {
     ReadyToDecodeNextHeader,
     ReadyToDecodeNextBody,
     #[allow(dead_code)]
-    Failed, //TODO put "self.internal_state = DecoderState::Failed;" everywhere a unresolvable error occurs
+    Failed, //TODO put "self.internal_state = DecoderState::Failed;" everywhere an unresolvable error occurs
 }
 
 pub fn new() -> BlockDecoder {

@@ -261,7 +261,7 @@ impl FrameDecoder {
             Some(s) => s,
         };
 
-        match state.frame.header.dictiornary_id() {
+        match state.frame.header.dictionary_id() {
             Ok(Some(id)) => {
                 match state.using_dict {
                     Some(using_id) => {
@@ -468,7 +468,7 @@ impl FrameDecoder {
                     return Ok((4, 0));
                 }
 
-                match state.frame.header.dictiornary_id() {
+                match state.frame.header.dictionary_id() {
                     Ok(Some(id)) => {
                         match state.using_dict {
                             Some(using_id) => {
