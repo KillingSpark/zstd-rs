@@ -6,7 +6,7 @@ pub struct FSETable {
     pub decode: Vec<Entry>, //used to decode symbols, and calculate the next state
 
     pub accuracy_log: u8,
-    pub symbol_probablilities: Vec<i32>, //used while building the decode Vector
+    pub symbol_probabilities: Vec<i32>, //used while building the decode Vector
     symbol_counter: Vec<u32>,
 }
 
@@ -104,7 +104,7 @@ impl<'t> FSEDecoder<'t> {
 impl FSETable {
     pub fn new() -> FSETable {
         FSETable {
-            symbol_probablilities: Vec::with_capacity(256), //will never be more than 256 symbols because u8
+            symbol_probabilities: Vec::with_capacity(256), //will never be more than 256 symbols because u8
             symbol_counter: Vec::with_capacity(256), //will never be more than 256 symbols because u8
             decode: Vec::new(),                      //depending on acc_log.
             accuracy_log: 0,
@@ -113,7 +113,7 @@ impl FSETable {
 
     pub fn reset(&mut self) {
         self.symbol_counter.clear();
-        self.symbol_probablilities.clear();
+        self.symbol_probabilities.clear();
         self.decode.clear();
         self.accuracy_log = 0;
     }
@@ -136,7 +136,7 @@ impl FSETable {
         if acc_log == 0 {
             return Err(FSETableError::AccLogIsZero);
         }
-        self.symbol_probablilities = probs.to_vec();
+        self.symbol_probabilities = probs.to_vec();
         self.accuracy_log = acc_log;
         self.build_decoding_table();
         Ok(())
@@ -162,8 +162,8 @@ impl FSETable {
         let mut negative_idx = table_size; //will point to the highest index with is already occupied by a negative-probability-symbol
 
         //first scan for all -1 probabilities and place them at the top of the table
-        for symbol in 0..self.symbol_probablilities.len() {
-            if self.symbol_probablilities[symbol] == -1 {
+        for symbol in 0..self.symbol_probabilities.len() {
+            if self.symbol_probabilities[symbol] == -1 {
                 negative_idx -= 1;
                 let entry = &mut self.decode[negative_idx];
                 entry.symbol = symbol as u8;
@@ -174,14 +174,14 @@ impl FSETable {
 
         //then place in a semi-random order all of the other symbols
         let mut position = 0;
-        for idx in 0..self.symbol_probablilities.len() {
+        for idx in 0..self.symbol_probabilities.len() {
             let symbol = idx as u8;
-            if self.symbol_probablilities[idx] <= 0 {
+            if self.symbol_probabilities[idx] <= 0 {
                 continue;
             }
 
             //for each probability point the symbol gets on slot
-            let prob = self.symbol_probablilities[idx];
+            let prob = self.symbol_probabilities[idx];
             for _ in 0..prob {
                 let entry = &mut self.decode[position];
                 entry.symbol = symbol;
@@ -197,11 +197,11 @@ impl FSETable {
         // baselines and num_bits can only be calculated when all symbols have been spread
         self.symbol_counter.clear();
         self.symbol_counter
-            .resize(self.symbol_probablilities.len(), 0);
+            .resize(self.symbol_probabilities.len(), 0);
         for idx in 0..negative_idx {
             let entry = &mut self.decode[idx];
             let symbol = entry.symbol;
-            let prob = self.symbol_probablilities[symbol as usize];
+            let prob = self.symbol_probabilities[symbol as usize];
 
             let symbol_count = self.symbol_counter[symbol as usize];
             let (bl, nb) = calc_baseline_and_numbits(table_size as u32, prob as u32, symbol_count);
@@ -217,7 +217,7 @@ impl FSETable {
     }
 
     fn read_probabilities(&mut self, source: &[u8], max_log: u8) -> Result<usize, FSETableError> {
-        self.symbol_probablilities.clear(); //just clear, we will fill a probability for each entry anyways. No need to force new allocs here
+        self.symbol_probabilities.clear(); //just clear, we will fill a probability for each entry anyways. No need to force new allocs here
 
         let mut br = BitReader::new(source);
         self.accuracy_log = ACC_LOG_OFFSET + (br.get_bits(4)? as u8);
@@ -256,7 +256,7 @@ impl FSETable {
 
             let prob = (value as i32) - 1;
 
-            self.symbol_probablilities.push(prob);
+            self.symbol_probabilities.push(prob);
             if prob != 0 {
                 if prob > 0 {
                     probability_counter += prob as u32;
@@ -270,8 +270,8 @@ impl FSETable {
                 loop {
                     let skip_amount = br.get_bits(2)? as usize;
 
-                    self.symbol_probablilities
-                        .resize(self.symbol_probablilities.len() + skip_amount, 0);
+                    self.symbol_probabilities
+                        .resize(self.symbol_probabilities.len() + skip_amount, 0);
                     if skip_amount != 3 {
                         break;
                     }
@@ -283,12 +283,12 @@ impl FSETable {
             return Err(FSETableError::ProbabilityCounterMismatch {
                 got: probability_counter,
                 expected_sum: probablility_sum,
-                symbol_probabilities: self.symbol_probablilities,
+                symbol_probabilities: self.symbol_probabilities.clone(),
             });
         }
-        if self.symbol_probablilities.len() > 256 {
+        if self.symbol_probabilities.len() > 256 {
             return Err(FSETableError::TooManySymbols {
-                got: self.symbol_probablilities.len(),
+                got: self.symbol_probabilities.len(),
             });
         }
 
