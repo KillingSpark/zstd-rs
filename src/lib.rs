@@ -2,7 +2,6 @@
 
 pub mod blocks;
 pub mod decoding;
-pub mod errors;
 pub mod frame;
 pub mod frame_decoder;
 pub mod fse;

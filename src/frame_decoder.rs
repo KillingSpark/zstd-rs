@@ -1,11 +1,11 @@
 use super::frame;
-use crate::decoding;
 use crate::decoding::dictionary::Dictionary;
 use crate::decoding::scratch::DecoderScratch;
+use crate::decoding::{self, dictionary};
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::hash::Hasher;
-use std::io::Read;
+use std::io::{self, Read};
 
 /// This implements a decoder for zstd frames. This decoder is able to decode frames only partially and gives control
 /// over how many bytes/blocks will be decoded at a time (so you don't have to decode a 10GB file into memory all at once).
@@ -36,7 +36,7 @@ use std::io::Read;
 ///
 ///         // read from the decoder to collect bytes from the internal buffer
 ///         let bytes_read = frame_dec.read(result.as_mut_slice()).unwrap();
-///         
+///
 ///         // then do something with it
 ///         do_something(&result[0..bytes_read]);
 ///     }
@@ -74,10 +74,40 @@ pub enum BlockDecodingStrategy {
     UptoBytes(usize),
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum FrameDecoderError {
+    #[error(transparent)]
+    ReadFrameHeaderError(#[from] frame::ReadFrameHeaderError),
+    #[error(transparent)]
+    FrameHeaderError(#[from] frame::FrameHeaderError),
+    #[error(transparent)]
+    FrameCheckError(#[from] frame::FrameCheckError),
+    #[error("Specified window_size is too big; Requested: {requested}, Max: {MAX_WINDOW_SIZE}")]
+    WindowSizeTooBig { requested: u64 },
+    #[error(transparent)]
+    DictionaryDecodeError(#[from] dictionary::DictionaryDecodeError),
+    #[error("Failed to parse/decode block body: {0}")]
+    FailedToReadBlockHeader(#[from] decoding::block_decoder::BlockHeaderReadError),
+    #[error("Failed to parse block header: {0}")]
+    FailedToReadBlockBody(decoding::block_decoder::DecodeBlockContentError),
+    #[error("Failed to read checksum: {0}")]
+    FailedToReadChecksum(#[source] io::Error),
+    #[error("Decoder must initialized or reset before using it")]
+    NotYetInitialized,
+    #[error("Decoder encountered error while initializing: {0}")]
+    FailedToInitialize(frame::FrameHeaderError),
+    #[error("Decoder encountered error while draining the decodebuffer: {0}")]
+    FailedToDrainDecodebuffer(#[source] io::Error),
+    #[error("Target must have at least as many bytes as the contentsize of the frame reports")]
+    TargetTooSmall,
+    #[error("Frame header specified dictionary id that wasnt provided by add_dict() or reset_with_dict()")]
+    DictNotProvided,
+}
+
 const MAX_WINDOW_SIZE: u64 = 1024 * 1024 * 100;
 
 impl FrameDecoderState {
-    pub fn new(source: impl Read) -> Result<FrameDecoderState, String> {
+    pub fn new(source: impl Read) -> Result<FrameDecoderState, FrameDecoderError> {
         let (frame, header_size) = frame::read_frame_header(source)?;
         let window_size = frame.header.window_size()?;
         frame.check_valid()?;
@@ -92,16 +122,15 @@ impl FrameDecoderState {
         })
     }
 
-    pub fn reset(&mut self, source: impl Read) -> Result<(), String> {
+    pub fn reset(&mut self, source: impl Read) -> Result<(), FrameDecoderError> {
         let (frame, header_size) = frame::read_frame_header(source)?;
         let window_size = frame.header.window_size()?;
         frame.check_valid()?;
 
         if window_size > MAX_WINDOW_SIZE {
-            return Err(format!(
-                "Dont support window_sizes (requested: {}) over: {}",
-                window_size, MAX_WINDOW_SIZE
-            ));
+            return Err(FrameDecoderError::WindowSizeTooBig {
+                requested: window_size,
+            });
         }
 
         self.frame = frame;
@@ -138,11 +167,15 @@ impl FrameDecoder {
     /// Note that all bytes currently in the decodebuffer from any previous frame will be lost. Collect them with collect()/collect_to_writer()
     ///
     /// equivalent to reset()
-    pub fn init(&mut self, source: impl Read) -> Result<(), String> {
+    pub fn init(&mut self, source: impl Read) -> Result<(), FrameDecoderError> {
         self.reset(source)
     }
     /// Like init but provides the dict to use for the next frame
-    pub fn init_with_dict(&mut self, source: impl Read, dict: &[u8]) -> Result<(), String> {
+    pub fn init_with_dict(
+        &mut self,
+        source: impl Read,
+        dict: &[u8],
+    ) -> Result<(), FrameDecoderError> {
         self.reset_with_dict(source, dict)
     }
 
@@ -152,7 +185,7 @@ impl FrameDecoder {
     /// Note that all bytes currently in the decodebuffer from any previous frame will be lost. Collect them with collect()/collect_to_writer()
     ///
     /// equivalent to init()
-    pub fn reset(&mut self, source: impl Read) -> Result<(), String> {
+    pub fn reset(&mut self, source: impl Read) -> Result<(), FrameDecoderError> {
         match &mut self.state {
             Some(s) => s.reset(source),
             None => {
@@ -163,7 +196,11 @@ impl FrameDecoder {
     }
 
     /// Like reset but provides the dict to use for the next frame
-    pub fn reset_with_dict(&mut self, source: impl Read, dict: &[u8]) -> Result<(), String> {
+    pub fn reset_with_dict(
+        &mut self,
+        source: impl Read,
+        dict: &[u8],
+    ) -> Result<(), FrameDecoderError> {
         self.reset(source)?;
         if let Some(state) = &mut self.state {
             let id = state.decoder_scratch.load_dict(dict)?;
@@ -173,7 +210,7 @@ impl FrameDecoder {
     }
 
     /// Add a dict to the FrameDecoder that can be used when needed. The FrameDecoder uses the appropriate one dynamically
-    pub fn add_dict(&mut self, raw_dict: &[u8]) -> Result<(), String> {
+    pub fn add_dict(&mut self, raw_dict: &[u8]) -> Result<(), FrameDecoderError> {
         let dict = Dictionary::decode_dict(raw_dict)?;
         self.dicts.insert(dict.id, dict);
         Ok(())
@@ -255,33 +292,24 @@ impl FrameDecoder {
         &mut self,
         mut source: impl Read,
         strat: BlockDecodingStrategy,
-    ) -> Result<bool, crate::errors::FrameDecoderError> {
-        let state = match &mut self.state {
-            None => return Err(crate::errors::FrameDecoderError::NotYetInitialized),
-            Some(s) => s,
-        };
+    ) -> Result<bool, FrameDecoderError> {
+        use FrameDecoderError as err;
+        let state = self.state.as_mut().ok_or(err::NotYetInitialized)?;
 
-        match state.frame.header.dictionary_id() {
-            Ok(Some(id)) => {
-                match state.using_dict {
-                    Some(using_id) => {
-                        //happy
-                        debug_assert!(id == using_id);
-                    }
-                    None => {
-                        let dict = match self.dicts.get(&id) {
-                            Some(dict) => dict,
-                            None => return Err(crate::errors::FrameDecoderError::DictNotProvided),
-                        };
-                        state.decoder_scratch.use_dict(dict);
-                        state.using_dict = Some(id);
-                    }
+        if let Some(id) = state.frame.header.dictionary_id().map_err(
+            //should never happen we check this directly after decoding the frame header
+            err::FailedToInitialize,
+        )? {
+            match state.using_dict {
+                Some(using_id) => {
+                    //happy
+                    debug_assert!(id == using_id);
                 }
-            }
-            Ok(None) => {}
-            Err(e) => {
-                //should never happen we check this directly after decoding the frame header
-                return Err(crate::errors::FrameDecoderError::FailedToInitialize(e));
+                None => {
+                    let dict = self.dicts.get(&id).ok_or(err::DictNotProvided)?;
+                    state.decoder_scratch.use_dict(dict);
+                    state.using_dict = Some(id);
+                }
             }
         }
 
@@ -295,10 +323,9 @@ impl FrameDecoder {
                 println!("Next Block: {}", state.block_counter);
                 println!("################");
             }
-            let (block_header, block_header_size) = match block_dec.read_block_header(&mut source) {
-                Ok(h) => h,
-                Err(m) => return Err(crate::errors::FrameDecoderError::FailedToReadBlockHeader(m)),
-            };
+            let (block_header, block_header_size) = block_dec
+                .read_block_header(&mut source)
+                .map_err(err::FailedToReadBlockHeader)?;
             state.bytes_read_counter += u64::from(block_header_size);
 
             if crate::VERBOSE {
@@ -311,14 +338,9 @@ impl FrameDecoder {
                 );
             }
 
-            let bytes_read_in_block_body = match block_dec.decode_block_content(
-                &block_header,
-                &mut state.decoder_scratch,
-                &mut source,
-            ) {
-                Ok(h) => h,
-                Err(m) => return Err(crate::errors::FrameDecoderError::FailedToReadBlockBody(m)),
-            };
+            let bytes_read_in_block_body = block_dec
+                .decode_block_content(&block_header, &mut state.decoder_scratch, &mut source)
+                .map_err(err::FailedToReadBlockBody)?;
             state.bytes_read_counter += bytes_read_in_block_body;
 
             state.block_counter += 1;
@@ -331,16 +353,12 @@ impl FrameDecoder {
                 state.frame_finished = true;
                 if state.frame.header.descriptor.content_checksum_flag() {
                     let mut chksum = [0u8; 4];
-                    match source.read_exact(&mut chksum) {
-                        Err(_) => {
-                            return Err(crate::errors::FrameDecoderError::FailedToReadChecksum)
-                        }
-                        Ok(()) => {
-                            state.bytes_read_counter += 4;
-                            let chksum = u32::from_le_bytes(chksum);
-                            state.check_sum = Some(chksum);
-                        }
-                    };
+                    source
+                        .read_exact(&mut chksum)
+                        .map_err(err::FailedToReadChecksum)?;
+                    state.bytes_read_counter += 4;
+                    let chksum = u32::from_le_bytes(chksum);
+                    state.check_sum = Some(chksum);
                 }
                 break;
             }
@@ -367,10 +385,7 @@ impl FrameDecoder {
     /// After decoding of the frame (is_finished() == true) has finished it will collect all remaining bytes
     pub fn collect(&mut self) -> Option<Vec<u8>> {
         let finished = self.is_finished();
-        let state = match &mut self.state {
-            None => return None,
-            Some(s) => s,
-        };
+        let state = self.state.as_mut()?;
         if finished {
             Some(state.decoder_scratch.buffer.drain())
         } else {
@@ -430,8 +445,9 @@ impl FrameDecoder {
         &mut self,
         source: &[u8],
         target: &mut [u8],
-    ) -> Result<(usize, usize), crate::errors::FrameDecoderError> {
-        let bytes_read_at_start = match &mut self.state {
+    ) -> Result<(usize, usize), FrameDecoderError> {
+        use FrameDecoderError as err;
+        let bytes_read_at_start = match &self.state {
             Some(s) => s.bytes_read_counter,
             None => 0,
         };
@@ -440,10 +456,7 @@ impl FrameDecoder {
             let mut mt_source = source;
 
             if self.state.is_none() {
-                match self.init(&mut mt_source) {
-                    Ok(()) => {}
-                    Err(m) => return Err(crate::errors::FrameDecoderError::FailedToInitialize(m)),
-                }
+                self.init(&mut mt_source)?;
             }
 
             //pseudo block to scope "state" so we can borrow self again after the block
@@ -468,31 +481,20 @@ impl FrameDecoder {
                     return Ok((4, 0));
                 }
 
-                match state.frame.header.dictionary_id() {
-                    Ok(Some(id)) => {
-                        match state.using_dict {
-                            Some(using_id) => {
-                                //happy
-                                debug_assert!(id == using_id);
-                            }
-                            None => {
-                                let dict = match self.dicts.get(&id) {
-                                    Some(dict) => dict,
-                                    None => {
-                                        return Err(
-                                            crate::errors::FrameDecoderError::DictNotProvided,
-                                        )
-                                    }
-                                };
-                                state.decoder_scratch.use_dict(dict);
-                                state.using_dict = Some(id);
-                            }
+                if let Some(id) = state.frame.header.dictionary_id().map_err(
+                    //should never happen we check this directly after decoding the frame header
+                    err::FailedToInitialize,
+                )? {
+                    match state.using_dict {
+                        Some(using_id) => {
+                            //happy
+                            debug_assert!(id == using_id);
                         }
-                    }
-                    Ok(None) => {}
-                    Err(e) => {
-                        //should never happen we check this directly after decoding the frame header
-                        return Err(crate::errors::FrameDecoderError::FailedToInitialize(e));
+                        None => {
+                            let dict = self.dicts.get(&id).ok_or(err::DictNotProvided)?;
+                            state.decoder_scratch.use_dict(dict);
+                            state.using_dict = Some(id);
+                        }
                     }
                 }
 
@@ -501,15 +503,9 @@ impl FrameDecoder {
                     if mt_source.len() < 3 {
                         break;
                     }
-                    let (block_header, block_header_size) =
-                        match block_dec.read_block_header(&mut mt_source) {
-                            Ok(h) => h,
-                            Err(m) => {
-                                return Err(
-                                    crate::errors::FrameDecoderError::FailedToReadBlockHeader(m),
-                                )
-                            }
-                        };
+                    let (block_header, block_header_size) = block_dec
+                        .read_block_header(&mut mt_source)
+                        .map_err(err::FailedToReadBlockHeader)?;
 
                     // check the needed size for the block before updating counters.
                     // If not enough bytes are in the source, the header will have to be read again, so act like we never read it in the first place
@@ -518,16 +514,13 @@ impl FrameDecoder {
                     }
                     state.bytes_read_counter += u64::from(block_header_size);
 
-                    let bytes_read_in_block_body = match block_dec.decode_block_content(
-                        &block_header,
-                        &mut state.decoder_scratch,
-                        &mut mt_source,
-                    ) {
-                        Ok(h) => h,
-                        Err(m) => {
-                            return Err(crate::errors::FrameDecoderError::FailedToReadBlockBody(m))
-                        }
-                    };
+                    let bytes_read_in_block_body = block_dec
+                        .decode_block_content(
+                            &block_header,
+                            &mut state.decoder_scratch,
+                            &mut mt_source,
+                        )
+                        .map_err(err::FailedToReadBlockBody)?;
                     state.bytes_read_counter += bytes_read_in_block_body;
                     state.block_counter += 1;
 
@@ -548,10 +541,7 @@ impl FrameDecoder {
             }
         }
 
-        let result_len = match self.read(target) {
-            Ok(x) => x,
-            Err(_) => return Err(crate::errors::FrameDecoderError::FailedToDrainDecodebuffer),
-        };
+        let result_len = self.read(target).map_err(err::FailedToDrainDecodebuffer)?;
         let bytes_read_at_end = match &mut self.state {
             Some(s) => s.bytes_read_counter,
             None => panic!("Bug in library"),

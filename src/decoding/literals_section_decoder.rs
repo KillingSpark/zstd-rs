@@ -1,15 +1,42 @@
-use super::super::blocks::literals_section::LiteralsSection;
-use super::super::blocks::literals_section::LiteralsSectionType;
-use super::bit_reader_reverse::BitReaderReversed;
+use super::super::blocks::literals_section::{LiteralsSection, LiteralsSectionType};
+use super::bit_reader_reverse::{BitReaderReversed, GetBitsError};
 use super::scratch::HuffmanScratch;
-use crate::huff0::HuffmanDecoder;
+use crate::huff0::{HuffmanDecoder, HuffmanDecoderError, HuffmanTableError};
+
+#[derive(Debug, thiserror::Error)]
+pub enum DecompressLiteralsError {
+    #[error(
+        "compressed size was none even though it must be set to something for compressed literals"
+    )]
+    MissingCompressedSize,
+    #[error("num_streams was none even though it must be set to something (1 or 4) for compressed literals")]
+    MissingNumStreams,
+    #[error(transparent)]
+    GetBitsError(#[from] GetBitsError),
+    #[error(transparent)]
+    HuffmanTableError(#[from] HuffmanTableError),
+    #[error(transparent)]
+    HuffmanDecoderError(#[from] HuffmanDecoderError),
+    #[error("Tried to reuse huffman table but it was never initialized")]
+    UninitializedHuffmanTable,
+    #[error("Need 6 bytes to decode jump header, got {got} bytes")]
+    MissingBytesForJumpHeader { got: usize },
+    #[error("Need at least {needed} bytes to decode literals. Have: {got} bytes")]
+    MissingBytesForLiterals { got: usize, needed: usize },
+    #[error("Padding at the end of the sequence_section was more than a byte long: {skipped_bits} bits. Probably caused by data corruption")]
+    ExtraPadding { skipped_bits: i32 },
+    #[error("Bitstream was read till: {read_til}, should have been: {expected}")]
+    BitstreamReadMismatch { read_til: isize, expected: isize },
+    #[error("Did not decode enough literals: {decoded}, Should have been: {expected}")]
+    DecodedLiteralCountMismatch { decoded: usize, expected: usize },
+}
 
 pub fn decode_literals(
     section: &LiteralsSection,
     scratch: &mut HuffmanScratch,
     source: &[u8],
     target: &mut Vec<u8>,
-) -> Result<u32, String> {
+) -> Result<u32, DecompressLiteralsError> {
     match section.ls_type {
         LiteralsSectionType::Raw => {
             target.extend(&source[0..section.regenerated_size as usize]);
@@ -33,16 +60,14 @@ fn decompress_literals(
     scratch: &mut HuffmanScratch,
     source: &[u8],
     target: &mut Vec<u8>,
-) -> Result<u32, String> {
-    if section.compressed_size.is_none() {
-        return Err("compressed size was none even though it must be set to something for compressed literals".to_owned());
-    }
-    if section.num_streams.is_none() {
-        return Err("num_streams was none even though it must be set to something (1 or 4) for compressed literals".to_owned());
-    }
+) -> Result<u32, DecompressLiteralsError> {
+    use DecompressLiteralsError as err;
+
+    let compressed_size = section.compressed_size.ok_or(err::MissingCompressedSize)? as usize;
+    let num_streams = section.num_streams.ok_or(err::MissingNumStreams)?;
 
     target.reserve(section.regenerated_size as usize);
-    let source = &source[0..section.compressed_size.unwrap() as usize];
+    let source = &source[0..compressed_size];
     let mut bytes_read = 0;
 
     match section.ls_type {
@@ -55,7 +80,7 @@ fn decompress_literals(
         }
         LiteralsSectionType::Treeless => {
             if scratch.table.max_num_bits == 0 {
-                return Err("Tried to reuse huffman table but it was never initialized".to_owned());
+                return Err(err::UninitializedHuffmanTable);
             }
         }
         _ => { /* nothing to do, huffman tree has been provided by previous block */ }
@@ -63,10 +88,10 @@ fn decompress_literals(
 
     let source = &source[bytes_read as usize..];
 
-    if section.num_streams.unwrap() == 4 {
+    if num_streams == 4 {
         //build jumptable
         if source.len() < 6 {
-            return Err("Need 6 byte to decode jump header".to_owned());
+            return Err(err::MissingBytesForJumpHeader { got: source.len() });
         }
         let jump1 = source[0] as usize + ((source[1] as usize) << 8);
         let jump2 = jump1 + source[2] as usize + ((source[3] as usize) << 8);
@@ -75,11 +100,10 @@ fn decompress_literals(
         let source = &source[6..];
 
         if source.len() < jump3 {
-            return Err(format!(
-                "Need at least {} byte to decode literals. Have: {}",
-                jump3,
-                source.len()
-            ));
+            return Err(err::MissingBytesForLiterals {
+                got: source.len(),
+                needed: jump3,
+            });
         }
 
         //decode 4 streams
@@ -102,7 +126,7 @@ fn decompress_literals(
             }
             if skipped_bits > 8 {
                 //if more than 7 bits are 0, this is not the correct end of the bitstream. Either a bug or corrupted data
-                return Err(format!("Padding at the end of the sequence_section was more than a byte long: {}. Probably cause by data corruption", skipped_bits));
+                return Err(DecompressLiteralsError::ExtraPadding { skipped_bits });
             }
             decoder.init_state(&mut br)?;
 
@@ -111,18 +135,17 @@ fn decompress_literals(
                 decoder.next_state(&mut br)?;
             }
             if br.bits_remaining() != -(scratch.table.max_num_bits as isize) {
-                return Err(format!(
-                    "Bitstream was read till: {}, should have been: {}",
-                    br.bits_remaining(),
-                    -(scratch.table.max_num_bits as isize)
-                ));
+                return Err(DecompressLiteralsError::BitstreamReadMismatch {
+                    read_til: br.bits_remaining(),
+                    expected: -(scratch.table.max_num_bits as isize),
+                });
             }
         }
 
         bytes_read += source.len() as u32;
     } else {
         //just decode the one stream
-        assert!(section.num_streams.unwrap() == 1);
+        assert!(num_streams == 1);
         let mut decoder = HuffmanDecoder::new(&scratch.table);
         let mut br = BitReaderReversed::new(source);
         let mut skipped_bits = 0;
@@ -135,7 +158,7 @@ fn decompress_literals(
         }
         if skipped_bits > 8 {
             //if more than 7 bits are 0, this is not the correct end of the bitstream. Either a bug or corrupted data
-            return Err(format!("Padding at the end of the sequence_section was more than a byte long: {}. Probably cause by data corruption", skipped_bits));
+            return Err(DecompressLiteralsError::ExtraPadding { skipped_bits });
         }
         decoder.init_state(&mut br)?;
         while br.bits_remaining() > -(scratch.table.max_num_bits as isize) {
@@ -146,11 +169,10 @@ fn decompress_literals(
     }
 
     if target.len() != section.regenerated_size as usize {
-        return Err(format!(
-            "Did not decode enough literals: {}, Should have been: {}",
-            target.len(),
-            section.regenerated_size
-        ));
+        return Err(DecompressLiteralsError::DecodedLiteralCountMismatch {
+            decoded: target.len(),
+            expected: section.regenerated_size as usize,
+        });
     }
 
     Ok(bytes_read)

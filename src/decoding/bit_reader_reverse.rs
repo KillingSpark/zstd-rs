@@ -1,3 +1,4 @@
+pub use super::bit_reader::GetBitsError;
 use byteorder::ByteOrder;
 use byteorder::LittleEndian;
 
@@ -102,7 +103,7 @@ impl<'s> BitReaderReversed<'s> {
     }
 
     #[inline(always)]
-    pub fn get_bits(&mut self, n: u8) -> Result<u64, String> {
+    pub fn get_bits(&mut self, n: u8) -> Result<u64, GetBitsError> {
         if n == 0 {
             return Ok(0);
         }
@@ -114,9 +115,12 @@ impl<'s> BitReaderReversed<'s> {
     }
 
     #[cold]
-    fn get_bits_cold(&mut self, n: u8) -> Result<u64, String> {
+    fn get_bits_cold(&mut self, n: u8) -> Result<u64, GetBitsError> {
         if n > 56 {
-            return Err("Cant serve this request. The reader is limited to 56bit".to_owned());
+            return Err(GetBitsError::TooManyBits {
+                num_requested_bits: usize::from(n),
+                limit: 56,
+            });
         }
 
         let signed_n = n as isize;
@@ -147,7 +151,12 @@ impl<'s> BitReaderReversed<'s> {
     }
 
     #[inline(always)]
-    pub fn get_bits_triple(&mut self, n1: u8, n2: u8, n3: u8) -> Result<(u64, u64, u64), String> {
+    pub fn get_bits_triple(
+        &mut self,
+        n1: u8,
+        n2: u8,
+        n3: u8,
+    ) -> Result<(u64, u64, u64), GetBitsError> {
         let sum = n1 as usize + n2 as usize + n3 as usize;
         if sum == 0 {
             return Ok((0, 0, 0));
@@ -188,7 +197,7 @@ impl<'s> BitReaderReversed<'s> {
         n2: u8,
         n3: u8,
         sum: u8,
-    ) -> Result<(u64, u64, u64), String> {
+    ) -> Result<(u64, u64, u64), GetBitsError> {
         let sum_signed = sum as isize;
 
         if self.bits_remaining() <= 0 {

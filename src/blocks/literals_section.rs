@@ -1,4 +1,4 @@
-use super::super::decoding::bit_reader::BitReader;
+use super::super::decoding::bit_reader::{BitReader, GetBitsError};
 
 pub struct LiteralsSection {
     pub regenerated_size: u32,
@@ -12,6 +12,16 @@ pub enum LiteralsSectionType {
     RLE,
     Compressed,
     Treeless,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum LiteralsSectionParseError {
+    #[error("Illegal literalssectiontype. Is: {got}, must be in: 0, 1, 2, 3")]
+    IllegalLiteralSectionType { got: u8 },
+    #[error(transparent)]
+    GetBitsError(#[from] GetBitsError),
+    #[error("Not enough byte to parse the literals section header. Have: {have}, Need: {need}")]
+    NotEnoughBytes { have: usize, need: u8 },
 }
 
 impl std::fmt::Display for LiteralsSectionType {
@@ -41,7 +51,7 @@ impl LiteralsSection {
         }
     }
 
-    pub fn header_bytes_needed(&self, first_byte: u8) -> Result<u8, String> {
+    pub fn header_bytes_needed(&self, first_byte: u8) -> Result<u8, LiteralsSectionParseError> {
         let ls_type = Self::section_type(first_byte)?;
         let size_format = (first_byte >> 2) & 0x3;
         match ls_type {
@@ -91,7 +101,7 @@ impl LiteralsSection {
         }
     }
 
-    pub fn parse_from_header(&mut self, raw: &[u8]) -> Result<u8, String> {
+    pub fn parse_from_header(&mut self, raw: &[u8]) -> Result<u8, LiteralsSectionParseError> {
         let mut br = BitReader::new(raw);
         let t = br.get_bits(2)? as u8;
         self.ls_type = Self::section_type(t)?;
@@ -99,11 +109,10 @@ impl LiteralsSection {
 
         let byte_needed = self.header_bytes_needed(raw[0])?;
         if raw.len() < byte_needed as usize {
-            return Err(format!(
-                "Not enough byte to parse the literals section header. Have: {}, Want: {}",
-                raw.len(),
-                byte_needed
-            ));
+            return Err(LiteralsSectionParseError::NotEnoughBytes {
+                have: raw.len(),
+                need: byte_needed,
+            });
         }
 
         match self.ls_type {
@@ -200,17 +209,14 @@ impl LiteralsSection {
         }
     }
 
-    fn section_type(raw: u8) -> Result<LiteralsSectionType, String> {
+    fn section_type(raw: u8) -> Result<LiteralsSectionType, LiteralsSectionParseError> {
         let t = raw & 0x3;
         match t {
             0 => Ok(LiteralsSectionType::Raw),
             1 => Ok(LiteralsSectionType::RLE),
             2 => Ok(LiteralsSectionType::Compressed),
             3 => Ok(LiteralsSectionType::Treeless),
-            _ => Err(format!(
-                "Illegal literalssectiontype. Is: {}, must be in: 0,1,2,3",
-                t
-            )),
+            other => Err(LiteralsSectionParseError::IllegalLiteralSectionType { got: other }),
         }
     }
 }

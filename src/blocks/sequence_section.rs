@@ -55,6 +55,12 @@ impl Default for SequencesHeader {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum SequencesHeaderParseError {
+    #[error("source must have at least {need_at_least} bytes to parse header; got {} bytes")]
+    NotEnoughBytes { need_at_least: u8, got: usize },
+}
+
 impl SequencesHeader {
     pub fn new() -> SequencesHeader {
         SequencesHeader {
@@ -63,13 +69,13 @@ impl SequencesHeader {
         }
     }
 
-    pub fn parse_from_header(&mut self, source: &[u8]) -> Result<u8, String> {
+    pub fn parse_from_header(&mut self, source: &[u8]) -> Result<u8, SequencesHeaderParseError> {
         let mut bytes_read = 0;
         if source.is_empty() {
-            return Err(format!(
-                "source must have at least {} bytes to parse header",
-                1
-            ));
+            return Err(SequencesHeaderParseError::NotEnoughBytes {
+                need_at_least: 1,
+                got: 0,
+            });
         }
 
         let source = match source[0] {
@@ -79,10 +85,10 @@ impl SequencesHeader {
             }
             1..=127 => {
                 if source.len() < 2 {
-                    return Err(format!(
-                        "source must have at least {} bytes to parse header",
-                        2
-                    ));
+                    return Err(SequencesHeaderParseError::NotEnoughBytes {
+                        need_at_least: 2,
+                        got: source.len(),
+                    });
                 }
                 self.num_sequences = u32::from(source[0]);
                 bytes_read += 1;
@@ -90,10 +96,10 @@ impl SequencesHeader {
             }
             128..=254 => {
                 if source.len() < 3 {
-                    return Err(format!(
-                        "source must have at least {} bytes to parse header",
-                        3
-                    ));
+                    return Err(SequencesHeaderParseError::NotEnoughBytes {
+                        need_at_least: 3,
+                        got: source.len(),
+                    });
                 }
                 self.num_sequences = ((u32::from(source[0]) - 128) << 8) + u32::from(source[1]);
                 bytes_read += 2;
@@ -101,10 +107,10 @@ impl SequencesHeader {
             }
             255 => {
                 if source.len() < 4 {
-                    return Err(format!(
-                        "source must have at least {} bytes to parse header",
-                        4
-                    ));
+                    return Err(SequencesHeaderParseError::NotEnoughBytes {
+                        need_at_least: 4,
+                        got: source.len(),
+                    });
                 }
                 self.num_sequences = u32::from(source[1]) + (u32::from(source[2]) << 8) + 0x7F00;
                 bytes_read += 3;
