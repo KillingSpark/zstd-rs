@@ -4,6 +4,7 @@ use super::scratch::HuffmanScratch;
 use crate::huff0::{HuffmanDecoder, HuffmanDecoderError, HuffmanTableError};
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum DecompressLiteralsError {
     #[error(
         "compressed size was none even though it must be set to something for compressed literals"

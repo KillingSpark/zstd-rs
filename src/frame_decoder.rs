@@ -75,6 +75,7 @@ pub enum BlockDecodingStrategy {
 }
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum FrameDecoderError {
     #[error(transparent)]
     ReadFrameHeaderError(#[from] frame::ReadFrameHeaderError),

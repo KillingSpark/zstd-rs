@@ -26,6 +26,7 @@ enum DecoderState {
 }
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum BlockHeaderReadError {
     #[error("Error while reading the block header")]
     ReadError(#[from] io::Error),
@@ -38,6 +39,7 @@ pub enum BlockHeaderReadError {
 }
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum BlockTypeError {
     #[error(
         "Invalid Blocktype number. Is: {num} Should be one of: 0, 1, 2, 3 (3 is reserved though"
@@ -46,12 +48,14 @@ pub enum BlockTypeError {
 }
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum BlockSizeError {
     #[error("Blocksize was bigger than the absolute maximum {ABSOLUTE_MAXIMUM_BLOCK_SIZE} (128kb). Is: {size}")]
     BlockSizeTooLarge { size: u32 },
 }
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum DecompressBlockError {
     #[error("Error while reading the block content: {0}")]
     BlockContentReadError(#[from] io::Error),
@@ -73,9 +77,7 @@ pub enum DecompressBlockError {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum ParseLiteralError {}
-
-#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum DecodeBlockContentError {
     #[error("Can't decode next block if failed along the way. Results will be nonsense")]
     DecoderStateIsFailed,

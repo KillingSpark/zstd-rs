@@ -15,6 +15,7 @@ pub enum LiteralsSectionType {
 }
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum LiteralsSectionParseError {
     #[error("Illegal literalssectiontype. Is: {got}, must be in: 0, 1, 2, 3")]
     IllegalLiteralSectionType { got: u8 },

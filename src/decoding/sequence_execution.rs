@@ -1,6 +1,7 @@
 use super::{decodebuffer::DecodebufferError, scratch::DecoderScratch};
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ExecuteSequencesError {
     #[error(transparent)]
     DecodebufferError(#[from] DecodebufferError),

@@ -6,6 +6,7 @@ use super::scratch::FSEScratch;
 use crate::fse::{FSEDecoder, FSEDecoderError, FSETableError};
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum DecodeSequenceError {
     #[error(transparent)]
     GetBitsError(#[from] GetBitsError),

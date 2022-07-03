@@ -17,6 +17,7 @@ impl Default for FSETable {
 }
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum FSETableError {
     #[error("Acclog must be at least 1")]
     AccLogIsZero,
@@ -40,6 +41,7 @@ pub struct FSEDecoder<'table> {
 }
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum FSEDecoderError {
     #[error(transparent)]
     GetBitsError(#[from] GetBitsError),

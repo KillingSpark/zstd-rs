@@ -14,6 +14,7 @@ pub struct Dictionary {
 }
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum DictionaryDecodeError {
     #[error(
         "Bad magic_num at start of the dictionary; Got: {got:#04X?}, Expected: {MAGIC_NUM:#04x?}"

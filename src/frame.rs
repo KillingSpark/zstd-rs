@@ -20,6 +20,7 @@ pub struct FrameHeader {
 pub struct FrameDescriptor(u8);
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum FrameDescriptorError {
     #[error("Invalid Frame_Content_Size_Flag; Is: {got}, Should be one of: 0, 1, 2, 3")]
     InvalidFrameContentSizeFlag { got: u8 },
@@ -75,6 +76,7 @@ impl FrameDescriptor {
 }
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum FrameHeaderError {
     #[error("window_size bigger than allowed maximum. Is: {got}, Should be lower than: {MAX_WINDOW_SIZE}")]
     WindowTooBig { got: u64 },
@@ -179,6 +181,7 @@ impl FrameHeader {
 }
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum FrameCheckError {
     #[error("magic_num wrong. Is: {got}. Should be: {MAGIC_NUM}")]
     WrongMagicNum { got: u32 },
@@ -208,6 +211,7 @@ impl Frame {
 }
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum ReadFrameHeaderError {
     #[error("Error while reading magic number: {0}")]
     MagicNumberReadError(#[source] io::Error),

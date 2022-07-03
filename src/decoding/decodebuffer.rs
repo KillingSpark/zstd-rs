@@ -15,6 +15,7 @@ pub struct Decodebuffer {
 }
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum DecodebufferError {
     #[error("Need {need} bytes from the dictionary but it is only {got} bytes long")]
     NotEnoughBytesInDictionary { got: usize, need: usize },

@@ -15,6 +15,7 @@ pub struct HuffmanTable {
 }
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum HuffmanTableError {
     #[error(transparent)]
     GetBitsError(#[from] GetBitsError),
@@ -55,6 +56,7 @@ pub struct HuffmanDecoder<'table> {
 }
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum HuffmanDecoderError {
     #[error(transparent)]
     GetBitsError(#[from] GetBitsError),
