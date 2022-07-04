@@ -13,6 +13,7 @@ readme = "Readme.md"
 [dependencies]
 byteorder = "1.4"
 twox-hash = { version = "1.6", default-features = false }
+thiserror = "1"
 
 [dev-dependencies]
 criterion = "0.3"

@@ -1,4 +1,4 @@
-use crate::frame_decoder::{BlockDecodingStrategy, FrameDecoder};
+use crate::frame_decoder::{BlockDecodingStrategy, FrameDecoder, FrameDecoderError};
 use std::io::Read;
 
 /// High level decoder that implements a io::Read that can be used with
@@ -12,7 +12,7 @@ pub struct StreamingDecoder<READ: Read> {
 }
 
 impl<READ: Read> StreamingDecoder<READ> {
-    pub fn new(mut source: READ) -> Result<StreamingDecoder<READ>, String> {
+    pub fn new(mut source: READ) -> Result<StreamingDecoder<READ>, FrameDecoderError> {
         let mut decoder = FrameDecoder::new();
         decoder.init(&mut source)?;
         Ok(StreamingDecoder { decoder, source })
@@ -21,7 +21,7 @@ impl<READ: Read> StreamingDecoder<READ> {
     pub fn new_with_decoder(
         mut source: READ,
         mut decoder: FrameDecoder,
-    ) -> Result<StreamingDecoder<READ>, String> {
+    ) -> Result<StreamingDecoder<READ>, FrameDecoderError> {
         decoder.init(&mut source)?;
         Ok(StreamingDecoder { decoder, source })
     }

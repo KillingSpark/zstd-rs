@@ -1,6 +1,17 @@
-use super::scratch::DecoderScratch;
+use super::{decodebuffer::DecodebufferError, scratch::DecoderScratch};
 
-pub fn execute_sequences(scratch: &mut DecoderScratch) -> Result<(), String> {
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum ExecuteSequencesError {
+    #[error(transparent)]
+    DecodebufferError(#[from] DecodebufferError),
+    #[error("Sequence wants to copy up to byte {wanted}. Bytes in literalsbuffer: {have}")]
+    NotEnoughBytesForSequence { wanted: usize, have: usize },
+    #[error("Illegal offset: 0 found")]
+    ZeroOffset,
+}
+
+pub fn execute_sequences(scratch: &mut DecoderScratch) -> Result<(), ExecuteSequencesError> {
     let mut literals_copy_counter = 0;
     let old_buffer_size = scratch.buffer.len();
     let mut seq_sum = 0;
@@ -13,25 +24,20 @@ pub fn execute_sequences(scratch: &mut DecoderScratch) -> Result<(), String> {
         if seq.ll > 0 {
             let high = literals_copy_counter + seq.ll as usize;
             if high > scratch.literals_buffer.len() {
-                return Err(format!(
-                    "Sequence wants to copy up to byte {}. Bytes in literalsbuffer: {}",
-                    high,
-                    scratch.literals_buffer.len()
-                ));
+                return Err(ExecuteSequencesError::NotEnoughBytesForSequence {
+                    wanted: high,
+                    have: scratch.literals_buffer.len(),
+                });
             }
             let literals = &scratch.literals_buffer[literals_copy_counter..high];
             literals_copy_counter += seq.ll as usize;
-
-            //for x in literals {
-            //    println!("{}", x);
-            //}
 
             scratch.buffer.push(literals);
         }
 
         let actual_offset = do_offset_history(seq.of, seq.ll, &mut scratch.offset_hist);
         if actual_offset == 0 {
-            return Err("Illegal offset: 0 found".to_owned());
+            return Err(ExecuteSequencesError::ZeroOffset);
         }
         if seq.ml > 0 {
             scratch

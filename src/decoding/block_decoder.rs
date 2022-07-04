@@ -3,11 +3,15 @@ use super::super::blocks::block::BlockType;
 use super::super::blocks::literals_section::LiteralsSection;
 use super::super::blocks::literals_section::LiteralsSectionType;
 use super::super::blocks::sequence_section::SequencesHeader;
-use super::literals_section_decoder::decode_literals;
+use super::literals_section_decoder::{decode_literals, DecompressLiteralsError};
+use super::sequence_execution::ExecuteSequencesError;
 use super::sequence_section_decoder::decode_sequences;
+use super::sequence_section_decoder::DecodeSequenceError;
+use crate::blocks::literals_section::LiteralsSectionParseError;
+use crate::blocks::sequence_section::SequencesHeaderParseError;
 use crate::decoding::scratch::DecoderScratch;
 use crate::decoding::sequence_execution::execute_sequences;
-use std::io::Read;
+use std::io::{self, Read};
 
 pub struct BlockDecoder {
     header_buffer: [u8; 3],
@@ -18,7 +22,75 @@ enum DecoderState {
     ReadyToDecodeNextHeader,
     ReadyToDecodeNextBody,
     #[allow(dead_code)]
-    Failed, //TODO put "self.internal_state = DecoderState::Failed;" everywhere a unresolvable error occurs
+    Failed, //TODO put "self.internal_state = DecoderState::Failed;" everywhere an unresolvable error occurs
+}
+
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum BlockHeaderReadError {
+    #[error("Error while reading the block header")]
+    ReadError(#[from] io::Error),
+    #[error("Reserved block occured. This is considered corruption by the documentation")]
+    FoundReservedBlock,
+    #[error("Error getting block type: {0}")]
+    BlockTypeError(#[from] BlockTypeError),
+    #[error("Error getting block content size: {0}")]
+    BlockSizeError(#[from] BlockSizeError),
+}
+
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum BlockTypeError {
+    #[error(
+        "Invalid Blocktype number. Is: {num} Should be one of: 0, 1, 2, 3 (3 is reserved though"
+    )]
+    InvalidBlocktypeNumber { num: u8 },
+}
+
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum BlockSizeError {
+    #[error("Blocksize was bigger than the absolute maximum {ABSOLUTE_MAXIMUM_BLOCK_SIZE} (128kb). Is: {size}")]
+    BlockSizeTooLarge { size: u32 },
+}
+
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum DecompressBlockError {
+    #[error("Error while reading the block content: {0}")]
+    BlockContentReadError(#[from] io::Error),
+    #[error("Malformed section header. Says literals would be this long: {expected_len} but there are only {remaining_bytes} bytes left")]
+    MalformedSectionHeader {
+        expected_len: usize,
+        remaining_bytes: usize,
+    },
+    #[error(transparent)]
+    DecompressLiteralsError(#[from] DecompressLiteralsError),
+    #[error(transparent)]
+    LiteralsSectionParseError(#[from] LiteralsSectionParseError),
+    #[error(transparent)]
+    SequencesHeaderParseError(#[from] SequencesHeaderParseError),
+    #[error(transparent)]
+    DecodeSequenceError(#[from] DecodeSequenceError),
+    #[error(transparent)]
+    ExecuteSequencesError(#[from] ExecuteSequencesError),
+}
+
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum DecodeBlockContentError {
+    #[error("Can't decode next block if failed along the way. Results will be nonsense")]
+    DecoderStateIsFailed,
+    #[error("Cant decode next block body, while expecting to decode the header of the previous block. Results will be nonsense")]
+    ExpectedHeaderOfPreviousBlock,
+    #[error("Error while reading bytes for {step}: {source}")]
+    ReadError {
+        step: BlockType,
+        #[source]
+        source: io::Error,
+    },
+    #[error(transparent)]
+    DecompressBlockError(#[from] DecompressBlockError),
 }
 
 pub fn new() -> BlockDecoder {
@@ -36,26 +108,30 @@ impl BlockDecoder {
         header: &BlockHeader,
         workspace: &mut DecoderScratch, //reuse this as often as possible. Not only if the trees are reused but also reuse the allocations when building new trees
         mut source: impl Read,
-    ) -> Result<u64, String> {
+    ) -> Result<u64, DecodeBlockContentError> {
         match self.internal_state {
-            DecoderState::ReadyToDecodeNextBody => {/* Happy :) */},
-            DecoderState::Failed => return Err("Cant decode next block if failed along the way. Results will be nonsense".to_string()),
-            DecoderState::ReadyToDecodeNextHeader => return Err("Cant decode next block body, while expecting to decode the header of the previous block. Results will be nonsense".to_string()),
+            DecoderState::ReadyToDecodeNextBody => { /* Happy :) */ }
+            DecoderState::Failed => return Err(DecodeBlockContentError::DecoderStateIsFailed),
+            DecoderState::ReadyToDecodeNextHeader => {
+                return Err(DecodeBlockContentError::ExpectedHeaderOfPreviousBlock)
+            }
         }
 
-        match header.block_type {
+        let block_type = header.block_type;
+        match block_type {
             BlockType::RLE => {
                 const BATCH_SIZE: usize = 512;
                 let mut buf = [0u8; BATCH_SIZE];
                 let full_reads = header.decompressed_size / BATCH_SIZE as u32;
                 let single_read_size = header.decompressed_size % BATCH_SIZE as u32;
 
-                match source.read_exact(&mut buf[0..1]) {
-                    Ok(_) => {
-                        self.internal_state = DecoderState::ReadyToDecodeNextHeader;
+                source.read_exact(&mut buf[0..1]).map_err(|err| {
+                    DecodeBlockContentError::ReadError {
+                        step: block_type,
+                        source: err,
                     }
-                    Err(_) => return Err("Error while reading the one RLE byte".to_string()),
-                }
+                })?;
+                self.internal_state = DecoderState::ReadyToDecodeNextHeader;
 
                 for i in 1..BATCH_SIZE {
                     buf[i] = buf[0];
@@ -70,44 +146,40 @@ impl BlockDecoder {
                 Ok(1)
             }
             BlockType::Raw => {
-                const BATCH_SIZE: usize = 128*1024;
+                const BATCH_SIZE: usize = 128 * 1024;
                 let mut buf = [0u8; BATCH_SIZE];
                 let full_reads = header.decompressed_size / BATCH_SIZE as u32;
                 let single_read_size = header.decompressed_size % BATCH_SIZE as u32;
 
                 for _ in 0..full_reads {
-                    match source.read_exact(&mut buf[..]) {
-                        Ok(_) => {
-                            workspace.buffer.push(&buf[..]);
+                    source.read_exact(&mut buf[..]).map_err(|err| {
+                        DecodeBlockContentError::ReadError {
+                            step: block_type,
+                            source: err,
                         }
-                        Err(_) => {
-                            return Err("Error while reading bytes of the raw block".to_string())
-                        }
-                    }
+                    })?;
+                    workspace.buffer.push(&buf[..]);
                 }
 
                 let smaller = &mut buf[..single_read_size as usize];
-                match source.read_exact(smaller) {
-                    Ok(_) => {
-                        workspace.buffer.push(smaller);
-                    }
-                    Err(_) => {
-                       return Err("Error while reading bytes of the raw block".to_string())
-                    }
-                }
-
+                source
+                    .read_exact(smaller)
+                    .map_err(|err| DecodeBlockContentError::ReadError {
+                        step: block_type,
+                        source: err,
+                    })?;
+                workspace.buffer.push(smaller);
 
                 self.internal_state = DecoderState::ReadyToDecodeNextHeader;
                 Ok(u64::from(header.decompressed_size))
             }
 
             BlockType::Reserved => {
-                Err("How did you even get this. The decoder should error out if it detects a reserved-type block".to_owned())
+                panic!("How did you even get this. The decoder should error out if it detects a reserved-type block");
             }
 
             BlockType::Compressed => {
                 self.decompress_block(header, workspace, source)?;
-                //unimplemented!("Decompression is not yet implemented...");
 
                 self.internal_state = DecoderState::ReadyToDecodeNextHeader;
                 Ok(u64::from(header.content_size))
@@ -120,16 +192,12 @@ impl BlockDecoder {
         header: &BlockHeader,
         workspace: &mut DecoderScratch, //reuse this as often as possible. Not only if the trees are reused but also reuse the allocations when building new trees
         mut source: impl Read,
-    ) -> Result<(), String> {
+    ) -> Result<(), DecompressBlockError> {
         workspace
             .block_content_buffer
             .resize(header.content_size as usize, 0);
 
-        match source.read_exact(workspace.block_content_buffer.as_mut_slice()) {
-            Ok(_) => { /* happy */ }
-            Err(_) => return Err("Error while reading the block content".to_owned()),
-        }
-
+        source.read_exact(workspace.block_content_buffer.as_mut_slice())?;
         let raw = workspace.block_content_buffer.as_slice();
 
         let mut section = LiteralsSection::new();
@@ -152,7 +220,10 @@ impl BlockDecoder {
         };
 
         if raw.len() < upper_limit_for_literals {
-            return Err(format!("Malformed section header. Says literals would be this long: {} but there are only {} bytes left", upper_limit_for_literals, raw.len()));
+            return Err(DecompressBlockError::MalformedSectionHeader {
+                expected_len: upper_limit_for_literals,
+                remaining_bytes: raw.len(),
+            });
         }
 
         let raw_literals = &raw[..upper_limit_for_literals];
@@ -221,28 +292,22 @@ impl BlockDecoder {
         Ok(())
     }
 
-    pub fn read_block_header(&mut self, mut r: impl Read) -> Result<(BlockHeader, u8), String> {
+    pub fn read_block_header(
+        &mut self,
+        mut r: impl Read,
+    ) -> Result<(BlockHeader, u8), BlockHeaderReadError> {
         //match self.internal_state {
         //    DecoderState::ReadyToDecodeNextHeader => {/* Happy :) */},
         //    DecoderState::Failed => return Err(format!("Cant decode next block if failed along the way. Results will be nonsense")),
         //    DecoderState::ReadyToDecodeNextBody => return Err(format!("Cant decode next block header, while expecting to decode the body of the previous block. Results will be nonsense")),
         //}
 
-        match r.read_exact(&mut self.header_buffer[0..3]) {
-            Ok(_) => {}
-            Err(_) => return Err("Error while reading the block header".to_string()),
-        }
+        r.read_exact(&mut self.header_buffer[0..3])?;
 
-        let btype = match self.block_type() {
-            Ok(t) => match t {
-                BlockType::Reserved => return Err(
-                    "Reserved block occurred. This is considered corruption by the documentation"
-                        .to_string(),
-                ),
-                _ => t,
-            },
-            Err(m) => return Err(m),
-        };
+        let btype = self.block_type()?;
+        if let BlockType::Reserved = btype {
+            return Err(BlockHeaderReadError::FoundReservedBlock);
+        }
 
         let block_size = self.block_content_size()?;
         let decompressed_size = match btype {
@@ -285,27 +350,21 @@ impl BlockDecoder {
         self.header_buffer[0] & 0x1 == 1
     }
 
-    fn block_type(&self) -> Result<BlockType, String> {
+    fn block_type(&self) -> Result<BlockType, BlockTypeError> {
         let t = (self.header_buffer[0] >> 1) & 0x3;
         match t {
             0 => Ok(BlockType::Raw),
             1 => Ok(BlockType::RLE),
             2 => Ok(BlockType::Compressed),
             3 => Ok(BlockType::Reserved),
-            _ => Err(format!(
-                "Invalid Blocktype number. Is: {} Should be one of: 0,1,2,3 (3 is reserved though)",
-                t
-            )),
+            other => Err(BlockTypeError::InvalidBlocktypeNumber { num: other }),
         }
     }
 
-    fn block_content_size(&self) -> Result<u32, String> {
+    fn block_content_size(&self) -> Result<u32, BlockSizeError> {
         let val = self.block_content_size_unchecked();
         if val > ABSOLUTE_MAXIMUM_BLOCK_SIZE {
-            Err(format!(
-                "Blocksize was bigger than the absolute maximum 128kb. Is: {}",
-                val
-            ))
+            Err(BlockSizeError::BlockSizeTooLarge { size: val })
         } else {
             Ok(val)
         }

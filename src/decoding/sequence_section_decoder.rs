@@ -1,16 +1,45 @@
 use super::super::blocks::sequence_section::ModeType;
 use super::super::blocks::sequence_section::Sequence;
 use super::super::blocks::sequence_section::SequencesHeader;
-use super::bit_reader_reverse::BitReaderReversed;
+use super::bit_reader_reverse::{BitReaderReversed, GetBitsError};
 use super::scratch::FSEScratch;
-use crate::fse::FSEDecoder;
+use crate::fse::{FSEDecoder, FSEDecoderError, FSETableError};
+
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum DecodeSequenceError {
+    #[error(transparent)]
+    GetBitsError(#[from] GetBitsError),
+    #[error(transparent)]
+    FSEDecoderError(#[from] FSEDecoderError),
+    #[error(transparent)]
+    FSETableError(#[from] FSETableError),
+    #[error("Padding at the end of the sequence_section was more than a byte long: {skipped_bits} bits. Probably caused by data corruption")]
+    ExtraPadding { skipped_bits: i32 },
+    #[error("Do not support offsets bigger than 1<<32; got: {offset_code}")]
+    UnsupportedOffset { offset_code: u8 },
+    #[error("Read an offset == 0. That is an illegal value for offsets")]
+    ZeroOffset,
+    #[error("Bytestream did not contain enough bytes to decode num_sequences")]
+    NotEnoughBytesForNumSequences,
+    #[error("Did not use full bitstream. Bits left: {bits_remaining} ({} bytes)", bits_remaining / 8)]
+    ExtraBits { bits_remaining: isize },
+    #[error("compression modes are none but they must be set to something")]
+    MissingCompressionMode,
+    #[error("Need a byte to read for RLE ll table")]
+    MissingByteForRleLlTable,
+    #[error("Need a byte to read for RLE of table")]
+    MissingByteForRleOfTable,
+    #[error("Need a byte to read for RLE ml table")]
+    MissingByteForRleMlTable,
+}
 
 pub fn decode_sequences(
     section: &SequencesHeader,
     source: &[u8],
     scratch: &mut FSEScratch,
     target: &mut Vec<Sequence>,
-) -> Result<(), String> {
+) -> Result<(), DecodeSequenceError> {
     let bytes_read = maybe_update_fse_tables(section, source, scratch)?;
 
     if crate::VERBOSE {
@@ -32,7 +61,7 @@ pub fn decode_sequences(
     }
     if skipped_bits > 8 {
         //if more than 7 bits are 0, this is not the correct end of the bitstream. Either a bug or corrupted data
-        return Err(format!("Padding at the end of the sequence_section was more than a byte long: {}. Probably cause by data corruption", skipped_bits));
+        return Err(DecodeSequenceError::ExtraPadding { skipped_bits });
     }
 
     if scratch.ll_rle.is_some() || scratch.ml_rle.is_some() || scratch.of_rle.is_some() {
@@ -47,7 +76,7 @@ fn decode_sequences_with_rle(
     br: &mut BitReaderReversed<'_>,
     scratch: &mut FSEScratch,
     target: &mut Vec<Sequence>,
-) -> Result<(), String> {
+) -> Result<(), DecodeSequenceError> {
     let mut ll_dec = FSEDecoder::new(&scratch.literal_lengths);
     let mut ml_dec = FSEDecoder::new(&scratch.match_lengths);
     let mut of_dec = FSEDecoder::new(&scratch.offsets);
@@ -98,14 +127,16 @@ fn decode_sequences_with_rle(
         //println!("");
 
         if of_code >= 32 {
-            return Err("Do not support offsets bigger than 1<<32".to_owned());
+            return Err(DecodeSequenceError::UnsupportedOffset {
+                offset_code: of_code,
+            });
         }
 
         let (obits, ml_add, ll_add) = br.get_bits_triple(of_code, ml_num_bits, ll_num_bits)?;
         let offset = obits as u32 + (1u32 << of_code);
 
         if offset == 0 {
-            return Err("Read an offset == 0. That is an illegal value for offsets".to_owned());
+            return Err(DecodeSequenceError::ZeroOffset);
         }
 
         target.push(Sequence {
@@ -132,18 +163,14 @@ fn decode_sequences_with_rle(
         }
 
         if br.bits_remaining() < 0 {
-            return Err(
-                "Bytestream did not contain enough bytes to decode num_sequences".to_owned(),
-            );
+            return Err(DecodeSequenceError::NotEnoughBytesForNumSequences);
         }
     }
 
     if br.bits_remaining() > 0 {
-        Err(format!(
-            "Did not use full bitstream. Bits left: {} ({} bytes)",
-            br.bits_remaining(),
-            br.bits_remaining() / 8,
-        ))
+        Err(DecodeSequenceError::ExtraBits {
+            bits_remaining: br.bits_remaining(),
+        })
     } else {
         Ok(())
     }
@@ -154,7 +181,7 @@ fn decode_sequences_without_rle(
     br: &mut BitReaderReversed<'_>,
     scratch: &mut FSEScratch,
     target: &mut Vec<Sequence>,
-) -> Result<(), String> {
+) -> Result<(), DecodeSequenceError> {
     let mut ll_dec = FSEDecoder::new(&scratch.literal_lengths);
     let mut ml_dec = FSEDecoder::new(&scratch.match_lengths);
     let mut of_dec = FSEDecoder::new(&scratch.offsets);
@@ -175,14 +202,16 @@ fn decode_sequences_without_rle(
         let (ml_value, ml_num_bits) = lookup_ml_code(ml_code);
 
         if of_code >= 32 {
-            return Err("Do not support offsets bigger than 1<<32".to_owned());
+            return Err(DecodeSequenceError::UnsupportedOffset {
+                offset_code: of_code,
+            });
         }
 
         let (obits, ml_add, ll_add) = br.get_bits_triple(of_code, ml_num_bits, ll_num_bits)?;
         let offset = obits as u32 + (1u32 << of_code);
 
         if offset == 0 {
-            return Err("Read an offset == 0. That is an illegal value for offsets".to_owned());
+            return Err(DecodeSequenceError::ZeroOffset);
         }
 
         target.push(Sequence {
@@ -203,18 +232,14 @@ fn decode_sequences_without_rle(
         }
 
         if br.bits_remaining() < 0 {
-            return Err(
-                "Bytestream did not contain enough bytes to decode num_sequences".to_owned(),
-            );
+            return Err(DecodeSequenceError::NotEnoughBytesForNumSequences);
         }
     }
 
     if br.bits_remaining() > 0 {
-        Err(format!(
-            "Did not use full bitstream. Bits left: {} ({} bytes)",
-            br.bits_remaining(),
-            br.bits_remaining() / 8,
-        ))
+        Err(DecodeSequenceError::ExtraBits {
+            bits_remaining: br.bits_remaining(),
+        })
     } else {
         Ok(())
     }
@@ -283,13 +308,10 @@ fn maybe_update_fse_tables(
     section: &SequencesHeader,
     source: &[u8],
     scratch: &mut FSEScratch,
-) -> Result<usize, String> {
-    let modes = match section.modes {
-        Some(m) => m,
-        None => {
-            return Err("compression modes are none but they must be set to something".to_owned())
-        }
-    };
+) -> Result<usize, DecodeSequenceError> {
+    let modes = section
+        .modes
+        .ok_or(DecodeSequenceError::MissingCompressionMode)?;
 
     let mut bytes_read = 0;
 
@@ -308,7 +330,7 @@ fn maybe_update_fse_tables(
                 println!("Use RLE ll table");
             }
             if source.is_empty() {
-                return Err("Need a byte to read for RLE ll table".to_owned());
+                return Err(DecodeSequenceError::MissingByteForRleLlTable);
             }
             bytes_read += 1;
             scratch.ll_rle = Some(source[0]);
@@ -348,7 +370,7 @@ fn maybe_update_fse_tables(
                 println!("Use RLE of table");
             }
             if of_source.is_empty() {
-                return Err("Need a byte to read for RLE of table".to_owned());
+                return Err(DecodeSequenceError::MissingByteForRleOfTable);
             }
             bytes_read += 1;
             scratch.of_rle = Some(of_source[0]);
@@ -388,7 +410,7 @@ fn maybe_update_fse_tables(
                 println!("Use RLE ml table");
             }
             if ml_source.is_empty() {
-                return Err("Need a byte to read for RLE ml table".to_owned());
+                return Err(DecodeSequenceError::MissingByteForRleMlTable);
             }
             bytes_read += 1;
             scratch.ml_rle = Some(ml_source[0]);

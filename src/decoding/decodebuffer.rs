@@ -14,6 +14,15 @@ pub struct Decodebuffer {
     pub hash: XxHash64,
 }
 
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum DecodebufferError {
+    #[error("Need {need} bytes from the dictionary but it is only {got} bytes long")]
+    NotEnoughBytesInDictionary { got: usize, need: usize },
+    #[error("offset: {offset} bigger than buffer: {buf_len}")]
+    OffsetTooBig { offset: usize, buf_len: usize },
+}
+
 impl io::Read for Decodebuffer {
     fn read(&mut self, target: &mut [u8]) -> io::Result<usize> {
         let max_amount = self.can_drain_to_window_size().unwrap_or(0);
@@ -62,18 +71,17 @@ impl Decodebuffer {
         self.total_output_counter += data.len() as u64;
     }
 
-    pub fn repeat(&mut self, offset: usize, match_length: usize) -> Result<(), String> {
+    pub fn repeat(&mut self, offset: usize, match_length: usize) -> Result<(), DecodebufferError> {
         if offset > self.buffer.len() {
             if self.total_output_counter <= self.window_size as u64 {
                 // at least part of that repeat is from the dictionary content
                 let bytes_from_dict = offset - self.buffer.len();
 
                 if bytes_from_dict > self.dict_content.len() {
-                    return Err(format!(
-                        "Need {} bytes from the dictionary but it is only {} bytes long",
-                        bytes_from_dict,
-                        self.dict_content.len()
-                    ));
+                    return Err(DecodebufferError::NotEnoughBytesInDictionary {
+                        got: self.dict_content.len(),
+                        need: bytes_from_dict,
+                    });
                 }
 
                 if bytes_from_dict < match_length {
@@ -90,11 +98,10 @@ impl Decodebuffer {
                     self.buffer.extend(dict_slice);
                 }
             } else {
-                return Err(format!(
-                    "offset: {} bigger than buffer: {}",
+                return Err(DecodebufferError::OffsetTooBig {
                     offset,
-                    self.buffer.len()
-                ));
+                    buf_len: self.buffer.len(),
+                });
             }
         } else {
             let buf_len = self.buffer.len();

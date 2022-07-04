@@ -3,6 +3,18 @@ pub struct BitReader<'s> {
     source: &'s [u8],
 }
 
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum GetBitsError {
+    #[error("Cant serve this request. The reader is limited to {limit} bits, requested {num_requested_bits} bits")]
+    TooManyBits {
+        num_requested_bits: usize,
+        limit: u8,
+    },
+    #[error("Can't read {requested} bits, only have {remaining} bits left")]
+    NotEnoughRemainingBits { requested: usize, remaining: usize },
+}
+
 impl<'s> BitReader<'s> {
     pub fn new(source: &'s [u8]) -> BitReader<'_> {
         BitReader { idx: 0, source }
@@ -23,16 +35,18 @@ impl<'s> BitReader<'s> {
         self.idx -= n;
     }
 
-    pub fn get_bits(&mut self, n: usize) -> Result<u64, String> {
+    pub fn get_bits(&mut self, n: usize) -> Result<u64, GetBitsError> {
         if n > 64 {
-            return Err("Cant serve this request. The reader is limited to 64bit".to_owned());
+            return Err(GetBitsError::TooManyBits {
+                num_requested_bits: n,
+                limit: 64,
+            });
         }
         if self.bits_left() < n {
-            return Err(format!(
-                "Cant read n: {} bits. Bits left: {}",
-                n,
-                self.bits_left()
-            ));
+            return Err(GetBitsError::NotEnoughRemainingBits {
+                requested: n,
+                remaining: self.bits_left(),
+            });
         }
 
         let old_idx = self.idx;

@@ -2,6 +2,8 @@ use std::convert::TryInto;
 
 use crate::decoding::scratch::FSEScratch;
 use crate::decoding::scratch::HuffmanScratch;
+use crate::fse::FSETableError;
+use crate::huff0::HuffmanTableError;
 
 pub struct Dictionary {
     pub id: u32,
@@ -11,10 +13,25 @@ pub struct Dictionary {
     pub offset_hist: [u32; 3],
 }
 
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum DictionaryDecodeError {
+    #[error(
+        "Bad magic_num at start of the dictionary; Got: {got:#04X?}, Expected: {MAGIC_NUM:#04x?}"
+    )]
+    BadMagicNum { got: [u8; 4] },
+    #[error(transparent)]
+    FSETableError(#[from] FSETableError),
+    #[error(transparent)]
+    HuffmanTableError(#[from] HuffmanTableError),
+}
+
+pub const MAGIC_NUM: [u8; 4] = [0x37, 0xA4, 0x30, 0xEC];
+
 impl Dictionary {
     /// parses the dictionary and set the tables
     /// it returns the dict_id for checking with the frame's dict_id
-    pub fn decode_dict(raw: &[u8]) -> Result<Dictionary, String> {
+    pub fn decode_dict(raw: &[u8]) -> Result<Dictionary, DictionaryDecodeError> {
         let mut new_dict = Dictionary {
             id: 0,
             fse: FSEScratch::new(),
@@ -23,9 +40,9 @@ impl Dictionary {
             offset_hist: [2, 4, 8],
         };
 
-        let magic_num = &raw[..4];
-        if magic_num != [0x37, 0xA4, 0x30, 0xEC] {
-            return Err("Bad magic_num at start of the dictionary".to_owned());
+        let magic_num: [u8; 4] = raw[..4].try_into().expect("optimized away");
+        if magic_num != MAGIC_NUM {
+            return Err(DictionaryDecodeError::BadMagicNum { got: magic_num });
         }
 
         let dict_id = raw[4..8].try_into().expect("optimized away");

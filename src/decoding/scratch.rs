@@ -65,7 +65,10 @@ impl DecoderScratch {
 
     /// parses the dictionary and set the tables
     /// it returns the dict_id for checking with the frame's dict_id
-    pub fn load_dict(&mut self, raw: &[u8]) -> Result<u32, String> {
+    pub fn load_dict(
+        &mut self,
+        raw: &[u8],
+    ) -> Result<u32, super::dictionary::DictionaryDecodeError> {
         let dict = super::dictionary::Dictionary::decode_dict(raw)?;
 
         self.huf = dict.huf.clone();

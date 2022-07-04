@@ -1,6 +1,5 @@
-use crate::decoding::bit_reader_reverse::BitReaderReversed;
-use crate::fse::FSEDecoder;
-use crate::fse::FSETable;
+use crate::decoding::bit_reader_reverse::{BitReaderReversed, GetBitsError};
+use crate::fse::{FSEDecoder, FSEDecoderError, FSETable, FSETableError};
 
 #[derive(Clone)]
 pub struct HuffmanTable {
@@ -15,9 +14,52 @@ pub struct HuffmanTable {
     fse_table: FSETable,
 }
 
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum HuffmanTableError {
+    #[error(transparent)]
+    GetBitsError(#[from] GetBitsError),
+    #[error(transparent)]
+    FSEDecoderError(#[from] FSEDecoderError),
+    #[error(transparent)]
+    FSETableError(#[from] FSETableError),
+    #[error("Source needs to have at least one byte")]
+    SourceIsEmpty,
+    #[error("Header says there should be {expected_bytes} bytes for the weights but there are only {got_bytes} bytes in the stream")]
+    NotEnoughBytesForWeights {
+        got_bytes: usize,
+        expected_bytes: u8,
+    },
+    #[error("Padding at the end of the sequence_section was more than a byte long: {skipped_bits} bits. Probably caused by data corruption")]
+    ExtraPadding { skipped_bits: i32 },
+    #[error("More than 255 weights decoded (got {got} weights). Stream is probably corrupted")]
+    TooManyWeights { got: usize },
+    #[error("Can't build huffman table without any weights")]
+    MissingWeights,
+    #[error("Leftover must be power of two but is: {got}")]
+    LeftoverIsNotAPowerOf2 { got: u32 },
+    #[error("Not enough bytes in stream to decompress weights. Is: {have}, Should be: {need}")]
+    NotEnoughBytesToDecompressWeights { have: usize, need: usize },
+    #[error("FSE table used more bytes: {used} than were meant to be used for the whole stream of huffman weights ({available_bytes})")]
+    FSETableUsedTooManyBytes { used: usize, available_bytes: u8 },
+    #[error("Source needs to have at least {need} bytes, got: {got}")]
+    NotEnoughBytesInSource { got: usize, need: usize },
+    #[error("Cant have weight: {got} bigger than max_num_bits: {MAX_MAX_NUM_BITS}")]
+    WeightBiggerThanMaxNumBits { got: u8 },
+    #[error("max_bits derived from weights is: {got} should be lower than: {MAX_MAX_NUM_BITS}")]
+    MaxBitsTooHigh { got: u8 },
+}
+
 pub struct HuffmanDecoder<'table> {
     table: &'table HuffmanTable,
     pub state: u64,
+}
+
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum HuffmanDecoderError {
+    #[error(transparent)]
+    GetBitsError(#[from] GetBitsError),
 }
 
 #[derive(Copy, Clone)]
@@ -49,14 +91,20 @@ impl<'t> HuffmanDecoder<'t> {
         self.table.decode[self.state as usize].symbol
     }
 
-    pub fn init_state(&mut self, br: &mut BitReaderReversed<'_>) -> Result<u8, String> {
+    pub fn init_state(
+        &mut self,
+        br: &mut BitReaderReversed<'_>,
+    ) -> Result<u8, HuffmanDecoderError> {
         let num_bits = self.table.max_num_bits;
         let new_bits = br.get_bits(num_bits)?;
         self.state = new_bits;
         Ok(num_bits)
     }
 
-    pub fn next_state(&mut self, br: &mut BitReaderReversed<'_>) -> Result<u8, String> {
+    pub fn next_state(
+        &mut self,
+        br: &mut BitReaderReversed<'_>,
+    ) -> Result<u8, HuffmanDecoderError> {
         let num_bits = self.table.decode[self.state as usize].num_bits;
         let new_bits = br.get_bits(num_bits)?;
         self.state <<= num_bits;
@@ -96,7 +144,7 @@ impl HuffmanTable {
         self.fse_table.reset();
     }
 
-    pub fn build_decoder(&mut self, source: &[u8]) -> Result<u32, String> {
+    pub fn build_decoder(&mut self, source: &[u8]) -> Result<u32, HuffmanTableError> {
         self.decode.clear();
 
         let bytes_used = self.read_weights(source)?;
@@ -104,9 +152,11 @@ impl HuffmanTable {
         Ok(bytes_used)
     }
 
-    fn read_weights(&mut self, source: &[u8]) -> Result<u32, String> {
+    fn read_weights(&mut self, source: &[u8]) -> Result<u32, HuffmanTableError> {
+        use HuffmanTableError as err;
+
         if source.is_empty() {
-            return Err("Source needs to have at least one byte".to_owned());
+            return Err(err::SourceIsEmpty);
         }
         let header = source[0];
         let mut bits_read = 8;
@@ -115,7 +165,10 @@ impl HuffmanTable {
             0..=127 => {
                 let fse_stream = &source[1..];
                 if header as usize > fse_stream.len() {
-                    return Err(format!("Header says there should be {} bytes for the weights but there are only {} bytes in the stream", header, fse_stream.len()));
+                    return Err(err::NotEnoughBytesForWeights {
+                        got_bytes: fse_stream.len(),
+                        expected_bytes: header,
+                    });
                 }
                 //fse decompress weights
                 let bytes_used_by_fse_header = self
@@ -123,7 +176,10 @@ impl HuffmanTable {
                     .build_decoder(fse_stream, /*TODO find actual max*/ 100)?;
 
                 if bytes_used_by_fse_header > header as usize {
-                    return Err(format!("FSE table used more bytes: {} than were meant to be used for the whole stream of huffman weights", bytes_used_by_fse_header));
+                    return Err(err::FSETableUsedTooManyBytes {
+                        used: bytes_used_by_fse_header,
+                        available_bytes: header,
+                    });
                 }
 
                 if crate::VERBOSE {
@@ -140,11 +196,10 @@ impl HuffmanTable {
 
                 let compressed_weights = &fse_stream[compressed_start..];
                 if compressed_weights.len() < compressed_length {
-                    return Err(format!(
-                        "Not enough bytes in stream to decompress weights. Is: {}, Should be: {}",
-                        compressed_weights.len(),
-                        compressed_length
-                    ));
+                    return Err(err::NotEnoughBytesToDecompressWeights {
+                        have: compressed_weights.len(),
+                        need: compressed_length,
+                    });
                 }
                 let compressed_weights = &compressed_weights[..compressed_length];
                 let mut br = BitReaderReversed::new(compressed_weights);
@@ -162,7 +217,7 @@ impl HuffmanTable {
                 }
                 if skipped_bits > 8 {
                     //if more than 7 bits are 0, this is not the correct end of the bitstream. Either a bug or corrupted data
-                    return Err(format!("Padding at the end of the sequence_section was more than a byte long: {}. Probably cause by data corruption", skipped_bits));
+                    return Err(err::ExtraPadding { skipped_bits });
                 }
 
                 dec1.init_state(&mut br)?;
@@ -192,10 +247,9 @@ impl HuffmanTable {
                     }
                     //maximum number of weights is 255 because we use u8 symbols and the last weight is inferred from the sum of all others
                     if self.weights.len() > 255 {
-                        return Err(
-                            "More than 255 weights decoded. Stream is probably corrupted"
-                                .to_owned(),
-                        );
+                        return Err(err::TooManyWeights {
+                            got: self.weights.len(),
+                        });
                     }
                 }
             }
@@ -212,10 +266,10 @@ impl HuffmanTable {
                 };
 
                 if weights_raw.len() < bytes_needed {
-                    return Err(format!(
-                        "Source needs to have at least {} bytes",
-                        bytes_needed
-                    ));
+                    return Err(err::NotEnoughBytesInSource {
+                        got: weights_raw.len(),
+                        need: bytes_needed,
+                    });
                 }
 
                 for idx in 0..num_weights {
@@ -237,34 +291,30 @@ impl HuffmanTable {
         Ok(bytes_read as u32)
     }
 
-    fn build_table_from_weights(&mut self) -> Result<(), String> {
+    fn build_table_from_weights(&mut self) -> Result<(), HuffmanTableError> {
+        use HuffmanTableError as err;
+
         self.bits.clear();
         self.bits.resize(self.weights.len() + 1, 0);
 
         let mut weight_sum: u32 = 0;
         for w in &self.weights {
             if *w > MAX_MAX_NUM_BITS {
-                return Err(format!(
-                    "Cant have weight: {} bigger than max_num_bits: {}",
-                    *w, MAX_MAX_NUM_BITS
-                ));
+                return Err(err::WeightBiggerThanMaxNumBits { got: *w });
             }
             weight_sum += if *w > 0 { 1_u32 << (*w - 1) } else { 0 };
         }
 
         if weight_sum == 0 {
-            return Err("Cant build huffman table without any weights".to_owned());
+            return Err(err::MissingWeights);
         }
 
         let max_bits = highest_bit_set(weight_sum) as u8;
         let left_over = (1 << max_bits) - weight_sum;
 
         //left_over must be power of two
-        if left_over & (left_over - 1) != 0 {
-            return Err(format!(
-                "Leftover must be power of two but is: {}",
-                left_over
-            ));
+        if !left_over.is_power_of_two() {
+            return Err(err::LeftoverIsNotAPowerOf2 { got: left_over });
         }
 
         let last_weight = highest_bit_set(left_over) as u8;
@@ -282,10 +332,7 @@ impl HuffmanTable {
         self.max_num_bits = max_bits;
 
         if max_bits > MAX_MAX_NUM_BITS {
-            return Err(format!(
-                "max_bits derived from weights is: {} should be lower than: {} ",
-                max_bits, MAX_MAX_NUM_BITS
-            ));
+            return Err(err::MaxBitsTooHigh { got: max_bits });
         }
 
         self.bit_ranks.clear();
