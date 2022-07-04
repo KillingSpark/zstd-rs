@@ -257,8 +257,8 @@ impl Decodebuffer {
             self.hash.write(&slice1[..written1]);
             drain_guard.amount += written1;
 
-            // Shut clippy up. I liked the explicit if better but oh well...
-            let _: () = res1?;
+            // Apparently this is what clippy thinks is the best way of expressing this
+            res1?;
 
             // Only if the first call to write_bytes was not a partial write we can continue with slice2
             // Partial writes SHOULD never happen without res1 being an error, but lets just protect against it anyways.
@@ -266,8 +266,9 @@ impl Decodebuffer {
                 let (written2, res2) = write_bytes(&slice2[..n2]);
                 self.hash.write(&slice2[..written2]);
                 drain_guard.amount += written2;
-                // Shut clippy up. I liked the explicit if better but oh well...
-                let _: () = res2?;
+
+                // Apparently this is what clippy thinks is the best way of expressing this
+                res2?;
             }
         }
 
