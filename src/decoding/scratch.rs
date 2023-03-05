@@ -4,6 +4,7 @@ use crate::decoding::dictionary::Dictionary;
 use crate::fse::FSETable;
 use crate::huff0::HuffmanTable;
 
+#[derive(Debug, Clone)]
 pub struct DecoderScratch {
     pub huf: HuffmanScratch,
     pub fse: FSEScratch,
@@ -79,7 +80,7 @@ impl DecoderScratch {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct HuffmanScratch {
     pub table: HuffmanTable,
 }
@@ -98,7 +99,7 @@ impl Default for HuffmanScratch {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FSEScratch {
     pub offsets: FSETable,
     pub of_rle: Option<u8>,

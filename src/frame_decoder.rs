@@ -53,11 +53,13 @@ use std::io::{self, Read};
 ///     std::io::stdout().write_all(data).unwrap();
 /// }
 /// ```
+#[derive(Debug, Clone)]
 pub struct FrameDecoder {
     state: Option<FrameDecoderState>,
     dicts: HashMap<u32, Dictionary>,
 }
 
+#[derive(Debug, Clone)]
 struct FrameDecoderState {
     pub frame: frame::Frame,
     decoder_scratch: DecoderScratch,

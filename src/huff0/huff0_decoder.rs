@@ -1,7 +1,7 @@
 use crate::decoding::bit_reader_reverse::{BitReaderReversed, GetBitsError};
 use crate::fse::{FSEDecoder, FSEDecoderError, FSETable, FSETableError};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct HuffmanTable {
     decode: Vec<Entry>,
 
@@ -62,7 +62,7 @@ pub enum HuffmanDecoderError {
     GetBitsError(#[from] GetBitsError),
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Entry {
     symbol: u8,
     num_bits: u8,

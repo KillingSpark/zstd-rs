@@ -1,7 +1,7 @@
 use crate::decoding::bit_reader::BitReader;
 use crate::decoding::bit_reader_reverse::{BitReaderReversed, GetBitsError};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FSETable {
     pub decode: Vec<Entry>, //used to decode symbols, and calculate the next state
 
@@ -49,7 +49,7 @@ pub enum FSEDecoderError {
     TableIsUninitialized,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Entry {
     pub base_line: u32,
     pub num_bits: u8,

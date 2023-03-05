@@ -5,11 +5,13 @@ pub const MAGIC_NUM: u32 = 0xFD2F_B528;
 pub const MIN_WINDOW_SIZE: u64 = 1024;
 pub const MAX_WINDOW_SIZE: u64 = (1 << 41) + 7 * (1 << 38);
 
+#[derive(Debug, Clone)]
 pub struct Frame {
     magic_num: u32,
     pub header: FrameHeader,
 }
 
+#[derive(Debug, Clone)]
 pub struct FrameHeader {
     pub descriptor: FrameDescriptor,
     window_descriptor: u8,
@@ -17,6 +19,7 @@ pub struct FrameHeader {
     frame_content_size: Vec<u8>,
 }
 
+#[derive(Debug, Clone)]
 pub struct FrameDescriptor(u8);
 
 #[derive(Debug, thiserror::Error)]

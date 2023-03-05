@@ -1,9 +1,10 @@
+#[derive(Clone, Debug)]
 pub struct SequencesHeader {
     pub num_sequences: u32,
     pub modes: Option<CompressionModes>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Sequence {
     pub ll: u32,
     pub ml: u32,
@@ -16,7 +17,7 @@ impl std::fmt::Display for Sequence {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct CompressionModes(u8);
 pub enum ModeType {
     Predefined,

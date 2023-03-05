@@ -5,6 +5,7 @@ use twox_hash::XxHash64;
 
 use super::ringbuffer::RingBuffer;
 
+#[derive(Debug, Clone)]
 pub struct Decodebuffer {
     buffer: RingBuffer,
     pub dict_content: Vec<u8>,

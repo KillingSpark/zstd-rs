@@ -5,6 +5,7 @@ use crate::decoding::scratch::HuffmanScratch;
 use crate::fse::FSETableError;
 use crate::huff0::HuffmanTableError;
 
+#[derive(Debug, Clone)]
 pub struct Dictionary {
     pub id: u32,
     pub fse: FSEScratch,

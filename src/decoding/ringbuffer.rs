@@ -1,5 +1,6 @@
 use std::{alloc::Layout, ptr::NonNull, slice};
 
+#[derive(Debug, Clone)]
 pub struct RingBuffer {
     buf: NonNull<u8>,
     cap: usize,

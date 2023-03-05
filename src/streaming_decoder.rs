@@ -6,6 +6,7 @@ use std::io::Read;
 ///
 /// The lower level FrameDecoder by comparison allows for finer grained control but need sto have it's decode_blocks method called continously
 /// to decode the zstd-frame.
+#[derive(Debug, Clone)]
 pub struct StreamingDecoder<READ: Read> {
     pub decoder: FrameDecoder,
     source: READ,
