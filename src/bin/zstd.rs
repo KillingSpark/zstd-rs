@@ -1,8 +1,8 @@
 extern crate ruzstd;
 use std::fs::File;
 use std::io::Read;
-use std::io::Write;
 use std::io::Seek;
+use std::io::Write;
 
 struct StateTracker {
     bytes_used: u64,
@@ -86,29 +86,30 @@ fn main() {
                 result.resize(result.capacity(), 0);
             }
 
-            match frame_dec.get_checksum_from_data() {
-                Some(chksum) => {
-                    if frame_dec.get_calculated_checksum().unwrap() != chksum {
-                        tracker.invalid_checksums += 1;
-                        eprintln!(
-                            "Checksum did not match in frame {}! From data: {}, calculated while decoding: {}",
-                            tracker.frames_used,
-                            chksum,
-                            frame_dec.get_calculated_checksum().unwrap()
-                        );
-                    } else {
-                        tracker.valid_checksums += 1;
-                    }
+            if let Some(chksum) = frame_dec.get_checksum_from_data() {
+                if frame_dec.get_calculated_checksum().unwrap() != chksum {
+                    tracker.invalid_checksums += 1;
+                    eprintln!(
+                        "Checksum did not match in frame {}! From data: {}, calculated while decoding: {}",
+                        tracker.frames_used,
+                        chksum,
+                        frame_dec.get_calculated_checksum().unwrap()
+                    );
+                } else {
+                    tracker.valid_checksums += 1;
                 }
-                None => {},
             }
         }
 
-        eprintln!("\nDecoded frames: {}  bytes: {}", tracker.frames_used, tracker.bytes_used);
+        eprintln!(
+            "\nDecoded frames: {}  bytes: {}",
+            tracker.frames_used, tracker.bytes_used
+        );
         if tracker.valid_checksums == 0 && tracker.invalid_checksums == 0 {
             eprintln!("No checksums to test");
         } else {
-            eprintln!("{} of {} checksums are ok!",
+            eprintln!(
+                "{} of {} checksums are ok!",
                 tracker.valid_checksums,
                 tracker.valid_checksums + tracker.invalid_checksums,
             );
