@@ -176,8 +176,8 @@ impl RingBuffer {
     pub fn as_slices(&self) -> (&[u8], &[u8]) {
         let (s1, s2) = self.data_slice_parts();
         unsafe {
-            let s1 = &*slice::from_raw_parts(s1.0, s1.1);
-            let s2 = &*slice::from_raw_parts(s2.0, s2.1);
+            let s1 = slice::from_raw_parts(s1.0, s1.1);
+            let s2 = slice::from_raw_parts(s2.0, s2.1);
             (s1, s2)
         }
     }
