@@ -69,10 +69,7 @@ fn main() {
                 if frame_dec.can_collect() > batch_size {
                     let x = frame_dec.read(result.as_mut_slice()).unwrap();
                     tracker.file_pos = f.stream_position().unwrap();
-
-                    result.resize(x, 0);
-                    do_something(&result, &mut tracker);
-                    result.resize(result.capacity(), 0);
+                    do_something(&result[..x], &mut tracker);
                 }
             }
 
@@ -80,10 +77,7 @@ fn main() {
             while frame_dec.can_collect() > 0 {
                 let x = frame_dec.read(result.as_mut_slice()).unwrap();
                 tracker.file_pos = f.stream_position().unwrap();
-
-                result.resize(x, 0);
-                do_something(&result, &mut tracker);
-                result.resize(result.capacity(), 0);
+                do_something(&result[..x], &mut tracker);
             }
 
             if let Some(chksum) = frame_dec.get_checksum_from_data() {
