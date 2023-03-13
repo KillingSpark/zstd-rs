@@ -18,8 +18,6 @@ pub fn execute_sequences(scratch: &mut DecoderScratch) -> Result<(), ExecuteSequ
 
     for idx in 0..scratch.sequences.len() {
         let seq = scratch.sequences[idx];
-        if crate::VERBOSE {}
-        //println!("{}: {}", idx, seq);
 
         if seq.ll > 0 {
             let high = literals_copy_counter + seq.ll as usize;

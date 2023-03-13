@@ -4,6 +4,7 @@ use super::super::blocks::sequence_section::SequencesHeader;
 use super::bit_reader_reverse::{BitReaderReversed, GetBitsError};
 use super::scratch::FSEScratch;
 use crate::fse::{FSEDecoder, FSEDecoderError, FSETableError};
+use alloc::vec::Vec;
 
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
@@ -42,9 +43,7 @@ pub fn decode_sequences(
 ) -> Result<(), DecodeSequenceError> {
     let bytes_read = maybe_update_fse_tables(section, source, scratch)?;
 
-    if crate::VERBOSE {
-        println!("Updating tables used {} bytes", bytes_read);
-    }
+    vprintln!("Updating tables used {} bytes", bytes_read);
 
     let bit_stream = &source[bytes_read..];
 
@@ -319,16 +318,13 @@ fn maybe_update_fse_tables(
         ModeType::FSECompressed => {
             let bytes = scratch.literal_lengths.build_decoder(source, LL_MAX_LOG)?;
             bytes_read += bytes;
-            if crate::VERBOSE {
-                println!("Updating ll table");
-                println!("Used bytes: {}", bytes);
-            }
+
+            vprintln!("Updating ll table");
+            vprintln!("Used bytes: {}", bytes);
             scratch.ll_rle = None;
         }
         ModeType::RLE => {
-            if crate::VERBOSE {
-                println!("Use RLE ll table");
-            }
+            vprintln!("Use RLE ll table");
             if source.is_empty() {
                 return Err(DecodeSequenceError::MissingByteForRleLlTable);
             }
@@ -336,9 +332,7 @@ fn maybe_update_fse_tables(
             scratch.ll_rle = Some(source[0]);
         }
         ModeType::Predefined => {
-            if crate::VERBOSE {
-                println!("Use predefined ll table");
-            }
+            vprintln!("Use predefined ll table");
             scratch.literal_lengths.build_from_probabilities(
                 LL_DEFAULT_ACC_LOG,
                 &Vec::from(&LITERALS_LENGTH_DEFAULT_DISTRIBUTION[..]),
@@ -346,9 +340,7 @@ fn maybe_update_fse_tables(
             scratch.ll_rle = None;
         }
         ModeType::Repeat => {
-            if crate::VERBOSE {
-                println!("Repeat ll table");
-            }
+            vprintln!("Repeat ll table");
             /* Nothing to do */
         }
     };
@@ -358,17 +350,13 @@ fn maybe_update_fse_tables(
     match modes.of_mode() {
         ModeType::FSECompressed => {
             let bytes = scratch.offsets.build_decoder(of_source, OF_MAX_LOG)?;
-            if crate::VERBOSE {
-                println!("Updating of table");
-                println!("Used bytes: {}", bytes);
-            }
+            vprintln!("Updating of table");
+            vprintln!("Used bytes: {}", bytes);
             bytes_read += bytes;
             scratch.of_rle = None;
         }
         ModeType::RLE => {
-            if crate::VERBOSE {
-                println!("Use RLE of table");
-            }
+            vprintln!("Use RLE of table");
             if of_source.is_empty() {
                 return Err(DecodeSequenceError::MissingByteForRleOfTable);
             }
@@ -376,9 +364,7 @@ fn maybe_update_fse_tables(
             scratch.of_rle = Some(of_source[0]);
         }
         ModeType::Predefined => {
-            if crate::VERBOSE {
-                println!("Use predefined of table");
-            }
+            vprintln!("Use predefined of table");
             scratch.offsets.build_from_probabilities(
                 OF_DEFAULT_ACC_LOG,
                 &Vec::from(&OFFSET_DEFAULT_DISTRIBUTION[..]),
@@ -386,9 +372,7 @@ fn maybe_update_fse_tables(
             scratch.of_rle = None;
         }
         ModeType::Repeat => {
-            if crate::VERBOSE {
-                println!("Repeat of table");
-            }
+            vprintln!("Repeat of table");
             /* Nothing to do */
         }
     };
@@ -399,16 +383,12 @@ fn maybe_update_fse_tables(
         ModeType::FSECompressed => {
             let bytes = scratch.match_lengths.build_decoder(ml_source, ML_MAX_LOG)?;
             bytes_read += bytes;
-            if crate::VERBOSE {
-                println!("Updating ml table");
-                println!("Used bytes: {}", bytes);
-            }
+            vprintln!("Updating ml table");
+            vprintln!("Used bytes: {}", bytes);
             scratch.ml_rle = None;
         }
         ModeType::RLE => {
-            if crate::VERBOSE {
-                println!("Use RLE ml table");
-            }
+            vprintln!("Use RLE ml table");
             if ml_source.is_empty() {
                 return Err(DecodeSequenceError::MissingByteForRleMlTable);
             }
@@ -416,9 +396,7 @@ fn maybe_update_fse_tables(
             scratch.ml_rle = Some(ml_source[0]);
         }
         ModeType::Predefined => {
-            if crate::VERBOSE {
-                println!("Use predefined ml table");
-            }
+            vprintln!("Use predefined ml table");
             scratch.match_lengths.build_from_probabilities(
                 ML_DEFAULT_ACC_LOG,
                 &Vec::from(&MATCH_LENGTH_DEFAULT_DISTRIBUTION[..]),
@@ -426,9 +404,7 @@ fn maybe_update_fse_tables(
             scratch.ml_rle = None;
         }
         ModeType::Repeat => {
-            if crate::VERBOSE {
-                println!("Repeat ml table");
-            }
+            vprintln!("Repeat ml table");
             /* Nothing to do */
         }
     };
@@ -463,10 +439,14 @@ fn test_ll_default() {
         )
         .unwrap();
 
+    #[cfg(feature = "std")]
     for idx in 0..table.decode.len() {
-        println!(
+        std::println!(
             "{:3}: {:3} {:3} {:3}",
-            idx, table.decode[idx].symbol, table.decode[idx].num_bits, table.decode[idx].base_line
+            idx,
+            table.decode[idx].symbol,
+            table.decode[idx].num_bits,
+            table.decode[idx].base_line
         );
     }
 

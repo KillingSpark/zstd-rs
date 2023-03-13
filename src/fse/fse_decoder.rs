@@ -1,5 +1,6 @@
 use crate::decoding::bit_reader::BitReader;
 use crate::decoding::bit_reader_reverse::{BitReaderReversed, GetBitsError};
+use alloc::vec::Vec;
 
 #[derive(Clone)]
 pub struct FSETable {

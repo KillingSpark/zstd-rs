@@ -1,5 +1,8 @@
-use std::convert::TryInto;
-use std::io;
+use crate::io::{Error, Read};
+use core::convert::TryInto;
+
+use alloc::vec;
+use alloc::vec::Vec;
 
 pub const MAGIC_NUM: u32 = 0xFD2F_B528;
 pub const MIN_WINDOW_SIZE: u64 = 1024;
@@ -214,22 +217,21 @@ impl Frame {
 #[non_exhaustive]
 pub enum ReadFrameHeaderError {
     #[error("Error while reading magic number: {0}")]
-    MagicNumberReadError(#[source] io::Error),
+    MagicNumberReadError(#[source] Error),
     #[error("Error while reading frame descriptor: {0}")]
-    FrameDescriptorReadError(#[source] io::Error),
+    FrameDescriptorReadError(#[source] Error),
     #[error(transparent)]
     InvalidFrameDescriptor(#[from] FrameDescriptorError),
     #[error("Error while reading window descriptor: {0}")]
-    WindowDescriptorReadError(#[source] io::Error),
+    WindowDescriptorReadError(#[source] Error),
     #[error("Error while reading dictionary id: {0}")]
-    DictionaryIdReadError(#[source] io::Error),
+    DictionaryIdReadError(#[source] Error),
     #[error("Error while reading frame content size: {0}")]
-    FrameContentSizeReadError(#[source] io::Error),
+    FrameContentSizeReadError(#[source] Error),
     #[error("SkippableFrame encountered with MagicNumber 0x{0:X} and length {1} bytes")]
     SkipFrame(u32, u32),
 }
 
-use std::io::Read;
 pub fn read_frame_header(mut r: impl Read) -> Result<(Frame, u8), ReadFrameHeaderError> {
     use ReadFrameHeaderError as err;
     let mut buf = [0u8; 4];

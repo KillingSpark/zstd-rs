@@ -3,6 +3,7 @@ use super::decodebuffer::Decodebuffer;
 use crate::decoding::dictionary::Dictionary;
 use crate::fse::FSETable;
 use crate::huff0::HuffmanTable;
+use alloc::vec::Vec;
 
 pub struct DecoderScratch {
     pub huf: HuffmanScratch,

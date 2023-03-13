@@ -11,14 +11,26 @@ exclude = ["decodecorpus_files/*", "dict_tests/*", "fuzz_decodecorpus/*"]
 readme = "Readme.md"
 
 [dependencies]
-byteorder = "1.4"
+byteorder = { version = "1.4", default-features = false }
 twox-hash = { version = "1.6", default-features = false }
-thiserror = "1"
+thiserror = { package = "thiserror-core", version = "1.0.38", default-features = false }
 
 [dev-dependencies]
 criterion = "0.3"
 rand = "0.8.5"
 
+[features]
+default = ["std"]
+std = ["thiserror/std"]
+
 [[bench]]
 name = "reversedbitreader_bench"
 harness = false
+
+[[bin]]
+name = "zstd"
+required-features = ["std"]
+
+[[bin]]
+name = "zstd_stream"
+required-features = ["std"]
