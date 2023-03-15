@@ -10,11 +10,9 @@ This crate might look like it is not active, this is because there isn't really 
 
 [![Actions Status](https://github.com/KillingSpark/zstd-rs/workflows/CI/badge.svg)](https://github.com/KillingSpark/zstd-rs/actions?query=workflow%3A"CI")
 
-This is started just as a toy project but I think it is in a usable state now. It does work correctly at least for the test-set of files I used, YMMV, it is not yet battle tested by any means.
-For production use (or if you need a compressor) I would (at the time of writing, this might get out of date and there might come better projects along!) recommend to use the C binding located [here](https://github.com/gyscos/zstd-rs).
+This is started just as a toy project but it is in a usable state now.
 
-If you'd be willing to try this in your projects I would be very happy though! The crate is published to [crates.io](https://crates.io/crates/ruzstd) following the releases on this repo. The docs are located
-[here](https://docs.rs/ruzstd) (These might lag behind the releases since docs.rs doesn't pull from crates.io immediately but they will show the latest version eventually).
+It is speedwise still behind the original C implementation which has a rust binding located [here](https://github.com/gyscos/zstd-rs).
 
 ## Speed
 
@@ -29,11 +27,10 @@ Measuring with the 'time' utility the original zstd and my decoder both decoding
 
 ## Cannot do
 
-This decoder is pretty much feature complete but probably not bug free. If there are any wishes for new APIs or bug reports please file an issue, I will gladly take a look!
+This decoder is pretty much feature complete. If there are any wishes for new APIs or bug reports please file an issue, I will gladly take a look!
 
 ## Roadmap
 
-1. Test/fuzz dictionary implementation
 1. More Performance optimizations (targets would be sequence_decoding and reverse_bitreader::get_bits. Those account for about 50% of the whole time used)
 1. More tests (especially unit-tests for the bitreaders and other lower-level parts)
 1. Find more bugs
@@ -92,20 +89,3 @@ recommended approach.
 
 For an example see the src/bin/zstd.rs file. Basically you can decode the frame until either a
 given block count has been decoded or the decodebuffer has reached a certain size. Then you can collect no longer needed bytes from the buffer and do something with them, discard them and resume decoding the frame in a loop until the frame has been decoded completely.
-
-# What you might notice
-
-I already have done a decoder for zstd in golang. [here](https://github.com/KillingSpark/sparkzstd). This was a first try and it turned out very inperformant. I could have tried to rewrite it to use less allocations while decoding etc etc but that seemed dull (and unnecessary since klauspost has done a way better golang implementation that additionally can compress data [here](https://github.com/klauspost/compress/tree/master/zstd))
-
-## Why another one
-
-Well I wanted to show myself that I am actually able to learn from my mistakes. This implementation should be way more performant since I from the get go focussed on reusing allocated space instead of reallocating all the decoding tables etc.
-
-Also this time I did most of the work without looking at the original source nor the [educational decoder](https://github.com/facebook/zstd/tree/dev/doc/educational_decoder).
-So it is somewhat uninfluenced by those. (But I carried over some memories from the golang implementation).
-I used it to understand the huffman-decoding process and the process of how to exactly distribute baseline/num_bits in the fse tables on which the documentation is somewhat ambiguous.
-After having written most of the code I used my golang implementation for debugging purposes (known 'good' results of the different steps).
-
-## Known bugs:
-
-currently none
