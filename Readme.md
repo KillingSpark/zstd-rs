@@ -24,6 +24,7 @@ Measuring with the 'time' utility the original zstd and my decoder both decoding
 1. Decode all of them correctly into the output buffer
 1. Decode all the decode_corpus files (1000+) I created locally
 1. Calculate checksums
+1. Act as a `zstd -c -d` dropin replacement
 
 ## Cannot do
 
@@ -60,6 +61,8 @@ If (when) the fuzzer finds a crash it will be saved to the artifacts dir by the 
 This will tell you where the decoder panics exactly. If you are able to fix the issue please feel free to do a pull request. If not please still submit the offending input and I will see how to fix it myself.
 
 # How can you use it?
+
+Additionally to the descriptions and the docs you can have a look at the zstd / zstd_streaming binaries. They showcase how this library can be used.
 
 ## Easy
 
