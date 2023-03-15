@@ -225,7 +225,7 @@ pub enum ReadFrameHeaderError {
     DictionaryIdReadError(#[source] io::Error),
     #[error("Error while reading frame content size: {0}")]
     FrameContentSizeReadError(#[source] io::Error),
-    #[error("SkippableFrame encountered with MagicNumber {0} and length {1} bytes")]
+    #[error("SkippableFrame encountered with MagicNumber 0x{0:X} and length {1} bytes")]
     SkipFrame(u32, u32),
 }
 
