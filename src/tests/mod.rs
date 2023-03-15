@@ -1,5 +1,34 @@
 #[cfg(test)]
 #[test]
+fn skippable_frame() {
+    use crate::frame;
+
+    let mut content = vec![];
+    content.extend_from_slice(&0x184D2A50u32.to_le_bytes());
+    content.extend_from_slice(&300u32.to_le_bytes());
+    assert_eq!(8, content.len());
+    let err = frame::read_frame_header(content.as_slice());
+    assert!(matches!(
+        err,
+        Err(frame::ReadFrameHeaderError::SkipFrame(0x184D2A50u32, 300))
+    ));
+
+    content.clear();
+    content.extend_from_slice(&0x184D2A5Fu32.to_le_bytes());
+    content.extend_from_slice(&0xFFFFFFFFu32.to_le_bytes());
+    assert_eq!(8, content.len());
+    let err = frame::read_frame_header(content.as_slice());
+    assert!(matches!(
+        err,
+        Err(frame::ReadFrameHeaderError::SkipFrame(
+            0x184D2A5Fu32,
+            0xFFFFFFFF
+        ))
+    ));
+}
+
+#[cfg(test)]
+#[test]
 fn test_frame_header_reading() {
     use crate::frame;
     use std::fs;

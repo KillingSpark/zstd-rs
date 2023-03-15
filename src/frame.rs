@@ -225,6 +225,8 @@ pub enum ReadFrameHeaderError {
     DictionaryIdReadError(#[source] io::Error),
     #[error("Error while reading frame content size: {0}")]
     FrameContentSizeReadError(#[source] io::Error),
+    #[error("SkippableFrame encountered with MagicNumber {0} and length {1} bytes")]
+    SkipFrame(u32, u32),
 }
 
 use std::io::Read;
@@ -234,6 +236,14 @@ pub fn read_frame_header(mut r: impl Read) -> Result<(Frame, u8), ReadFrameHeade
 
     r.read_exact(&mut buf).map_err(err::MagicNumberReadError)?;
     let magic_num = u32::from_le_bytes(buf);
+
+    // Skippable frames have a magic number in this interval
+    if (0x184D2A50..=0x184D2A5F).contains(&magic_num) {
+        r.read_exact(&mut buf)
+            .map_err(err::FrameDescriptorReadError)?;
+        let skip_size = u32::from_le_bytes(buf);
+        return Err(ReadFrameHeaderError::SkipFrame(magic_num, skip_size));
+    }
 
     let mut bytes_read = 4;
 

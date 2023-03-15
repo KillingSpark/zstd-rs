@@ -2,7 +2,11 @@ extern crate ruzstd;
 use std::fs::File;
 use std::io::Read;
 use std::io::Seek;
+use std::io::SeekFrom;
 use std::io::Write;
+
+use ruzstd::frame::ReadFrameHeaderError;
+use ruzstd::frame_decoder::FrameDecoderError;
 
 struct StateTracker {
     bytes_used: u64,
@@ -57,7 +61,18 @@ fn main() {
         let mut result = vec![0; batch_size];
 
         while tracker.file_pos < tracker.file_size {
-            frame_dec.reset(&mut f).unwrap();
+            match frame_dec.reset(&mut f) {
+                Err(FrameDecoderError::ReadFrameHeaderError(ReadFrameHeaderError::SkipFrame(
+                    magic_num,
+                    skip_size,
+                ))) => {
+                    eprintln!("Found a skippable frame with magic number: {magic_num} and size: {skip_size}");
+                    tracker.file_pos += skip_size as u64;
+                    f.seek(SeekFrom::Current(skip_size as i64)).unwrap();
+                    continue;
+                }
+                other => other.unwrap(),
+            }
 
             tracker.frames_used += 1;
 
