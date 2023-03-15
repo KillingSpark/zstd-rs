@@ -10,9 +10,9 @@ This crate might look like it is not active, this is because there isn't really 
 
 [![Actions Status](https://github.com/KillingSpark/zstd-rs/workflows/CI/badge.svg)](https://github.com/KillingSpark/zstd-rs/actions?query=workflow%3A"CI")
 
-This is started just as a toy project but it is in a usable state now.
+This started as a toy project but it is in a usable state now.
 
-It is speedwise still behind the original C implementation which has a rust binding located [here](https://github.com/gyscos/zstd-rs).
+In terms of speed it is still behind the original C implementation which has a rust binding located [here](https://github.com/gyscos/zstd-rs).
 
 ## Speed
 
