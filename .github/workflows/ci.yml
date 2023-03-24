@@ -111,7 +111,7 @@ jobs:
           args: --no-default-features
 
   lints-no-std:
-    name: Lints
+    name: Lints (no std)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
