@@ -1,5 +1,6 @@
-use std::hash::Hasher;
-use std::io;
+use crate::io::{Error, Read, Write};
+use alloc::vec::Vec;
+use core::hash::Hasher;
 
 use twox_hash::XxHash64;
 
@@ -23,8 +24,8 @@ pub enum DecodebufferError {
     OffsetTooBig { offset: usize, buf_len: usize },
 }
 
-impl io::Read for Decodebuffer {
-    fn read(&mut self, target: &mut [u8]) -> io::Result<usize> {
+impl Read for Decodebuffer {
+    fn read(&mut self, target: &mut [u8]) -> Result<usize, Error> {
         let max_amount = self.can_drain_to_window_size().unwrap_or(0);
         let amount = max_amount.min(target.len());
 
@@ -176,7 +177,7 @@ impl Decodebuffer {
         }
     }
 
-    pub fn drain_to_window_size_writer(&mut self, mut sink: impl io::Write) -> io::Result<usize> {
+    pub fn drain_to_window_size_writer(&mut self, mut sink: impl Write) -> Result<usize, Error> {
         match self.can_drain_to_window_size() {
             None => Ok(0),
             Some(can_drain) => {
@@ -199,14 +200,14 @@ impl Decodebuffer {
         vec
     }
 
-    pub fn drain_to_writer(&mut self, mut sink: impl io::Write) -> io::Result<usize> {
+    pub fn drain_to_writer(&mut self, mut sink: impl Write) -> Result<usize, Error> {
         let len = self.buffer.len();
         self.drain_to(len, |buf| write_all_bytes(&mut sink, buf))?;
 
         Ok(len)
     }
 
-    pub fn read_all(&mut self, target: &mut [u8]) -> io::Result<usize> {
+    pub fn read_all(&mut self, target: &mut [u8]) -> Result<usize, Error> {
         let amount = self.buffer.len().min(target.len());
 
         let mut written = 0;
@@ -224,8 +225,8 @@ impl Decodebuffer {
     fn drain_to(
         &mut self,
         amount: usize,
-        mut write_bytes: impl FnMut(&[u8]) -> (usize, io::Result<()>),
-    ) -> io::Result<()> {
+        mut write_bytes: impl FnMut(&[u8]) -> (usize, Result<(), Error>),
+    ) -> Result<(), Error> {
         if amount == 0 {
             return Ok(());
         }
@@ -280,7 +281,7 @@ impl Decodebuffer {
 }
 
 /// Like Write::write_all but returns partial write length even on error
-fn write_all_bytes(mut sink: impl io::Write, buf: &[u8]) -> (usize, io::Result<()>) {
+fn write_all_bytes(mut sink: impl Write, buf: &[u8]) -> (usize, Result<(), Error>) {
     let mut written = 0;
     while written < buf.len() {
         match sink.write(&buf[written..]) {
@@ -294,7 +295,11 @@ fn write_all_bytes(mut sink: impl io::Write, buf: &[u8]) -> (usize, io::Result<(
 #[cfg(test)]
 mod tests {
     use super::Decodebuffer;
-    use std::io::Write;
+    use crate::io::{Error, ErrorKind, Write};
+
+    extern crate std;
+    use alloc::vec;
+    use alloc::vec::Vec;
 
     #[test]
     fn short_writer() {
@@ -304,7 +309,7 @@ mod tests {
         }
 
         impl Write for ShortWriter {
-            fn write(&mut self, buf: &[u8]) -> std::result::Result<usize, std::io::Error> {
+            fn write(&mut self, buf: &[u8]) -> std::result::Result<usize, Error> {
                 if buf.len() > self.write_len {
                     self.buf.extend_from_slice(&buf[..self.write_len]);
                     Ok(self.write_len)
@@ -314,7 +319,7 @@ mod tests {
                 }
             }
 
-            fn flush(&mut self) -> std::result::Result<(), std::io::Error> {
+            fn flush(&mut self) -> std::result::Result<(), Error> {
                 Ok(())
             }
         }
@@ -352,18 +357,18 @@ mod tests {
         }
 
         impl Write for WouldblockWriter {
-            fn write(&mut self, buf: &[u8]) -> std::result::Result<usize, std::io::Error> {
+            fn write(&mut self, buf: &[u8]) -> std::result::Result<usize, Error> {
                 if self.last_blocked < self.block_every {
                     self.buf.extend_from_slice(buf);
                     self.last_blocked += 1;
                     Ok(buf.len())
                 } else {
                     self.last_blocked = 0;
-                    Err(std::io::Error::from(std::io::ErrorKind::WouldBlock))
+                    Err(Error::from(ErrorKind::WouldBlock))
                 }
             }
 
-            fn flush(&mut self) -> std::result::Result<(), std::io::Error> {
+            fn flush(&mut self) -> std::result::Result<(), Error> {
                 Ok(())
             }
         }
@@ -390,7 +395,7 @@ mod tests {
                         }
                     }
                     Err(e) => {
-                        if e.kind() == std::io::ErrorKind::WouldBlock {
+                        if e.kind() == ErrorKind::WouldBlock {
                             continue;
                         } else {
                             panic!("Unexpected error {:?}", e);
@@ -410,7 +415,7 @@ mod tests {
                     }
                 }
                 Err(e) => {
-                    if e.kind() == std::io::ErrorKind::WouldBlock {
+                    if e.kind() == ErrorKind::WouldBlock {
                         continue;
                     } else {
                         panic!("Unexpected error {:?}", e);

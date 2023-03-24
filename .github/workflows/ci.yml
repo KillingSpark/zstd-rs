@@ -68,6 +68,77 @@ jobs:
           command: clippy
           args: -- -D warnings
 
+  check-no-std:
+    name: Check (no_std)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install nightly toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+
+      - name: Run cargo check without std feature
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          toolchain: nightly
+          args: --no-default-features
+
+  test-no-std:
+    name: Test Suite (no_std)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install nightly toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+
+      - name: Run cargo test without std feature
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          toolchain: nightly
+          args: --no-default-features
+
+  lints-no-std:
+    name: Lints
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install nightly toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+          components: rustfmt, clippy
+
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          toolchain: nightly
+          args: --all -- --check
+
+      - name: Run cargo clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          toolchain: nightly
+          args: --no-default-features -- -D warnings
+
   # fails CI because criterion needs two versions of autocfg
   #cargo-deny:
   #  name: Cargo Deny

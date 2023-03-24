@@ -2,10 +2,11 @@ use super::frame;
 use crate::decoding::dictionary::Dictionary;
 use crate::decoding::scratch::DecoderScratch;
 use crate::decoding::{self, dictionary};
-use std::collections::HashMap;
-use std::convert::TryInto;
-use std::hash::Hasher;
-use std::io::{self, Read};
+use crate::io::{Error, Read, Write};
+use alloc::collections::BTreeMap;
+use alloc::vec::Vec;
+use core::convert::TryInto;
+use core::hash::Hasher;
 
 /// This implements a decoder for zstd frames. This decoder is able to decode frames only partially and gives control
 /// over how many bytes/blocks will be decoded at a time (so you don't have to decode a 10GB file into memory all at once).
@@ -17,11 +18,15 @@ use std::io::{self, Read};
 /// Workflow is as follows:
 /// ```
 /// use ruzstd::frame_decoder::BlockDecodingStrategy;
-/// use std::io::Read;
-/// use std::io::Write;
 ///
+/// # #[cfg(feature = "std")]
+/// use std::io::{Read, Write};
 ///
-/// fn decode_this(mut file: impl std::io::Read) {
+/// // no_std environments can use the crate's own Read traits
+/// # #[cfg(not(feature = "std"))]
+/// use ruzstd::io::{Read, Write};
+///
+/// fn decode_this(mut file: impl Read) {
 ///     //Create a new decoder
 ///     let mut frame_dec = ruzstd::FrameDecoder::new();
 ///     let mut result = Vec::new();
@@ -50,12 +55,13 @@ use std::io::{self, Read};
 /// }
 ///
 /// fn do_something(data: &[u8]) {
+/// # #[cfg(feature = "std")]
 ///     std::io::stdout().write_all(data).unwrap();
 /// }
 /// ```
 pub struct FrameDecoder {
     state: Option<FrameDecoderState>,
-    dicts: HashMap<u32, Dictionary>,
+    dicts: BTreeMap<u32, Dictionary>,
 }
 
 struct FrameDecoderState {
@@ -92,13 +98,13 @@ pub enum FrameDecoderError {
     #[error("Failed to parse block header: {0}")]
     FailedToReadBlockBody(decoding::block_decoder::DecodeBlockContentError),
     #[error("Failed to read checksum: {0}")]
-    FailedToReadChecksum(#[source] io::Error),
+    FailedToReadChecksum(#[source] Error),
     #[error("Decoder must initialized or reset before using it")]
     NotYetInitialized,
     #[error("Decoder encountered error while initializing: {0}")]
     FailedToInitialize(frame::FrameHeaderError),
     #[error("Decoder encountered error while draining the decodebuffer: {0}")]
-    FailedToDrainDecodebuffer(#[source] io::Error),
+    FailedToDrainDecodebuffer(#[source] Error),
     #[error("Target must have at least as many bytes as the contentsize of the frame reports")]
     TargetTooSmall,
     #[error("Frame header specified dictionary id that wasnt provided by add_dict() or reset_with_dict()")]
@@ -158,7 +164,7 @@ impl FrameDecoder {
     pub fn new() -> FrameDecoder {
         FrameDecoder {
             state: None,
-            dicts: HashMap::new(),
+            dicts: BTreeMap::new(),
         }
     }
 
@@ -319,25 +325,21 @@ impl FrameDecoder {
         let buffer_size_before = state.decoder_scratch.buffer.len();
         let block_counter_before = state.block_counter;
         loop {
-            if crate::VERBOSE {
-                println!("################");
-                println!("Next Block: {}", state.block_counter);
-                println!("################");
-            }
+            vprintln!("################");
+            vprintln!("Next Block: {}", state.block_counter);
+            vprintln!("################");
             let (block_header, block_header_size) = block_dec
                 .read_block_header(&mut source)
                 .map_err(err::FailedToReadBlockHeader)?;
             state.bytes_read_counter += u64::from(block_header_size);
 
-            if crate::VERBOSE {
-                println!();
-                println!(
-                    "Found {} block with size: {}, which will be of size: {}",
-                    block_header.block_type,
-                    block_header.content_size,
-                    block_header.decompressed_size
-                );
-            }
+            vprintln!();
+            vprintln!(
+                "Found {} block with size: {}, which will be of size: {}",
+                block_header.block_type,
+                block_header.content_size,
+                block_header.decompressed_size
+            );
 
             let bytes_read_in_block_body = block_dec
                 .decode_block_content(&block_header, &mut state.decoder_scratch, &mut source)
@@ -346,9 +348,7 @@ impl FrameDecoder {
 
             state.block_counter += 1;
 
-            if crate::VERBOSE {
-                println!("Output: {}", state.decoder_scratch.buffer.len());
-            }
+            vprintln!("Output: {}", state.decoder_scratch.buffer.len());
 
             if block_header.last_block {
                 state.frame_finished = true;
@@ -396,7 +396,7 @@ impl FrameDecoder {
 
     /// Collect bytes and retain window_size bytes while decoding is still going on.
     /// After decoding of the frame (is_finished() == true) has finished it will collect all remaining bytes
-    pub fn collect_to_writer(&mut self, w: impl std::io::Write) -> Result<usize, std::io::Error> {
+    pub fn collect_to_writer(&mut self, w: impl Write) -> Result<usize, Error> {
         let finished = self.is_finished();
         let state = match &mut self.state {
             None => return Ok(0),
@@ -554,8 +554,8 @@ impl FrameDecoder {
 
 /// Read bytes from the decode_buffer that are no longer needed. While the frame is not yet finished
 /// this will retain window_size bytes, else it will drain it completely
-impl std::io::Read for FrameDecoder {
-    fn read(&mut self, target: &mut [u8]) -> std::result::Result<usize, std::io::Error> {
+impl Read for FrameDecoder {
+    fn read(&mut self, target: &mut [u8]) -> Result<usize, Error> {
         let state = match &mut self.state {
             None => return Ok(0),
             Some(s) => s,

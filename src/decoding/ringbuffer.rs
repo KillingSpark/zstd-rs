@@ -1,4 +1,5 @@
-use std::{alloc::Layout, ptr::NonNull, slice};
+use alloc::alloc::{alloc, dealloc};
+use core::{alloc::Layout, ptr::NonNull, slice};
 
 pub struct RingBuffer {
     buf: NonNull<u8>,
@@ -70,7 +71,7 @@ impl RingBuffer {
         // alloc the new memory region and panic if alloc fails
         // TODO maybe rework this to generate an error?
         let new_buf = unsafe {
-            let new_buf = std::alloc::alloc(new_layout);
+            let new_buf = alloc(new_layout);
 
             NonNull::new(new_buf).expect("Allocating new space for the ringbuffer failed")
         };
@@ -85,7 +86,7 @@ impl RingBuffer {
                     .as_ptr()
                     .add(s1_len)
                     .copy_from_nonoverlapping(s2_ptr, s2_len);
-                std::alloc::dealloc(self.buf.as_ptr(), current_layout);
+                dealloc(self.buf.as_ptr(), current_layout);
             }
 
             self.tail = s1_len + s2_len;
@@ -341,7 +342,7 @@ impl Drop for RingBuffer {
         let current_layout = unsafe { Layout::array::<u8>(self.cap).unwrap_unchecked() };
 
         unsafe {
-            std::alloc::dealloc(self.buf.as_ptr(), current_layout);
+            dealloc(self.buf.as_ptr(), current_layout);
         }
     }
 }
@@ -448,8 +449,8 @@ unsafe fn copy_with_nobranch_check(
             f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
             f2_ptr.copy_from_nonoverlapping(m1_ptr.add(m1_in_f1), m1_in_f2);
         }
-        6 => std::hint::unreachable_unchecked(),
-        7 => std::hint::unreachable_unchecked(),
+        6 => core::hint::unreachable_unchecked(),
+        7 => core::hint::unreachable_unchecked(),
         9 => {
             f1_ptr.copy_from_nonoverlapping(m1_ptr, m1_in_f1);
             f2_ptr.copy_from_nonoverlapping(m2_ptr, m2_in_f2);
@@ -480,9 +481,9 @@ unsafe fn copy_with_nobranch_check(
                 .add(m1_in_f2)
                 .copy_from_nonoverlapping(m2_ptr, m2_in_f2);
         }
-        14 => std::hint::unreachable_unchecked(),
-        15 => std::hint::unreachable_unchecked(),
-        _ => std::hint::unreachable_unchecked(),
+        14 => core::hint::unreachable_unchecked(),
+        15 => core::hint::unreachable_unchecked(),
+        _ => core::hint::unreachable_unchecked(),
     }
 }
 

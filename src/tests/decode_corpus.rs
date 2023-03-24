@@ -1,8 +1,13 @@
 #[test]
 fn test_decode_corpus_files() {
+    extern crate std;
     use crate::frame_decoder;
+    use alloc::borrow::ToOwned;
+    use alloc::string::{String, ToString};
+    use alloc::vec::Vec;
     use std::fs;
     use std::io::Read;
+    use std::println;
 
     let mut success_counter = 0;
     let mut fail_counter_diff = 0;

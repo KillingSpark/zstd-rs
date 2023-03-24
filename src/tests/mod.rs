@@ -1,4 +1,28 @@
 #[cfg(test)]
+use alloc::vec;
+
+#[cfg(test)]
+use alloc::vec::Vec;
+
+#[cfg(test)]
+extern crate std;
+
+#[cfg(all(test, not(feature = "std")))]
+impl crate::io_nostd::Read for std::fs::File {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, crate::io_nostd::Error> {
+        std::io::Read::read(self, buf).map_err(|e| {
+            if e.get_ref().is_none() {
+                crate::io_nostd::Error::from(crate::io_nostd::ErrorKind::Other)
+            } else {
+                crate::io_nostd::Error::new(
+                    crate::io_nostd::ErrorKind::Other,
+                    e.into_inner().unwrap(),
+                )
+            }
+        })
+    }
+}
+
 #[test]
 fn skippable_frame() {
     use crate::frame;
@@ -131,16 +155,16 @@ fn test_decode_from_to() {
     match frame_dec.get_checksum_from_data() {
         Some(chksum) => {
             if frame_dec.get_calculated_checksum().unwrap() != chksum {
-                println!(
+                std::println!(
                     "Checksum did not match! From data: {}, calculated while decoding: {}\n",
                     chksum,
                     frame_dec.get_calculated_checksum().unwrap()
                 );
             } else {
-                println!("Checksums are ok!\n");
+                std::println!("Checksums are ok!\n");
             }
         }
-        None => println!("No checksums to test\n"),
+        None => std::println!("No checksums to test\n"),
     }
 
     let original_f = File::open("./decodecorpus_files/z000088").unwrap();
@@ -163,7 +187,7 @@ fn test_decode_from_to() {
     for idx in 0..min {
         if original[idx] != result[idx] {
             counter += 1;
-            //println!(
+            //std::println!(
             //    "Original {:3} not equal to result {:3} at byte: {}",
             //    original[idx], result[idx], idx,
             //);
@@ -204,10 +228,10 @@ fn test_specific_file() {
     let original_f = fs::File::open("./decodecorpus_files/z000088").unwrap();
     let original: Vec<u8> = original_f.bytes().map(|x| x.unwrap()).collect();
 
-    println!("Results for file: {}", path);
+    std::println!("Results for file: {}", path);
 
     if original.len() != result.len() {
-        println!(
+        std::println!(
             "Result has wrong length: {}, should be: {}",
             result.len(),
             original.len()
@@ -223,18 +247,19 @@ fn test_specific_file() {
     for idx in 0..min {
         if original[idx] != result[idx] {
             counter += 1;
-            //println!(
+            //std::println!(
             //    "Original {:3} not equal to result {:3} at byte: {}",
             //    original[idx], result[idx], idx,
             //);
         }
     }
     if counter > 0 {
-        println!("Result differs in at least {} bytes from original", counter);
+        std::println!("Result differs in at least {} bytes from original", counter);
     }
 }
 
 #[test]
+#[cfg(feature = "std")]
 fn test_streaming() {
     use std::fs;
     use std::io::Read;
@@ -265,7 +290,7 @@ fn test_streaming() {
     for idx in 0..min {
         if original[idx] != result[idx] {
             counter += 1;
-            //println!(
+            //std::println!(
             //    "Original {:3} not equal to result {:3} at byte: {}",
             //    original[idx], result[idx], idx,
             //);
@@ -288,7 +313,7 @@ fn test_streaming() {
     let original_f = fs::File::open("./decodecorpus_files/z000068").unwrap();
     let original: Vec<u8> = original_f.bytes().map(|x| x.unwrap()).collect();
 
-    println!("Results for file:");
+    std::println!("Results for file:");
 
     if original.len() != result.len() {
         panic!(
@@ -307,7 +332,91 @@ fn test_streaming() {
     for idx in 0..min {
         if original[idx] != result[idx] {
             counter += 1;
-            //println!(
+            //std::println!(
+            //    "Original {:3} not equal to result {:3} at byte: {}",
+            //    original[idx], result[idx], idx,
+            //);
+        }
+    }
+    if counter > 0 {
+        panic!("Result differs in at least {} bytes from original", counter);
+    }
+}
+
+#[test]
+#[cfg(not(feature = "std"))]
+fn test_streaming_no_std() {
+    use crate::io::Read;
+
+    let content = include_bytes!("../../decodecorpus_files/z000088.zst");
+    let mut content = content.as_slice();
+    let mut stream = crate::streaming_decoder::StreamingDecoder::new(&mut content).unwrap();
+
+    let original = include_bytes!("../../decodecorpus_files/z000088");
+    let mut result = Vec::new();
+    result.resize(original.len(), 0);
+    Read::read_exact(&mut stream, &mut result).unwrap();
+
+    if original.len() != result.len() {
+        panic!(
+            "Result has wrong length: {}, should be: {}",
+            result.len(),
+            original.len()
+        );
+    }
+
+    let mut counter = 0;
+    let min = if original.len() < result.len() {
+        original.len()
+    } else {
+        result.len()
+    };
+    for idx in 0..min {
+        if original[idx] != result[idx] {
+            counter += 1;
+            //std::println!(
+            //    "Original {:3} not equal to result {:3} at byte: {}",
+            //    original[idx], result[idx], idx,
+            //);
+        }
+    }
+    if counter > 0 {
+        panic!("Result differs in at least {} bytes from original", counter);
+    }
+
+    // Test resetting to a new file while keeping the old decoder
+
+    let content = include_bytes!("../../decodecorpus_files/z000068.zst");
+    let mut content = content.as_slice();
+    let mut stream =
+        crate::streaming_decoder::StreamingDecoder::new_with_decoder(&mut content, stream.inner())
+            .unwrap();
+
+    let original = include_bytes!("../../decodecorpus_files/z000068");
+    let mut result = Vec::new();
+    result.resize(original.len(), 0);
+    Read::read_exact(&mut stream, &mut result).unwrap();
+
+    std::println!("Results for file:");
+
+    if original.len() != result.len() {
+        panic!(
+            "Result has wrong length: {}, should be: {}",
+            result.len(),
+            original.len()
+        );
+    }
+
+    let mut counter = 0;
+    let min = if original.len() < result.len() {
+        original.len()
+    } else {
+        result.len()
+    };
+    for idx in 0..min {
+        if original[idx] != result[idx] {
+            counter += 1;
+            //std::println!(
             //    "Original {:3} not equal to result {:3} at byte: {}",
             //    original[idx], result[idx], idx,
             //);

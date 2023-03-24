@@ -1,5 +1,6 @@
 use crate::decoding::bit_reader_reverse::{BitReaderReversed, GetBitsError};
 use crate::fse::{FSEDecoder, FSEDecoderError, FSETable, FSETableError};
+use alloc::vec::Vec;
 
 #[derive(Clone)]
 pub struct HuffmanTable {
@@ -182,12 +183,10 @@ impl HuffmanTable {
                     });
                 }
 
-                if crate::VERBOSE {
-                    println!(
-                        "Building fse table for huffman weights used: {}",
-                        bytes_used_by_fse_header
-                    );
-                }
+                vprintln!(
+                    "Building fse table for huffman weights used: {}",
+                    bytes_used_by_fse_header
+                );
                 let mut dec1 = FSEDecoder::new(&self.fse_table);
                 let mut dec2 = FSEDecoder::new(&self.fse_table);
 
