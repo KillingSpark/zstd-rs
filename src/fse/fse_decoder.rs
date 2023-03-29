@@ -2,7 +2,6 @@ use crate::decoding::bit_reader::BitReader;
 use crate::decoding::bit_reader_reverse::{BitReaderReversed, GetBitsError};
 use alloc::vec::Vec;
 
-#[derive(Clone)]
 pub struct FSETable {
     pub decode: Vec<Entry>, //used to decode symbols, and calculate the next state
 
@@ -112,6 +111,15 @@ impl FSETable {
             decode: Vec::new(),                      //depending on acc_log.
             accuracy_log: 0,
         }
+    }
+
+    pub fn reinit_from(&mut self, other: &Self) {
+        self.reset();
+        self.symbol_counter.extend_from_slice(&other.symbol_counter);
+        self.symbol_probabilities
+            .extend_from_slice(&other.symbol_probabilities);
+        self.decode.extend_from_slice(&other.decode);
+        self.accuracy_log = other.accuracy_log;
     }
 
     pub fn reset(&mut self) {
