@@ -193,6 +193,8 @@ pub fn read_frame_header(mut r: impl Read) -> Result<(Frame, u8), ReadFrameHeade
         r.read_exact(buf).map_err(err::DictionaryIdReadError)?;
         bytes_read += dict_id_len;
         let mut dict_id = 0u32;
+
+        #[allow(clippy::needless_range_loop)]
         for i in 0..dict_id_len {
             dict_id += (buf[i] as u32) << (8 * i);
         }
@@ -209,6 +211,8 @@ pub fn read_frame_header(mut r: impl Read) -> Result<(Frame, u8), ReadFrameHeade
             .map_err(err::FrameContentSizeReadError)?;
         bytes_read += fcs_len;
         let mut fcs = 0u64;
+
+        #[allow(clippy::needless_range_loop)]
         for i in 0..fcs_len {
             fcs += (fcs_buf[i] as u64) << (8 * i);
         }

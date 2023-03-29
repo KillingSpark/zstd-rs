@@ -199,7 +199,7 @@ impl FrameDecoder {
     /// Returns how many bytes the frame contains after decompression
     pub fn content_size(&self) -> u64 {
         match &self.state {
-            None => return 0,
+            None => 0,
             Some(s) => s.frame.header.frame_content_size(),
         }
     }
