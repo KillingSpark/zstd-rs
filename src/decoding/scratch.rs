@@ -62,7 +62,9 @@ impl DecoderScratch {
         self.huf.table.reinit_from(&dict.huf.table);
         self.offset_hist = dict.offset_hist;
         self.buffer.dict_content.clear();
-        self.buffer.dict_content.extend_from_slice(&dict.dict_content);
+        self.buffer
+            .dict_content
+            .extend_from_slice(&dict.dict_content);
     }
 }
 
