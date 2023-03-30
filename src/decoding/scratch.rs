@@ -57,11 +57,12 @@ impl DecoderScratch {
         self.huf.table.reset();
     }
 
-    pub fn use_dict(&mut self, dict: &Dictionary) {
+    pub fn init_from_dict(&mut self, dict: &Dictionary) {
         self.fse.reinit_from(&dict.fse);
         self.huf.table.reinit_from(&dict.huf.table);
         self.offset_hist = dict.offset_hist;
-        self.buffer.dict_content = dict.dict_content.clone();
+        self.buffer.dict_content.clear();
+        self.buffer.dict_content.extend_from_slice(&dict.dict_content);
     }
 }
 

@@ -279,7 +279,7 @@ impl FrameDecoder {
                 }
                 None => {
                     let dict = self.dicts.get(&id).ok_or(err::DictNotProvided)?;
-                    state.decoder_scratch.use_dict(dict);
+                    state.decoder_scratch.init_from_dict(dict);
                     state.using_dict = Some(id);
                 }
             }
@@ -455,7 +455,7 @@ impl FrameDecoder {
                         }
                         None => {
                             let dict = self.dicts.get(&id).ok_or(err::DictNotProvided)?;
-                            state.decoder_scratch.use_dict(dict);
+                            state.decoder_scratch.init_from_dict(dict);
                             state.using_dict = Some(id);
                         }
                     }
