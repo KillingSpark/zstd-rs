@@ -209,6 +209,22 @@ impl FrameDecoder {
         Ok(())
     }
 
+    pub fn force_dict(&mut self, dict_id: u32) -> Result<(), FrameDecoderError> {
+        use FrameDecoderError as err;
+        let Some(state) = self.state.as_mut() else {
+            return Err(err::NotYetInitialized);
+        };
+
+        let dict = self
+            .dicts
+            .get(&dict_id)
+            .ok_or(err::DictNotProvided { dict_id })?;
+        state.decoder_scratch.init_from_dict(dict);
+        state.using_dict = Some(dict_id);
+
+        Ok(())
+    }
+
     /// Returns how many bytes the frame contains after decompression
     pub fn content_size(&self) -> u64 {
         match &self.state {
