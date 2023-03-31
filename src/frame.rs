@@ -1,23 +1,17 @@
 use crate::io::{Error, Read};
-use core::convert::TryInto;
-
-use alloc::vec;
-use alloc::vec::Vec;
-
 pub const MAGIC_NUM: u32 = 0xFD2F_B528;
 pub const MIN_WINDOW_SIZE: u64 = 1024;
 pub const MAX_WINDOW_SIZE: u64 = (1 << 41) + 7 * (1 << 38);
 
 pub struct Frame {
-    magic_num: u32,
     pub header: FrameHeader,
 }
 
 pub struct FrameHeader {
     pub descriptor: FrameDescriptor,
     window_descriptor: u8,
-    dict_id: Vec<u8>,
-    frame_content_size: Vec<u8>,
+    dict_id: Option<u32>,
+    frame_content_size: u64,
 }
 
 pub struct FrameDescriptor(u8);
@@ -100,7 +94,7 @@ pub enum FrameHeaderError {
 impl FrameHeader {
     pub fn window_size(&self) -> Result<u64, FrameHeaderError> {
         if self.descriptor.single_segment_flag() {
-            self.frame_content_size()
+            Ok(self.frame_content_size())
         } else {
             let exp = self.window_descriptor >> 3;
             let mantissa = self.window_descriptor & 0x7;
@@ -123,93 +117,12 @@ impl FrameHeader {
         }
     }
 
-    pub fn dictionary_id(&self) -> Result<Option<u32>, FrameHeaderError> {
-        if self.descriptor.dict_id_flag() == 0 {
-            Ok(None)
-        } else {
-            let bytes = self.descriptor.dictionary_id_bytes()?;
-            if self.dict_id.len() != bytes as usize {
-                Err(FrameHeaderError::DictIdTooSmall {
-                    got: self.dict_id.len(),
-                    expected: bytes as usize,
-                })
-            } else {
-                let mut value: u32 = 0;
-                let mut shift = 0;
-                for x in &self.dict_id {
-                    value |= u32::from(*x) << shift;
-                    shift += 8;
-                }
-
-                Ok(Some(value))
-            }
-        }
+    pub fn dictionary_id(&self) -> Option<u32> {
+        self.dict_id
     }
 
-    pub fn frame_content_size(&self) -> Result<u64, FrameHeaderError> {
-        let bytes = self.descriptor.frame_content_size_bytes()?;
-
-        if self.frame_content_size.len() != (bytes as usize) {
-            return Err(FrameHeaderError::MismatchedFrameSize {
-                got: self.frame_content_size.len(),
-                expected: bytes,
-            });
-        }
-
-        match bytes {
-            0 => Err(FrameHeaderError::FrameSizeIsZero),
-            1 => Ok(u64::from(self.frame_content_size[0])),
-            2 => {
-                let val = (u64::from(self.frame_content_size[1]) << 8)
-                    + (u64::from(self.frame_content_size[0]));
-                Ok(val + 256) //this weird offset is from the documentation. Only if bytes == 2
-            }
-            4 => {
-                let val = self.frame_content_size[..4]
-                    .try_into()
-                    .expect("optimized away");
-                let val = u32::from_le_bytes(val);
-                Ok(u64::from(val))
-            }
-            8 => {
-                let val = self.frame_content_size[..8]
-                    .try_into()
-                    .expect("optimized away");
-                let val = u64::from_le_bytes(val);
-                Ok(val)
-            }
-            other => Err(FrameHeaderError::InvalidFrameSize { got: other }),
-        }
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-#[non_exhaustive]
-pub enum FrameCheckError {
-    #[error("magic_num wrong. Is: {got}. Should be: {MAGIC_NUM}")]
-    WrongMagicNum { got: u32 },
-    #[error("Reserved Flag set. Must be zero")]
-    ReservedFlagSet,
-    #[error(transparent)]
-    FrameHeaderError(#[from] FrameHeaderError),
-}
-
-impl Frame {
-    pub fn check_valid(&self) -> Result<(), FrameCheckError> {
-        if self.magic_num != MAGIC_NUM {
-            Err(FrameCheckError::WrongMagicNum {
-                got: self.magic_num,
-            })
-        } else if self.header.descriptor.reserved_flag() {
-            Err(FrameCheckError::ReservedFlagSet)
-        } else {
-            self.header.dictionary_id()?;
-            self.header.window_size()?;
-            if self.header.descriptor.single_segment_flag() {
-                self.header.frame_content_size()?;
-            }
-            Ok(())
-        }
+    pub fn frame_content_size(&self) -> u64 {
+        self.frame_content_size
     }
 }
 
@@ -218,6 +131,8 @@ impl Frame {
 pub enum ReadFrameHeaderError {
     #[error("Error while reading magic number: {0}")]
     MagicNumberReadError(#[source] Error),
+    #[error("Read wrong magic number: 0x{0:X}")]
+    BadMagicNumber(u32),
     #[error("Error while reading frame descriptor: {0}")]
     FrameDescriptorReadError(#[source] Error),
     #[error(transparent)]
@@ -237,6 +152,7 @@ pub fn read_frame_header(mut r: impl Read) -> Result<(Frame, u8), ReadFrameHeade
     let mut buf = [0u8; 4];
 
     r.read_exact(&mut buf).map_err(err::MagicNumberReadError)?;
+    let mut bytes_read = 4;
     let magic_num = u32::from_le_bytes(buf);
 
     // Skippable frames have a magic number in this interval
@@ -247,7 +163,9 @@ pub fn read_frame_header(mut r: impl Read) -> Result<(Frame, u8), ReadFrameHeade
         return Err(ReadFrameHeaderError::SkipFrame(magic_num, skip_size));
     }
 
-    let mut bytes_read = 4;
+    if magic_num != MAGIC_NUM {
+        return Err(ReadFrameHeaderError::BadMagicNumber(magic_num));
+    }
 
     r.read_exact(&mut buf[0..1])
         .map_err(err::FrameDescriptorReadError)?;
@@ -257,8 +175,8 @@ pub fn read_frame_header(mut r: impl Read) -> Result<(Frame, u8), ReadFrameHeade
 
     let mut frame_header = FrameHeader {
         descriptor: FrameDescriptor(desc.0),
-        dict_id: vec![0; desc.dictionary_id_bytes()? as usize],
-        frame_content_size: vec![0; desc.frame_content_size_bytes()? as usize],
+        dict_id: None,
+        frame_content_size: 0,
         window_descriptor: 0,
     };
 
@@ -269,20 +187,42 @@ pub fn read_frame_header(mut r: impl Read) -> Result<(Frame, u8), ReadFrameHeade
         bytes_read += 1;
     }
 
-    if !frame_header.dict_id.is_empty() {
-        r.read_exact(frame_header.dict_id.as_mut_slice())
-            .map_err(err::DictionaryIdReadError)?;
-        bytes_read += frame_header.dict_id.len();
+    let dict_id_len = desc.dictionary_id_bytes()? as usize;
+    if dict_id_len != 0 {
+        let buf = &mut buf[..dict_id_len];
+        r.read_exact(buf).map_err(err::DictionaryIdReadError)?;
+        bytes_read += dict_id_len;
+        let mut dict_id = 0u32;
+
+        #[allow(clippy::needless_range_loop)]
+        for i in 0..dict_id_len {
+            dict_id += (buf[i] as u32) << (8 * i);
+        }
+        if dict_id != 0 {
+            frame_header.dict_id = Some(dict_id);
+        }
     }
 
-    if !frame_header.frame_content_size.is_empty() {
-        r.read_exact(frame_header.frame_content_size.as_mut_slice())
+    let fcs_len = desc.frame_content_size_bytes()? as usize;
+    if fcs_len != 0 {
+        let mut fcs_buf = [0u8; 8];
+        let fcs_buf = &mut fcs_buf[..fcs_len];
+        r.read_exact(fcs_buf)
             .map_err(err::FrameContentSizeReadError)?;
-        bytes_read += frame_header.frame_content_size.len();
+        bytes_read += fcs_len;
+        let mut fcs = 0u64;
+
+        #[allow(clippy::needless_range_loop)]
+        for i in 0..fcs_len {
+            fcs += (fcs_buf[i] as u64) << (8 * i);
+        }
+        if fcs_len == 2 {
+            fcs += 256;
+        }
+        frame_header.frame_content_size = fcs;
     }
 
     let frame: Frame = Frame {
-        magic_num,
         header: frame_header,
     };
 

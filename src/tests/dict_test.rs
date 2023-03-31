@@ -105,7 +105,8 @@ fn test_dict_decoding() {
     });
 
     let mut frame_dec = frame_decoder::FrameDecoder::new();
-    frame_dec.add_dict(&dict).unwrap();
+    let dict = crate::decoding::dictionary::Dictionary::decode_dict(&dict).unwrap();
+    frame_dec.add_dict(dict).unwrap();
 
     for file in files {
         let f = file.unwrap();

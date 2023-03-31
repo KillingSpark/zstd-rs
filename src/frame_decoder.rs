@@ -87,8 +87,6 @@ pub enum FrameDecoderError {
     ReadFrameHeaderError(#[from] frame::ReadFrameHeaderError),
     #[error(transparent)]
     FrameHeaderError(#[from] frame::FrameHeaderError),
-    #[error(transparent)]
-    FrameCheckError(#[from] frame::FrameCheckError),
     #[error("Specified window_size is too big; Requested: {requested}, Max: {MAX_WINDOW_SIZE}")]
     WindowSizeTooBig { requested: u64 },
     #[error(transparent)]
@@ -107,8 +105,8 @@ pub enum FrameDecoderError {
     FailedToDrainDecodebuffer(#[source] Error),
     #[error("Target must have at least as many bytes as the contentsize of the frame reports")]
     TargetTooSmall,
-    #[error("Frame header specified dictionary id that wasnt provided by add_dict() or reset_with_dict()")]
-    DictNotProvided,
+    #[error("Frame header specified dictionary id 0x{dict_id:X} that wasnt provided by add_dict() or reset_with_dict()")]
+    DictNotProvided { dict_id: u32 },
 }
 
 const MAX_WINDOW_SIZE: u64 = 1024 * 1024 * 100;
@@ -117,7 +115,6 @@ impl FrameDecoderState {
     pub fn new(source: impl Read) -> Result<FrameDecoderState, FrameDecoderError> {
         let (frame, header_size) = frame::read_frame_header(source)?;
         let window_size = frame.header.window_size()?;
-        frame.check_valid()?;
         Ok(FrameDecoderState {
             frame,
             frame_finished: false,
@@ -132,7 +129,6 @@ impl FrameDecoderState {
     pub fn reset(&mut self, source: impl Read) -> Result<(), FrameDecoderError> {
         let (frame, header_size) = frame::read_frame_header(source)?;
         let window_size = frame.header.window_size()?;
-        frame.check_valid()?;
 
         if window_size > MAX_WINDOW_SIZE {
             return Err(FrameDecoderError::WindowSizeTooBig {
@@ -177,14 +173,6 @@ impl FrameDecoder {
     pub fn init(&mut self, source: impl Read) -> Result<(), FrameDecoderError> {
         self.reset(source)
     }
-    /// Like init but provides the dict to use for the next frame
-    pub fn init_with_dict(
-        &mut self,
-        source: impl Read,
-        dict: &[u8],
-    ) -> Result<(), FrameDecoderError> {
-        self.reset_with_dict(source, dict)
-    }
 
     /// reset() will allocate all needed buffers if it is the first time this decoder is used
     /// else they just reset these buffers with not further allocations
@@ -193,46 +181,39 @@ impl FrameDecoder {
     ///
     /// equivalent to init()
     pub fn reset(&mut self, source: impl Read) -> Result<(), FrameDecoderError> {
-        match &mut self.state {
-            Some(s) => s.reset(source),
+        use FrameDecoderError as err;
+        let state = match &mut self.state {
+            Some(s) => {
+                s.reset(source)?;
+                s
+            }
             None => {
                 self.state = Some(FrameDecoderState::new(source)?);
-                Ok(())
+                self.state.as_mut().unwrap()
             }
-        }
-    }
-
-    /// Like reset but provides the dict to use for the next frame
-    pub fn reset_with_dict(
-        &mut self,
-        source: impl Read,
-        dict: &[u8],
-    ) -> Result<(), FrameDecoderError> {
-        self.reset(source)?;
-        if let Some(state) = &mut self.state {
-            let id = state.decoder_scratch.load_dict(dict)?;
-            state.using_dict = Some(id);
         };
+        if let Some(dict_id) = state.frame.header.dictionary_id() {
+            let dict = self
+                .dicts
+                .get(&dict_id)
+                .ok_or(err::DictNotProvided { dict_id })?;
+            state.decoder_scratch.init_from_dict(dict);
+            state.using_dict = Some(dict_id);
+        }
         Ok(())
     }
 
     /// Add a dict to the FrameDecoder that can be used when needed. The FrameDecoder uses the appropriate one dynamically
-    pub fn add_dict(&mut self, raw_dict: &[u8]) -> Result<(), FrameDecoderError> {
-        let dict = Dictionary::decode_dict(raw_dict)?;
+    pub fn add_dict(&mut self, dict: Dictionary) -> Result<(), FrameDecoderError> {
         self.dicts.insert(dict.id, dict);
         Ok(())
     }
 
     /// Returns how many bytes the frame contains after decompression
-    pub fn content_size(&self) -> Option<u64> {
-        let state = match &self.state {
-            None => return Some(0),
-            Some(s) => s,
-        };
-
-        match state.frame.header.frame_content_size() {
-            Err(_) => None,
-            Ok(x) => Some(x),
+    pub fn content_size(&self) -> u64 {
+        match &self.state {
+            None => 0,
+            Some(s) => s.frame.header.frame_content_size(),
         }
     }
 
@@ -302,23 +283,6 @@ impl FrameDecoder {
     ) -> Result<bool, FrameDecoderError> {
         use FrameDecoderError as err;
         let state = self.state.as_mut().ok_or(err::NotYetInitialized)?;
-
-        if let Some(id) = state.frame.header.dictionary_id().map_err(
-            //should never happen we check this directly after decoding the frame header
-            err::FailedToInitialize,
-        )? {
-            match state.using_dict {
-                Some(using_id) => {
-                    //happy
-                    debug_assert!(id == using_id);
-                }
-                None => {
-                    let dict = self.dicts.get(&id).ok_or(err::DictNotProvided)?;
-                    state.decoder_scratch.use_dict(dict);
-                    state.using_dict = Some(id);
-                }
-            }
-        }
 
         let mut block_dec = decoding::block_decoder::new();
 
@@ -480,23 +444,6 @@ impl FrameDecoder {
                         state.check_sum = Some(chksum);
                     }
                     return Ok((4, 0));
-                }
-
-                if let Some(id) = state.frame.header.dictionary_id().map_err(
-                    //should never happen we check this directly after decoding the frame header
-                    err::FailedToInitialize,
-                )? {
-                    match state.using_dict {
-                        Some(using_id) => {
-                            //happy
-                            debug_assert!(id == using_id);
-                        }
-                        None => {
-                            let dict = self.dicts.get(&id).ok_or(err::DictNotProvided)?;
-                            state.decoder_scratch.use_dict(dict);
-                            state.using_dict = Some(id);
-                        }
-                    }
                 }
 
                 loop {

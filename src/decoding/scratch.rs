@@ -57,30 +57,17 @@ impl DecoderScratch {
         self.huf.table.reset();
     }
 
-    pub fn use_dict(&mut self, dict: &Dictionary) {
-        self.fse = dict.fse.clone();
-        self.huf = dict.huf.clone();
+    pub fn init_from_dict(&mut self, dict: &Dictionary) {
+        self.fse.reinit_from(&dict.fse);
+        self.huf.table.reinit_from(&dict.huf.table);
         self.offset_hist = dict.offset_hist;
-        self.buffer.dict_content = dict.dict_content.clone();
-    }
-
-    /// parses the dictionary and set the tables
-    /// it returns the dict_id for checking with the frame's dict_id
-    pub fn load_dict(
-        &mut self,
-        raw: &[u8],
-    ) -> Result<u32, super::dictionary::DictionaryDecodeError> {
-        let dict = super::dictionary::Dictionary::decode_dict(raw)?;
-
-        self.huf = dict.huf.clone();
-        self.fse = dict.fse.clone();
-        self.offset_hist = dict.offset_hist;
-        self.buffer.dict_content = dict.dict_content.clone();
-        Ok(dict.id)
+        self.buffer.dict_content.clear();
+        self.buffer
+            .dict_content
+            .extend_from_slice(&dict.dict_content);
     }
 }
 
-#[derive(Clone)]
 pub struct HuffmanScratch {
     pub table: HuffmanTable,
 }
@@ -99,7 +86,6 @@ impl Default for HuffmanScratch {
     }
 }
 
-#[derive(Clone)]
 pub struct FSEScratch {
     pub offsets: FSETable,
     pub of_rle: Option<u8>,
@@ -119,6 +105,15 @@ impl FSEScratch {
             match_lengths: FSETable::new(),
             ml_rle: None,
         }
+    }
+
+    pub fn reinit_from(&mut self, other: &Self) {
+        self.offsets.reinit_from(&other.offsets);
+        self.literal_lengths.reinit_from(&other.literal_lengths);
+        self.match_lengths.reinit_from(&other.match_lengths);
+        self.of_rle = other.of_rle;
+        self.ll_rle = other.ll_rle;
+        self.ml_rle = other.ml_rle;
     }
 }
 
