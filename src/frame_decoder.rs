@@ -78,6 +78,7 @@ pub enum BlockDecodingStrategy {
     All,
     UptoBlocks(usize),
     UptoBytes(usize),
+    None,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -321,10 +322,17 @@ impl FrameDecoder {
                 block_header.decompressed_size
             );
 
-            let bytes_read_in_block_body = block_dec
-                .decode_block_content(&block_header, &mut state.decoder_scratch, &mut source)
-                .map_err(err::FailedToReadBlockBody)?;
-            state.bytes_read_counter += bytes_read_in_block_body;
+            match strat {
+                BlockDecodingStrategy::None => { /* Don't decode contents */
+                    todo!("drop the next block_header.content_size bytes from source");
+                }
+                _ => {
+                    let bytes_read_in_block_body = block_dec
+                        .decode_block_content(&block_header, &mut state.decoder_scratch, &mut source)
+                        .map_err(err::FailedToReadBlockBody)?;
+                    state.bytes_read_counter += bytes_read_in_block_body;
+                }
+            }
 
             state.block_counter += 1;
 
@@ -356,6 +364,7 @@ impl FrameDecoder {
                         break;
                     }
                 }
+                BlockDecodingStrategy::None => { /* keep going */ }
             }
         }
 
