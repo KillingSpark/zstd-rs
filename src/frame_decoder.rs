@@ -442,7 +442,7 @@ impl FrameDecoder {
 
             //pseudo block to scope "state" so we can borrow self again after the block
             {
-                let mut state = match &mut self.state {
+                let state = match &mut self.state {
                     Some(s) => s,
                     None => panic!("Bug in library"),
                 };
