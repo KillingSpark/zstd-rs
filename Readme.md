@@ -29,6 +29,7 @@ Measuring with the 'time' utility the original zstd and my decoder both decoding
 1. Decode all the decode_corpus files (1000+) I created locally
 1. Calculate checksums
 1. Act as a `zstd -c -d` dropin replacement
+1. Can be compiled in a no-std environment that provides alloc
 
 ## Cannot do
 
