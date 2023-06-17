@@ -14,8 +14,6 @@ This crate might look like it is not active, this is because there isn't really 
 
 # Current Status
 
-[![Actions Status](https://github.com/KillingSpark/zstd-rs/workflows/CI/badge.svg)](https://github.com/KillingSpark/zstd-rs/actions?query=workflow%3A"CI")
-
 This started as a toy project but it is in a usable state now.
 
 In terms of speed it is still behind the original C implementation which has a rust binding located [here](https://github.com/gyscos/zstd-rs).
