@@ -1,3 +1,9 @@
+# Ruzstd (a pure rust zstd decoder)
+
+[![Released API docs](https://docs.rs/ruzstd/badge.svg)](https://docs.rs/ruzstd)
+[![CI](https://github.com/killingspark/zstd-rs/workflows/CI/badge.svg)](https://github.com/killingspark/zstd-rs/actions?query=workflow%3ACI)
+
+
 # What is this
 
 A feature-complete decoder for the zstd compression format as defined in: [This document](https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md).
