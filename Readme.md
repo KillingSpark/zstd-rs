@@ -75,10 +75,10 @@ The easiest is to wrap the io::Read into a StreamingDecoder which itself impleme
 
 ```
 let mut f = File::open(path).unwrap();
-let mut decoder = StreamingDecoder::new(&mut f);
+let mut decoder = StreamingDecoder::new(&mut f).unwrap();
 
 let mut result = Vec::new();
-decoder.read_to_end(&mut buffer).unwrap();
+decoder.read_to_end(&mut result).unwrap();
 ```
 
 This might be a problem if you are accepting user provided data. Frames can be REALLY big when decoded. If this is the case you should either check how big the frame
