@@ -150,7 +150,7 @@ impl LiteralsSection {
                     0 => {
                         self.num_streams = Some(1);
                     }
-                    1 | 2 | 3 => {
+                    1..=3 => {
                         self.num_streams = Some(4);
                     }
                     _ => panic!(
