@@ -2,6 +2,17 @@ use alloc::alloc::{alloc, dealloc};
 use core::{alloc::Layout, ptr::NonNull, slice};
 
 pub struct RingBuffer {
+    // Safety invariants:
+    //
+    // 1.
+    //    a.`buf` must be a valid allocation of capacity `cap`
+    //    b. ...unless `cap=0`, in which case it is dangling
+    // 2. If tail≥head
+    //    a. `head..tail` must contain initialized memory.
+    //    b. Else, `head..` and `..tail` must be initialized
+    // 3. `head` and `tail` are in bounds (≥ 0 and < cap)
+    // 4. `tail` is never `cap` except for a full buffer, and instead uses the value `0`. In other words, `tail` always points to the place
+    //    where the next element would go (if there is space)
     buf: NonNull<u8>,
     cap: usize,
     head: usize,
@@ -11,8 +22,10 @@ pub struct RingBuffer {
 impl RingBuffer {
     pub fn new() -> Self {
         RingBuffer {
+            // SAFETY: Upholds invariant 1a as stated
             buf: NonNull::dangling(),
             cap: 0,
+            // SAFETY: Upholds invariant 2-4
             head: 0,
             tail: 0,
         }
@@ -29,6 +42,8 @@ impl RingBuffer {
     }
 
     pub fn clear(&mut self) {
+        // SAFETY: Upholds invariant 2, trivially
+        // SAFETY: Upholds invariant 3; 0 is always valid
         self.head = 0;
         self.tail = 0;
     }
@@ -81,6 +96,7 @@ impl RingBuffer {
             let ((s1_ptr, s1_len), (s2_ptr, s2_len)) = self.data_slice_parts();
 
             unsafe {
+                // SAFETY: Upholds invariant 2, we end up populating (0..(len₁ + len₂))
                 new_buf.as_ptr().copy_from_nonoverlapping(s1_ptr, s1_len);
                 new_buf
                     .as_ptr()
@@ -89,9 +105,12 @@ impl RingBuffer {
                 dealloc(self.buf.as_ptr(), current_layout);
             }
 
+            // SAFETY: Upholds invariant 3, head is 0 and in bounds, tail is only ever `cap` if the buffer
+            // is entirely full
             self.tail = s1_len + s2_len;
             self.head = 0;
         }
+        // SAFETY: Upholds invariant 1: the buffer was just allocated correctly
         self.buf = new_buf;
         self.cap = new_cap;
     }
@@ -100,13 +119,17 @@ impl RingBuffer {
     pub fn push_back(&mut self, byte: u8) {
         self.reserve(1);
 
+        // SAFETY: Upholds invariant 2 by writing initialized memory
         unsafe { self.buf.as_ptr().add(self.tail).write(byte) };
+        // SAFETY: Upholds invariant 3 by wrapping `tail` around
         self.tail = (self.tail + 1) % self.cap;
     }
 
     #[allow(dead_code)]
     pub fn get(&self, idx: usize) -> Option<u8> {
         if idx < self.len() {
+            // SAFETY: Establishes invariants on memory being initialized and the range being in-bounds
+            // (Invariants 2 & 3)
             let idx = (self.head + idx) % self.cap;
             Some(unsafe { self.buf.as_ptr().add(idx).read() })
         } else {
@@ -130,11 +153,14 @@ impl RingBuffer {
         debug_assert!(f1_len + f2_len >= len, "{} + {} < {}", f1_len, f2_len, len);
 
         let in_f1 = usize::min(len, f1_len);
+
         let in_f2 = len - in_f1;
 
         debug_assert!(in_f1 + in_f2 == len);
 
         unsafe {
+            // SAFETY: `in_f₁ + in_f₂ = len`, so this writes `len` bytes total
+            // upholding invariant 2
             if in_f1 > 0 {
                 f1_ptr.copy_from_nonoverlapping(ptr, in_f1);
             }
@@ -142,15 +168,19 @@ impl RingBuffer {
                 f2_ptr.copy_from_nonoverlapping(ptr.add(in_f1), in_f2);
             }
         }
+        // SAFETY: Upholds invariant 3 by wrapping `tail` around.
         self.tail = (self.tail + len) % self.cap;
     }
 
     pub fn drop_first_n(&mut self, amount: usize) {
         debug_assert!(amount <= self.len());
         let amount = usize::min(amount, self.len());
+        // SAFETY: we maintain invariant 2 here since this will always lead to a smaller buffer
+        // for amount≤len
         self.head = (self.head + amount) % self.cap;
     }
 
+    // SAFETY: other code relies on this pointing to initialized halves of the buffer only
     fn data_slice_lengths(&self) -> (usize, usize) {
         let len_after_head;
         let len_to_tail;
@@ -166,6 +196,7 @@ impl RingBuffer {
         (len_after_head, len_to_tail)
     }
 
+    // SAFETY: other code relies on this pointing to initialized halves of the buffer only
     fn data_slice_parts(&self) -> ((*const u8, usize), (*const u8, usize)) {
         let (len_after_head, len_to_tail) = self.data_slice_lengths();
 
@@ -177,12 +208,15 @@ impl RingBuffer {
     pub fn as_slices(&self) -> (&[u8], &[u8]) {
         let (s1, s2) = self.data_slice_parts();
         unsafe {
+            // SAFETY: relies on the behavior of data_slice_parts for producing initialized memory
             let s1 = slice::from_raw_parts(s1.0, s1.1);
             let s2 = slice::from_raw_parts(s2.0, s2.1);
             (s1, s2)
         }
     }
 
+    // SAFETY: other code relies on this producing the lengths of free zones
+    // at the beginning/end of the buffer. Everything else must be initialized
     fn free_slice_lengths(&self) -> (usize, usize) {
         let len_to_head;
         let len_after_tail;
@@ -198,6 +232,8 @@ impl RingBuffer {
         (len_to_head, len_after_tail)
     }
 
+    // SAFETY: Other code relies on this pointing to the free zones, data after the first and before the second must
+    // be valid
     fn free_slice_parts(&self) -> ((*mut u8, usize), (*mut u8, usize)) {
         let (len_to_head, len_after_tail) = self.free_slice_lengths();
 
@@ -339,6 +375,7 @@ impl Drop for RingBuffer {
         }
 
         // SAFETY: is we were succesfully able to construct this layout when we allocated then it's also valid do so now
+        // Relies on / establishes invariant 1
         let current_layout = unsafe { Layout::array::<u8>(self.cap).unwrap_unchecked() };
 
         unsafe {
