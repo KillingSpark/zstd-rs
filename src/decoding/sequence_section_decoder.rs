@@ -73,7 +73,7 @@ pub fn decode_sequences(
 fn decode_sequences_with_rle(
     section: &SequencesHeader,
     br: &mut BitReaderReversed<'_>,
-    scratch: &mut FSEScratch,
+    scratch: &FSEScratch,
     target: &mut Vec<Sequence>,
 ) -> Result<(), DecodeSequenceError> {
     let mut ll_dec = FSEDecoder::new(&scratch.literal_lengths);
@@ -178,7 +178,7 @@ fn decode_sequences_with_rle(
 fn decode_sequences_without_rle(
     section: &SequencesHeader,
     br: &mut BitReaderReversed<'_>,
-    scratch: &mut FSEScratch,
+    scratch: &FSEScratch,
     target: &mut Vec<Sequence>,
 ) -> Result<(), DecodeSequenceError> {
     let mut ll_dec = FSEDecoder::new(&scratch.literal_lengths);
