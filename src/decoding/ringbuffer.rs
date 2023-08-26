@@ -255,12 +255,17 @@ impl RingBuffer {
         }
 
         self.reserve(len);
+
+        // SAFETY: Requirements checked:
+        // 1. explicitly checked above, resulting in a panic if it does not hold
+        // 2. explicitly reserved enough memory
         unsafe { self.extend_from_within_unchecked(start, len) }
     }
 
     /// SAFETY:
-    /// Needs start + len <= self.len()
-    /// And more then len reserved space
+    /// For this to be safe two requirements need to hold:
+    /// 1. start + len <= self.len() so we do not copy uninitialised memory
+    /// 2. More then len reserved space so we do not write out-of-bounds
     #[warn(unsafe_op_in_unsafe_fn)]
     pub unsafe fn extend_from_within_unchecked(&mut self, start: usize, len: usize) {
         debug_assert!(!self.buf.as_ptr().is_null());
