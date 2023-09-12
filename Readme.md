@@ -73,7 +73,7 @@ Additionally to the descriptions and the docs you can have a look at the zstd / 
 
 The easiest is to wrap the io::Read into a StreamingDecoder which itself implements io::Read. It will decode blocks as necessary to fulfill the read requests
 
-```
+```rust
 let mut f = File::open(path).unwrap();
 let mut decoder = StreamingDecoder::new(&mut f).unwrap();
 
