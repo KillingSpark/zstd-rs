@@ -2,6 +2,9 @@ use crate::io::{Error, Read, Write};
 use alloc::vec::Vec;
 use core::hash::Hasher;
 
+#[cfg(not(feature = "std"))]
+use crate::std;
+
 use twox_hash::XxHash64;
 
 use super::ringbuffer::RingBuffer;

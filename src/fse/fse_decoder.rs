@@ -2,6 +2,9 @@ use crate::decoding::bit_reader::BitReader;
 use crate::decoding::bit_reader_reverse::{BitReaderReversed, GetBitsError};
 use alloc::vec::Vec;
 
+#[cfg(not(feature = "std"))]
+use crate::std;
+
 pub struct FSETable {
     pub decode: Vec<Entry>, //used to decode symbols, and calculate the next state
 

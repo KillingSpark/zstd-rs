@@ -1,3 +1,6 @@
+#[cfg(not(feature = "std"))]
+use crate::std;
+
 pub struct BitReader<'s> {
     idx: usize, //index counts bits already read
     source: &'s [u8],

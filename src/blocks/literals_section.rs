@@ -1,5 +1,8 @@
 use super::super::decoding::bit_reader::{BitReader, GetBitsError};
 
+#[cfg(not(feature = "std"))]
+use crate::std;
+
 pub struct LiteralsSection {
     pub regenerated_size: u32,
     pub compressed_size: Option<u32>,

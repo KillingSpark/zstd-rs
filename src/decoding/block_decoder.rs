@@ -13,6 +13,9 @@ use crate::decoding::scratch::DecoderScratch;
 use crate::decoding::sequence_execution::execute_sequences;
 use crate::io::{self, Read};
 
+#[cfg(not(feature = "std"))]
+use crate::std;
+
 pub struct BlockDecoder {
     header_buffer: [u8; 3],
     internal_state: DecoderState,

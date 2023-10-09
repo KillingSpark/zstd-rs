@@ -4,6 +4,9 @@ use super::scratch::HuffmanScratch;
 use crate::huff0::{HuffmanDecoder, HuffmanDecoderError, HuffmanTableError};
 use alloc::vec::Vec;
 
+#[cfg(not(feature = "std"))]
+use crate::std;
+
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum DecompressLiteralsError {

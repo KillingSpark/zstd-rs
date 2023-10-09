@@ -1,6 +1,9 @@
 use alloc::vec::Vec;
 use core::convert::TryInto;
 
+#[cfg(not(feature = "std"))]
+use crate::std;
+
 use crate::decoding::scratch::FSEScratch;
 use crate::decoding::scratch::HuffmanScratch;
 use crate::fse::FSETableError;

@@ -2,6 +2,9 @@ use crate::decoding::bit_reader_reverse::{BitReaderReversed, GetBitsError};
 use crate::fse::{FSEDecoder, FSEDecoderError, FSETable, FSETableError};
 use alloc::vec::Vec;
 
+#[cfg(not(feature = "std"))]
+use crate::std;
+
 pub struct HuffmanTable {
     decode: Vec<Entry>,
 

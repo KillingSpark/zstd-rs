@@ -1,5 +1,8 @@
 use alloc::boxed::Box;
 
+#[cfg(not(feature = "std"))]
+use crate::std;
+
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub enum ErrorKind {
@@ -30,13 +33,13 @@ impl core::fmt::Display for ErrorKind {
 #[derive(Debug)]
 pub struct Error {
     kind: ErrorKind,
-    err: Option<Box<dyn core::error::Error + Send + Sync>>,
+    err: Option<Box<dyn std::error::Error + Send + Sync>>,
 }
 
 impl Error {
     pub fn new<E>(kind: ErrorKind, err: E) -> Self
     where
-        E: Into<Box<dyn core::error::Error + Send + Sync>>,
+        E: Into<Box<dyn std::error::Error + Send + Sync>>,
     {
         Self {
             kind,
@@ -52,15 +55,15 @@ impl Error {
         self.kind
     }
 
-    pub fn get_ref(&self) -> Option<&(dyn core::error::Error + Send + Sync + 'static)> {
+    pub fn get_ref(&self) -> Option<&(dyn std::error::Error + Send + Sync + 'static)> {
         self.err.as_ref().map(|e| e.as_ref())
     }
 
-    pub fn get_mut(&mut self) -> Option<&mut (dyn core::error::Error + Send + Sync + 'static)> {
+    pub fn get_mut(&mut self) -> Option<&mut (dyn std::error::Error + Send + Sync + 'static)> {
         self.err.as_mut().map(|e| e.as_mut())
     }
 
-    pub fn into_inner(self) -> Option<Box<dyn core::error::Error + Send + Sync>> {
+    pub fn into_inner(self) -> Option<Box<dyn std::error::Error + Send + Sync>> {
         self.err
     }
 }
@@ -77,7 +80,7 @@ impl core::fmt::Display for Error {
     }
 }
 
-impl core::error::Error for Error {}
+impl std::error::Error for Error {}
 
 impl From<ErrorKind> for Error {
     fn from(value: ErrorKind) -> Self {

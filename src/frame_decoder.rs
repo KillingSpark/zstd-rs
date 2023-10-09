@@ -8,6 +8,9 @@ use alloc::vec::Vec;
 use core::convert::TryInto;
 use core::hash::Hasher;
 
+#[cfg(not(feature = "std"))]
+use crate::std;
+
 /// This implements a decoder for zstd frames. This decoder is able to decode frames only partially and gives control
 /// over how many bytes/blocks will be decoded at a time (so you don't have to decode a 10GB file into memory all at once).
 /// It reads bytes as needed from a provided source and can be read from to collect partial results.

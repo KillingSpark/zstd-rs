@@ -1,9 +1,15 @@
 #![no_std]
 #![deny(trivial_casts, trivial_numeric_casts, rust_2018_idioms)]
-#![cfg_attr(not(feature = "std"), feature(error_in_core))]
 
 #[cfg(feature = "std")]
 extern crate std;
+
+#[cfg(not(feature = "std"))]
+mod std {
+    pub mod error {
+        pub use core_error::Error;
+    }
+}
 
 extern crate alloc;
 

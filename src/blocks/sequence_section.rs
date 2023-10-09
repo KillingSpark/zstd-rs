@@ -3,6 +3,9 @@ pub struct SequencesHeader {
     pub modes: Option<CompressionModes>,
 }
 
+#[cfg(not(feature = "std"))]
+use crate::std;
+
 #[derive(Clone, Copy)]
 pub struct Sequence {
     pub ll: u32,

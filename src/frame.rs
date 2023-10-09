@@ -1,4 +1,8 @@
 use crate::io::{Error, Read};
+
+#[cfg(not(feature = "std"))]
+use crate::std;
+
 pub const MAGIC_NUM: u32 = 0xFD2F_B528;
 pub const MIN_WINDOW_SIZE: u64 = 1024;
 pub const MAX_WINDOW_SIZE: u64 = (1 << 41) + 7 * (1 << 38);

@@ -1,5 +1,8 @@
 use super::{decodebuffer::DecodebufferError, scratch::DecoderScratch};
 
+#[cfg(not(feature = "std"))]
+use crate::std;
+
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum ExecuteSequencesError {

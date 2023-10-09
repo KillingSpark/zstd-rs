@@ -6,6 +6,9 @@ use super::scratch::FSEScratch;
 use crate::fse::{FSEDecoder, FSEDecoderError, FSETableError};
 use alloc::vec::Vec;
 
+#[cfg(not(feature = "std"))]
+use crate::std;
+
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum DecodeSequenceError {
