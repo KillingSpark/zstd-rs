@@ -5,7 +5,7 @@ use ruzstd::decoding::bit_reader_reverse::BitReaderReversed;
 fn do_all_accesses(br: &mut BitReaderReversed, accesses: &[u8]) -> u64 {
     let mut sum = 0;
     for x in accesses {
-        sum += br.get_bits(*x).unwrap() as u64;
+        sum += br.get_bits(*x).unwrap();
     }
     let _ = black_box(br);
     sum
