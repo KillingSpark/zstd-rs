@@ -80,32 +80,42 @@ pub enum BlockDecodingStrategy {
     UptoBytes(usize),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
 #[non_exhaustive]
 pub enum FrameDecoderError {
-    #[error(transparent)]
-    ReadFrameHeaderError(#[from] frame::ReadFrameHeaderError),
-    #[error(transparent)]
-    FrameHeaderError(#[from] frame::FrameHeaderError),
-    #[error("Specified window_size is too big; Requested: {requested}, Max: {MAX_WINDOW_SIZE}")]
+    #[display(fmt = transparent)]
+    #[from]
+    ReadFrameHeaderError(frame::ReadFrameHeaderError),
+    #[display(fmt = transparent)]
+    #[from]
+    FrameHeaderError(frame::FrameHeaderError),
+    #[display(
+        fmt = "Specified window_size is too big; Requested: {requested}, Max: {MAX_WINDOW_SIZE}"
+    )]
     WindowSizeTooBig { requested: u64 },
-    #[error(transparent)]
-    DictionaryDecodeError(#[from] dictionary::DictionaryDecodeError),
-    #[error("Failed to parse/decode block body: {0}")]
-    FailedToReadBlockHeader(#[from] decoding::block_decoder::BlockHeaderReadError),
-    #[error("Failed to parse block header: {0}")]
+    #[display(fmt = transparent)]
+    #[from]
+    DictionaryDecodeError(dictionary::DictionaryDecodeError),
+    #[display(fmt = "Failed to parse/decode block body: {_0}")]
+    #[from]
+    FailedToReadBlockHeader(decoding::block_decoder::BlockHeaderReadError),
+    #[display(fmt = "Failed to parse block header: {_0}")]
     FailedToReadBlockBody(decoding::block_decoder::DecodeBlockContentError),
-    #[error("Failed to read checksum: {0}")]
-    FailedToReadChecksum(#[source] Error),
-    #[error("Decoder must initialized or reset before using it")]
+    #[display(fmt = "Failed to read checksum: {_0}")]
+    FailedToReadChecksum(Error),
+    #[display(fmt = "Decoder must initialized or reset before using it")]
     NotYetInitialized,
-    #[error("Decoder encountered error while initializing: {0}")]
+    #[display(fmt = "Decoder encountered error while initializing: {_0}")]
     FailedToInitialize(frame::FrameHeaderError),
-    #[error("Decoder encountered error while draining the decodebuffer: {0}")]
-    FailedToDrainDecodebuffer(#[source] Error),
-    #[error("Target must have at least as many bytes as the contentsize of the frame reports")]
+    #[display(fmt = "Decoder encountered error while draining the decodebuffer: {_0}")]
+    FailedToDrainDecodebuffer(Error),
+    #[display(
+        fmt = "Target must have at least as many bytes as the contentsize of the frame reports"
+    )]
     TargetTooSmall,
-    #[error("Frame header specified dictionary id 0x{dict_id:X} that wasnt provided by add_dict() or reset_with_dict()")]
+    #[display(
+        fmt = "Frame header specified dictionary id 0x{dict_id:X} that wasnt provided by add_dict() or reset_with_dict()"
+    )]
     DictNotProvided { dict_id: u32 },
 }
 

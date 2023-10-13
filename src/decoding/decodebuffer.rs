@@ -15,12 +15,12 @@ pub struct Decodebuffer {
     pub hash: XxHash64,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Display)]
 #[non_exhaustive]
 pub enum DecodebufferError {
-    #[error("Need {need} bytes from the dictionary but it is only {got} bytes long")]
+    #[display(fmt = "Need {need} bytes from the dictionary but it is only {got} bytes long")]
     NotEnoughBytesInDictionary { got: usize, need: usize },
-    #[error("offset: {offset} bigger than buffer: {buf_len}")]
+    #[display(fmt = "offset: {offset} bigger than buffer: {buf_len}")]
     OffsetTooBig { offset: usize, buf_len: usize },
 }
 

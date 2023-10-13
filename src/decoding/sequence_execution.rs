@@ -1,13 +1,14 @@
 use super::{decodebuffer::DecodebufferError, scratch::DecoderScratch};
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
 #[non_exhaustive]
 pub enum ExecuteSequencesError {
-    #[error(transparent)]
-    DecodebufferError(#[from] DecodebufferError),
-    #[error("Sequence wants to copy up to byte {wanted}. Bytes in literalsbuffer: {have}")]
+    #[display(fmt = transparent)]
+    #[from]
+    DecodebufferError(DecodebufferError),
+    #[display(fmt = "Sequence wants to copy up to byte {wanted}. Bytes in literalsbuffer: {have}")]
     NotEnoughBytesForSequence { wanted: usize, have: usize },
-    #[error("Illegal offset: 0 found")]
+    #[display(fmt = "Illegal offset: 0 found")]
     ZeroOffset,
 }
 
