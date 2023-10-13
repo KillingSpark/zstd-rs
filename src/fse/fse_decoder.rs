@@ -47,7 +47,7 @@ pub struct FSEDecoder<'table> {
 #[non_exhaustive]
 pub enum FSEDecoderError {
     #[display(fmt = transparent)]
-    #[from] 
+    #[from]
     GetBitsError(GetBitsError),
     #[display(fmt = "Tried to use an uninitialized table!")]
     TableIsUninitialized,

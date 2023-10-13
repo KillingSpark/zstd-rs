@@ -6,7 +6,9 @@ pub struct BitReader<'s> {
 #[derive(Debug, derive_more::Display)]
 #[non_exhaustive]
 pub enum GetBitsError {
-    #[display(fmt = "Cant serve this request. The reader is limited to {limit} bits, requested {num_requested_bits} bits")]
+    #[display(
+        fmt = "Cant serve this request. The reader is limited to {limit} bits, requested {num_requested_bits} bits"
+    )]
     TooManyBits {
         num_requested_bits: usize,
         limit: u8,

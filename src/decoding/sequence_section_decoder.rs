@@ -10,15 +10,17 @@ use alloc::vec::Vec;
 #[non_exhaustive]
 pub enum DecodeSequenceError {
     #[display(fmt = transparent)]
-    #[from] 
+    #[from]
     GetBitsError(GetBitsError),
     #[display(fmt = transparent)]
-    #[from] 
+    #[from]
     FSEDecoderError(FSEDecoderError),
     #[display(fmt = transparent)]
-    #[from] 
+    #[from]
     FSETableError(FSETableError),
-    #[display(fmt = "Padding at the end of the sequence_section was more than a byte long: {skipped_bits} bits. Probably caused by data corruption")]
+    #[display(
+        fmt = "Padding at the end of the sequence_section was more than a byte long: {skipped_bits} bits. Probably caused by data corruption"
+    )]
     ExtraPadding { skipped_bits: i32 },
     #[display(fmt = "Do not support offsets bigger than 1<<32; got: {offset_code}")]
     UnsupportedOffset { offset_code: u8 },

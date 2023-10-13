@@ -22,7 +22,9 @@ pub enum LiteralsSectionParseError {
     #[display(fmt = "{_0:?}")]
     #[from]
     GetBitsError(GetBitsError),
-    #[display(fmt = "Not enough byte to parse the literals section header. Have: {have}, Need: {need}")]
+    #[display(
+        fmt = "Not enough byte to parse the literals section header. Have: {have}, Need: {need}"
+    )]
     NotEnoughBytes { have: usize, need: u8 },
 }
 
