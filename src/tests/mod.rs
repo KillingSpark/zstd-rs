@@ -16,7 +16,7 @@ impl crate::io_nostd::Read for std::fs::File {
             } else {
                 crate::io_nostd::Error::new(
                     crate::io_nostd::ErrorKind::Other,
-                    e.into_inner().unwrap(),
+                    alloc::boxed::Box::new(e.into_inner().unwrap()),
                 )
             }
         })
