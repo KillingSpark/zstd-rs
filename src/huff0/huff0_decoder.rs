@@ -15,15 +15,16 @@ pub struct HuffmanTable {
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum HuffmanTableError {
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     GetBitsError(GetBitsError),
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     FSEDecoderError(FSEDecoderError),
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     FSETableError(FSETableError),
     #[display(fmt = "Source needs to have at least one byte")]
@@ -71,9 +72,10 @@ pub struct HuffmanDecoder<'table> {
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum HuffmanDecoderError {
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     GetBitsError(GetBitsError),
 }

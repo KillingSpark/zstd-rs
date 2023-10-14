@@ -16,6 +16,7 @@ pub struct Decodebuffer {
 }
 
 #[derive(Debug, derive_more::Display)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum DecodebufferError {
     #[display(fmt = "Need {need} bytes from the dictionary but it is only {got} bytes long")]

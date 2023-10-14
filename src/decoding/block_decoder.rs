@@ -26,6 +26,7 @@ enum DecoderState {
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum BlockHeaderReadError {
     #[display(fmt = "Error while reading the block header")]
@@ -42,6 +43,7 @@ pub enum BlockHeaderReadError {
 }
 
 #[derive(Debug, derive_more::Display)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum BlockTypeError {
     #[display(
@@ -51,6 +53,7 @@ pub enum BlockTypeError {
 }
 
 #[derive(Debug, derive_more::Display)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum BlockSizeError {
     #[display(
@@ -60,6 +63,7 @@ pub enum BlockSizeError {
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum DecompressBlockError {
     #[display(fmt = "Error while reading the block content: {_0}")]
@@ -72,24 +76,25 @@ pub enum DecompressBlockError {
         expected_len: usize,
         remaining_bytes: usize,
     },
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     DecompressLiteralsError(DecompressLiteralsError),
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     LiteralsSectionParseError(LiteralsSectionParseError),
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     SequencesHeaderParseError(SequencesHeaderParseError),
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     DecodeSequenceError(DecodeSequenceError),
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     ExecuteSequencesError(ExecuteSequencesError),
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum DecodeBlockContentError {
     #[display(fmt = "Can't decode next block if failed along the way. Results will be nonsense")]
@@ -100,7 +105,7 @@ pub enum DecodeBlockContentError {
     ExpectedHeaderOfPreviousBlock,
     #[display(fmt = "Error while reading bytes for {step}: {source}")]
     ReadError { step: BlockType, source: io::Error },
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     DecompressBlockError(DecompressBlockError),
 }

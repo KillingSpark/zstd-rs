@@ -7,15 +7,16 @@ use crate::fse::{FSEDecoder, FSEDecoderError, FSETableError};
 use alloc::vec::Vec;
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum DecodeSequenceError {
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     GetBitsError(GetBitsError),
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     FSEDecoderError(FSEDecoderError),
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     FSETableError(FSETableError),
     #[display(

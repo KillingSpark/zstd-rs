@@ -4,6 +4,7 @@ pub struct BitReader<'s> {
 }
 
 #[derive(Debug, derive_more::Display)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum GetBitsError {
     #[display(

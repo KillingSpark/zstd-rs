@@ -27,20 +27,27 @@ impl core::fmt::Display for ErrorKind {
     }
 }
 
-#[derive(Debug)]
 pub struct Error {
     kind: ErrorKind,
-    err: Option<Box<dyn core::error::Error + Send + Sync>>,
+    err: Option<Box<dyn core::fmt::Display + Send + Sync + 'static>>,
+}
+
+impl alloc::fmt::Debug for Error {
+    fn fmt(&self, f: &mut alloc::fmt::Formatter<'_>) -> Result<(), alloc::fmt::Error> {
+        let mut s = f.debug_struct("Error");
+        s.field("kind", &self.kind);
+        if let Some(err) = self.err.as_ref() {
+            s.field("err", &alloc::format!("{err}"));
+        }
+        s.finish()
+    }
 }
 
 impl Error {
-    pub fn new<E>(kind: ErrorKind, err: E) -> Self
-    where
-        E: Into<Box<dyn core::error::Error + Send + Sync>>,
-    {
+    pub fn new(kind: ErrorKind, err: Box<dyn core::fmt::Display + Send + Sync + 'static>) -> Self {
         Self {
             kind,
-            err: Some(err.into()),
+            err: Some(err),
         }
     }
 
@@ -52,15 +59,11 @@ impl Error {
         self.kind
     }
 
-    pub fn get_ref(&self) -> Option<&(dyn core::error::Error + Send + Sync + 'static)> {
+    pub fn get_ref(&self) -> Option<&(dyn core::fmt::Display + Send + Sync)> {
         self.err.as_ref().map(|e| e.as_ref())
     }
 
-    pub fn get_mut(&mut self) -> Option<&mut (dyn core::error::Error + Send + Sync + 'static)> {
-        self.err.as_mut().map(|e| e.as_mut())
-    }
-
-    pub fn into_inner(self) -> Option<Box<dyn core::error::Error + Send + Sync>> {
+    pub fn into_inner(self) -> Option<Box<dyn core::fmt::Display + Send + Sync + 'static>> {
         self.err
     }
 }
@@ -76,8 +79,6 @@ impl core::fmt::Display for Error {
         Ok(())
     }
 }
-
-impl core::error::Error for Error {}
 
 impl From<ErrorKind> for Error {
     fn from(value: ErrorKind) -> Self {

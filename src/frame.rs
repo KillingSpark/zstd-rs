@@ -17,6 +17,7 @@ pub struct FrameHeader {
 pub struct FrameDescriptor(u8);
 
 #[derive(Debug, derive_more::Display)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum FrameDescriptorError {
     #[display(fmt = "Invalid Frame_Content_Size_Flag; Is: {got}, Should be one of: 0, 1, 2, 3")]
@@ -73,6 +74,7 @@ impl FrameDescriptor {
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum FrameHeaderError {
     #[display(
@@ -83,7 +85,7 @@ pub enum FrameHeaderError {
         fmt = "window_size smaller than allowed minimum. Is: {got}, Should be greater than: {MIN_WINDOW_SIZE}"
     )]
     WindowTooSmall { got: u64 },
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     FrameDescriptorError(FrameDescriptorError),
     #[display(fmt = "Not enough bytes in dict_id. Is: {got}, Should be: {expected}")]
@@ -134,15 +136,16 @@ impl FrameHeader {
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum ReadFrameHeaderError {
     #[display(fmt = "Error while reading magic number: {_0}")]
     MagicNumberReadError(Error),
     #[display(fmt = "Read wrong magic number: 0x{_0:X}")]
-    BadMagicNumber(u32),
+    BadMagicNumber(#[cfg_attr(feature = "std", error(ignore))] u32),
     #[display(fmt = "Error while reading frame descriptor: {_0}")]
     FrameDescriptorReadError(Error),
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     InvalidFrameDescriptor(FrameDescriptorError),
     #[display(fmt = "Error while reading window descriptor: {_0}")]

@@ -56,6 +56,7 @@ impl Default for SequencesHeader {
 }
 
 #[derive(Debug, derive_more::Display)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum SequencesHeaderParseError {
     #[display(

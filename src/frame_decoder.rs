@@ -81,19 +81,20 @@ pub enum BlockDecodingStrategy {
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum FrameDecoderError {
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     ReadFrameHeaderError(frame::ReadFrameHeaderError),
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     FrameHeaderError(frame::FrameHeaderError),
     #[display(
         fmt = "Specified window_size is too big; Requested: {requested}, Max: {MAX_WINDOW_SIZE}"
     )]
     WindowSizeTooBig { requested: u64 },
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     DictionaryDecodeError(dictionary::DictionaryDecodeError),
     #[display(fmt = "Failed to parse/decode block body: {_0}")]

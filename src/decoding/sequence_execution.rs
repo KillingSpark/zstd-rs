@@ -1,9 +1,10 @@
 use super::{decodebuffer::DecodebufferError, scratch::DecoderScratch};
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum ExecuteSequencesError {
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     DecodebufferError(DecodebufferError),
     #[display(fmt = "Sequence wants to copy up to byte {wanted}. Bytes in literalsbuffer: {have}")]

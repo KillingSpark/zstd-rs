@@ -15,6 +15,7 @@ pub enum LiteralsSectionType {
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum LiteralsSectionParseError {
     #[display(fmt = "Illegal literalssectiontype. Is: {got}, must be in: 0, 1, 2, 3")]

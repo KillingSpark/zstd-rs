@@ -15,16 +15,17 @@ pub struct Dictionary {
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum DictionaryDecodeError {
     #[display(
         fmt = "Bad magic_num at start of the dictionary; Got: {got:#04X?}, Expected: {MAGIC_NUM:#04x?}"
     )]
     BadMagicNum { got: [u8; 4] },
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     FSETableError(FSETableError),
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     HuffmanTableError(HuffmanTableError),
 }

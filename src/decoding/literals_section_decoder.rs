@@ -5,6 +5,7 @@ use crate::huff0::{HuffmanDecoder, HuffmanDecoderError, HuffmanTableError};
 use alloc::vec::Vec;
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum DecompressLiteralsError {
     #[display(
@@ -15,13 +16,13 @@ pub enum DecompressLiteralsError {
         fmt = "num_streams was none even though it must be set to something (1 or 4) for compressed literals"
     )]
     MissingNumStreams,
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     GetBitsError(GetBitsError),
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     HuffmanTableError(HuffmanTableError),
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     HuffmanDecoderError(HuffmanDecoderError),
     #[display(fmt = "Tried to reuse huffman table but it was never initialized")]

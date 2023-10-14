@@ -21,7 +21,7 @@ rand = {version = "0.8.5", features = ["small_rng"]}
 
 [features]
 default = ["std"]
-std = []
+std = ["derive_more/error"]
 
 [[bench]]
 name = "reversedbitreader_bench"

@@ -17,13 +17,14 @@ impl Default for FSETable {
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum FSETableError {
     #[display(fmt = "Acclog must be at least 1")]
     AccLogIsZero,
     #[display(fmt = "Found FSE acc_log: {got} bigger than allowed maximum in this case: {max}")]
     AccLogTooBig { got: u8, max: u8 },
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     GetBitsError(GetBitsError),
     #[display(
@@ -44,9 +45,10 @@ pub struct FSEDecoder<'table> {
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum FSEDecoderError {
-    #[display(fmt = transparent)]
+    #[display(fmt = "{_0:?}")]
     #[from]
     GetBitsError(GetBitsError),
     #[display(fmt = "Tried to use an uninitialized table!")]
