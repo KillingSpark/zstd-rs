@@ -351,8 +351,7 @@ fn test_streaming_no_std() {
     let mut stream = crate::streaming_decoder::StreamingDecoder::new(&mut content).unwrap();
 
     let original = include_bytes!("../../decodecorpus_files/z000088");
-    let mut result = Vec::new();
-    result.resize(original.len(), 0);
+    let mut result = vec![0; original.len()];
     Read::read_exact(&mut stream, &mut result).unwrap();
 
     if original.len() != result.len() {
@@ -391,8 +390,7 @@ fn test_streaming_no_std() {
             .unwrap();
 
     let original = include_bytes!("../../decodecorpus_files/z000068");
-    let mut result = Vec::new();
-    result.resize(original.len(), 0);
+    let mut result = vec![0; original.len()];
     Read::read_exact(&mut stream, &mut result).unwrap();
 
     std::println!("Results for file:");
