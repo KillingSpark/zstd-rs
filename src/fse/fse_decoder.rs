@@ -72,7 +72,7 @@ fn highest_bit_set(x: u32) -> u32 {
 impl<'t> FSEDecoder<'t> {
     pub fn new(table: &'t FSETable) -> FSEDecoder<'_> {
         FSEDecoder {
-            state: table.decode.get(0).copied().unwrap_or(Entry {
+            state: table.decode.first().copied().unwrap_or(Entry {
                 base_line: 0,
                 num_bits: 0,
                 symbol: 0,
