@@ -25,72 +25,89 @@ enum DecoderState {
     Failed, //TODO put "self.internal_state = DecoderState::Failed;" everywhere an unresolvable error occurs
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum BlockHeaderReadError {
-    #[error("Error while reading the block header")]
-    ReadError(#[from] io::Error),
-    #[error("Reserved block occured. This is considered corruption by the documentation")]
+    #[display(fmt = "Error while reading the block header")]
+    #[from]
+    ReadError(io::Error),
+    #[display(fmt = "Reserved block occured. This is considered corruption by the documentation")]
     FoundReservedBlock,
-    #[error("Error getting block type: {0}")]
-    BlockTypeError(#[from] BlockTypeError),
-    #[error("Error getting block content size: {0}")]
-    BlockSizeError(#[from] BlockSizeError),
+    #[display(fmt = "Error getting block type: {_0}")]
+    #[from]
+    BlockTypeError(BlockTypeError),
+    #[display(fmt = "Error getting block content size: {_0}")]
+    #[from]
+    BlockSizeError(BlockSizeError),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Display)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum BlockTypeError {
-    #[error(
-        "Invalid Blocktype number. Is: {num} Should be one of: 0, 1, 2, 3 (3 is reserved though"
+    #[display(
+        fmt = "Invalid Blocktype number. Is: {num} Should be one of: 0, 1, 2, 3 (3 is reserved though"
     )]
     InvalidBlocktypeNumber { num: u8 },
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Display)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum BlockSizeError {
-    #[error("Blocksize was bigger than the absolute maximum {ABSOLUTE_MAXIMUM_BLOCK_SIZE} (128kb). Is: {size}")]
+    #[display(
+        fmt = "Blocksize was bigger than the absolute maximum {ABSOLUTE_MAXIMUM_BLOCK_SIZE} (128kb). Is: {size}"
+    )]
     BlockSizeTooLarge { size: u32 },
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum DecompressBlockError {
-    #[error("Error while reading the block content: {0}")]
-    BlockContentReadError(#[from] io::Error),
-    #[error("Malformed section header. Says literals would be this long: {expected_len} but there are only {remaining_bytes} bytes left")]
+    #[display(fmt = "Error while reading the block content: {_0}")]
+    #[from]
+    BlockContentReadError(io::Error),
+    #[display(
+        fmt = "Malformed section header. Says literals would be this long: {expected_len} but there are only {remaining_bytes} bytes left"
+    )]
     MalformedSectionHeader {
         expected_len: usize,
         remaining_bytes: usize,
     },
-    #[error(transparent)]
-    DecompressLiteralsError(#[from] DecompressLiteralsError),
-    #[error(transparent)]
-    LiteralsSectionParseError(#[from] LiteralsSectionParseError),
-    #[error(transparent)]
-    SequencesHeaderParseError(#[from] SequencesHeaderParseError),
-    #[error(transparent)]
-    DecodeSequenceError(#[from] DecodeSequenceError),
-    #[error(transparent)]
-    ExecuteSequencesError(#[from] ExecuteSequencesError),
+    #[display(fmt = "{_0:?}")]
+    #[from]
+    DecompressLiteralsError(DecompressLiteralsError),
+    #[display(fmt = "{_0:?}")]
+    #[from]
+    LiteralsSectionParseError(LiteralsSectionParseError),
+    #[display(fmt = "{_0:?}")]
+    #[from]
+    SequencesHeaderParseError(SequencesHeaderParseError),
+    #[display(fmt = "{_0:?}")]
+    #[from]
+    DecodeSequenceError(DecodeSequenceError),
+    #[display(fmt = "{_0:?}")]
+    #[from]
+    ExecuteSequencesError(ExecuteSequencesError),
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum DecodeBlockContentError {
-    #[error("Can't decode next block if failed along the way. Results will be nonsense")]
+    #[display(fmt = "Can't decode next block if failed along the way. Results will be nonsense")]
     DecoderStateIsFailed,
-    #[error("Cant decode next block body, while expecting to decode the header of the previous block. Results will be nonsense")]
+    #[display(
+        fmt = "Cant decode next block body, while expecting to decode the header of the previous block. Results will be nonsense"
+    )]
     ExpectedHeaderOfPreviousBlock,
-    #[error("Error while reading bytes for {step}: {source}")]
-    ReadError {
-        step: BlockType,
-        #[source]
-        source: io::Error,
-    },
-    #[error(transparent)]
-    DecompressBlockError(#[from] DecompressBlockError),
+    #[display(fmt = "Error while reading bytes for {step}: {source}")]
+    ReadError { step: BlockType, source: io::Error },
+    #[display(fmt = "{_0:?}")]
+    #[from]
+    DecompressBlockError(DecompressBlockError),
 }
 
 pub fn new() -> BlockDecoder {

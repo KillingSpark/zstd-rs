@@ -3,15 +3,18 @@ pub struct BitReader<'s> {
     source: &'s [u8],
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Display)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum GetBitsError {
-    #[error("Cant serve this request. The reader is limited to {limit} bits, requested {num_requested_bits} bits")]
+    #[display(
+        fmt = "Cant serve this request. The reader is limited to {limit} bits, requested {num_requested_bits} bits"
+    )]
     TooManyBits {
         num_requested_bits: usize,
         limit: u8,
     },
-    #[error("Can't read {requested} bits, only have {remaining} bits left")]
+    #[display(fmt = "Can't read {requested} bits, only have {remaining} bits left")]
     NotEnoughRemainingBits { requested: usize, remaining: usize },
 }
 

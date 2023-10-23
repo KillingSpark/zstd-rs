@@ -16,10 +16,11 @@ pub struct FrameHeader {
 
 pub struct FrameDescriptor(u8);
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Display)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum FrameDescriptorError {
-    #[error("Invalid Frame_Content_Size_Flag; Is: {got}, Should be one of: 0, 1, 2, 3")]
+    #[display(fmt = "Invalid Frame_Content_Size_Flag; Is: {got}, Should be one of: 0, 1, 2, 3")]
     InvalidFrameContentSizeFlag { got: u8 },
 }
 
@@ -72,22 +73,30 @@ impl FrameDescriptor {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum FrameHeaderError {
-    #[error("window_size bigger than allowed maximum. Is: {got}, Should be lower than: {MAX_WINDOW_SIZE}")]
+    #[display(
+        fmt = "window_size bigger than allowed maximum. Is: {got}, Should be lower than: {MAX_WINDOW_SIZE}"
+    )]
     WindowTooBig { got: u64 },
-    #[error("window_size smaller than allowed minimum. Is: {got}, Should be greater than: {MIN_WINDOW_SIZE}")]
+    #[display(
+        fmt = "window_size smaller than allowed minimum. Is: {got}, Should be greater than: {MIN_WINDOW_SIZE}"
+    )]
     WindowTooSmall { got: u64 },
-    #[error(transparent)]
-    FrameDescriptorError(#[from] FrameDescriptorError),
-    #[error("Not enough bytes in dict_id. Is: {got}, Should be: {expected}")]
+    #[display(fmt = "{_0:?}")]
+    #[from]
+    FrameDescriptorError(FrameDescriptorError),
+    #[display(fmt = "Not enough bytes in dict_id. Is: {got}, Should be: {expected}")]
     DictIdTooSmall { got: usize, expected: usize },
-    #[error("frame_content_size does not have the right length. Is: {got}, Should be: {expected}")]
+    #[display(
+        fmt = "frame_content_size does not have the right length. Is: {got}, Should be: {expected}"
+    )]
     MismatchedFrameSize { got: usize, expected: u8 },
-    #[error("frame_content_size was zero")]
+    #[display(fmt = "frame_content_size was zero")]
     FrameSizeIsZero,
-    #[error("Invalid frame_content_size. Is: {got}, Should be one of 1, 2, 4, 8 bytes")]
+    #[display(fmt = "Invalid frame_content_size. Is: {got}, Should be one of 1, 2, 4, 8 bytes")]
     InvalidFrameSize { got: u8 },
 }
 
@@ -126,24 +135,26 @@ impl FrameHeader {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum ReadFrameHeaderError {
-    #[error("Error while reading magic number: {0}")]
-    MagicNumberReadError(#[source] Error),
-    #[error("Read wrong magic number: 0x{0:X}")]
-    BadMagicNumber(u32),
-    #[error("Error while reading frame descriptor: {0}")]
-    FrameDescriptorReadError(#[source] Error),
-    #[error(transparent)]
-    InvalidFrameDescriptor(#[from] FrameDescriptorError),
-    #[error("Error while reading window descriptor: {0}")]
-    WindowDescriptorReadError(#[source] Error),
-    #[error("Error while reading dictionary id: {0}")]
-    DictionaryIdReadError(#[source] Error),
-    #[error("Error while reading frame content size: {0}")]
-    FrameContentSizeReadError(#[source] Error),
-    #[error("SkippableFrame encountered with MagicNumber 0x{0:X} and length {1} bytes")]
+    #[display(fmt = "Error while reading magic number: {_0}")]
+    MagicNumberReadError(Error),
+    #[display(fmt = "Read wrong magic number: 0x{_0:X}")]
+    BadMagicNumber(#[cfg_attr(feature = "std", error(ignore))] u32),
+    #[display(fmt = "Error while reading frame descriptor: {_0}")]
+    FrameDescriptorReadError(Error),
+    #[display(fmt = "{_0:?}")]
+    #[from]
+    InvalidFrameDescriptor(FrameDescriptorError),
+    #[display(fmt = "Error while reading window descriptor: {_0}")]
+    WindowDescriptorReadError(Error),
+    #[display(fmt = "Error while reading dictionary id: {_0}")]
+    DictionaryIdReadError(Error),
+    #[display(fmt = "Error while reading frame content size: {_0}")]
+    FrameContentSizeReadError(Error),
+    #[display(fmt = "SkippableFrame encountered with MagicNumber 0x{_0:X} and length {_1} bytes")]
     SkipFrame(u32, u32),
 }
 

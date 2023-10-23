@@ -14,39 +14,55 @@ pub struct HuffmanTable {
     fse_table: FSETable,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum HuffmanTableError {
-    #[error(transparent)]
-    GetBitsError(#[from] GetBitsError),
-    #[error(transparent)]
-    FSEDecoderError(#[from] FSEDecoderError),
-    #[error(transparent)]
-    FSETableError(#[from] FSETableError),
-    #[error("Source needs to have at least one byte")]
+    #[display(fmt = "{_0:?}")]
+    #[from]
+    GetBitsError(GetBitsError),
+    #[display(fmt = "{_0:?}")]
+    #[from]
+    FSEDecoderError(FSEDecoderError),
+    #[display(fmt = "{_0:?}")]
+    #[from]
+    FSETableError(FSETableError),
+    #[display(fmt = "Source needs to have at least one byte")]
     SourceIsEmpty,
-    #[error("Header says there should be {expected_bytes} bytes for the weights but there are only {got_bytes} bytes in the stream")]
+    #[display(
+        fmt = "Header says there should be {expected_bytes} bytes for the weights but there are only {got_bytes} bytes in the stream"
+    )]
     NotEnoughBytesForWeights {
         got_bytes: usize,
         expected_bytes: u8,
     },
-    #[error("Padding at the end of the sequence_section was more than a byte long: {skipped_bits} bits. Probably caused by data corruption")]
+    #[display(
+        fmt = "Padding at the end of the sequence_section was more than a byte long: {skipped_bits} bits. Probably caused by data corruption"
+    )]
     ExtraPadding { skipped_bits: i32 },
-    #[error("More than 255 weights decoded (got {got} weights). Stream is probably corrupted")]
+    #[display(
+        fmt = "More than 255 weights decoded (got {got} weights). Stream is probably corrupted"
+    )]
     TooManyWeights { got: usize },
-    #[error("Can't build huffman table without any weights")]
+    #[display(fmt = "Can't build huffman table without any weights")]
     MissingWeights,
-    #[error("Leftover must be power of two but is: {got}")]
+    #[display(fmt = "Leftover must be power of two but is: {got}")]
     LeftoverIsNotAPowerOf2 { got: u32 },
-    #[error("Not enough bytes in stream to decompress weights. Is: {have}, Should be: {need}")]
+    #[display(
+        fmt = "Not enough bytes in stream to decompress weights. Is: {have}, Should be: {need}"
+    )]
     NotEnoughBytesToDecompressWeights { have: usize, need: usize },
-    #[error("FSE table used more bytes: {used} than were meant to be used for the whole stream of huffman weights ({available_bytes})")]
+    #[display(
+        fmt = "FSE table used more bytes: {used} than were meant to be used for the whole stream of huffman weights ({available_bytes})"
+    )]
     FSETableUsedTooManyBytes { used: usize, available_bytes: u8 },
-    #[error("Source needs to have at least {need} bytes, got: {got}")]
+    #[display(fmt = "Source needs to have at least {need} bytes, got: {got}")]
     NotEnoughBytesInSource { got: usize, need: usize },
-    #[error("Cant have weight: {got} bigger than max_num_bits: {MAX_MAX_NUM_BITS}")]
+    #[display(fmt = "Cant have weight: {got} bigger than max_num_bits: {MAX_MAX_NUM_BITS}")]
     WeightBiggerThanMaxNumBits { got: u8 },
-    #[error("max_bits derived from weights is: {got} should be lower than: {MAX_MAX_NUM_BITS}")]
+    #[display(
+        fmt = "max_bits derived from weights is: {got} should be lower than: {MAX_MAX_NUM_BITS}"
+    )]
     MaxBitsTooHigh { got: u8 },
 }
 
@@ -55,11 +71,13 @@ pub struct HuffmanDecoder<'table> {
     pub state: u64,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum HuffmanDecoderError {
-    #[error(transparent)]
-    GetBitsError(#[from] GetBitsError),
+    #[display(fmt = "{_0:?}")]
+    #[from]
+    GetBitsError(GetBitsError),
 }
 
 #[derive(Copy, Clone)]

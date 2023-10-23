@@ -16,11 +16,20 @@ impl crate::io_nostd::Read for std::fs::File {
             } else {
                 crate::io_nostd::Error::new(
                     crate::io_nostd::ErrorKind::Other,
-                    e.into_inner().unwrap(),
+                    alloc::boxed::Box::new(e.into_inner().unwrap()),
                 )
             }
         })
     }
+}
+
+#[cfg(all(test, feature = "std"))]
+#[allow(dead_code)]
+fn assure_error_impl() {
+    // not a real test just there to throw an compiler error if Error is not derived correctly
+
+    use crate::frame_decoder::FrameDecoderError;
+    let _err: &dyn std::error::Error = &FrameDecoderError::NotYetInitialized;
 }
 
 #[test]

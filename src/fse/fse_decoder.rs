@@ -16,22 +16,26 @@ impl Default for FSETable {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum FSETableError {
-    #[error("Acclog must be at least 1")]
+    #[display(fmt = "Acclog must be at least 1")]
     AccLogIsZero,
-    #[error("Found FSE acc_log: {got} bigger than allowed maximum in this case: {max}")]
+    #[display(fmt = "Found FSE acc_log: {got} bigger than allowed maximum in this case: {max}")]
     AccLogTooBig { got: u8, max: u8 },
-    #[error(transparent)]
-    GetBitsError(#[from] GetBitsError),
-    #[error("The counter ({got}) exceeded the expected sum: {expected_sum}. This means an error or corrupted data \n {symbol_probabilities:?}")]
+    #[display(fmt = "{_0:?}")]
+    #[from]
+    GetBitsError(GetBitsError),
+    #[display(
+        fmt = "The counter ({got}) exceeded the expected sum: {expected_sum}. This means an error or corrupted data \n {symbol_probabilities:?}"
+    )]
     ProbabilityCounterMismatch {
         got: u32,
         expected_sum: u32,
         symbol_probabilities: Vec<i32>,
     },
-    #[error("There are too many symbols in this distribution: {got}. Max: 256")]
+    #[display(fmt = "There are too many symbols in this distribution: {got}. Max: 256")]
     TooManySymbols { got: usize },
 }
 
@@ -40,12 +44,14 @@ pub struct FSEDecoder<'table> {
     table: &'table FSETable,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum FSEDecoderError {
-    #[error(transparent)]
-    GetBitsError(#[from] GetBitsError),
-    #[error("Tried to use an uninitialized table!")]
+    #[display(fmt = "{_0:?}")]
+    #[from]
+    GetBitsError(GetBitsError),
+    #[display(fmt = "Tried to use an uninitialized table!")]
     TableIsUninitialized,
 }
 
@@ -66,7 +72,7 @@ fn highest_bit_set(x: u32) -> u32 {
 impl<'t> FSEDecoder<'t> {
     pub fn new(table: &'t FSETable) -> FSEDecoder<'_> {
         FSEDecoder {
-            state: table.decode.get(0).copied().unwrap_or(Entry {
+            state: table.decode.first().copied().unwrap_or(Entry {
                 base_line: 0,
                 num_bits: 0,
                 symbol: 0,

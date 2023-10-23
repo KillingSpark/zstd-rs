@@ -14,14 +14,18 @@ pub enum LiteralsSectionType {
     Treeless,
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum LiteralsSectionParseError {
-    #[error("Illegal literalssectiontype. Is: {got}, must be in: 0, 1, 2, 3")]
+    #[display(fmt = "Illegal literalssectiontype. Is: {got}, must be in: 0, 1, 2, 3")]
     IllegalLiteralSectionType { got: u8 },
-    #[error(transparent)]
-    GetBitsError(#[from] GetBitsError),
-    #[error("Not enough byte to parse the literals section header. Have: {have}, Need: {need}")]
+    #[display(fmt = "{_0:?}")]
+    #[from]
+    GetBitsError(GetBitsError),
+    #[display(
+        fmt = "Not enough byte to parse the literals section header. Have: {have}, Need: {need}"
+    )]
     NotEnoughBytes { have: usize, need: u8 },
 }
 

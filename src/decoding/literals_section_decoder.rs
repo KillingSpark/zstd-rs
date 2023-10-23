@@ -4,32 +4,40 @@ use super::scratch::HuffmanScratch;
 use crate::huff0::{HuffmanDecoder, HuffmanDecoderError, HuffmanTableError};
 use alloc::vec::Vec;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum DecompressLiteralsError {
-    #[error(
-        "compressed size was none even though it must be set to something for compressed literals"
+    #[display(
+        fmt = "compressed size was none even though it must be set to something for compressed literals"
     )]
     MissingCompressedSize,
-    #[error("num_streams was none even though it must be set to something (1 or 4) for compressed literals")]
+    #[display(
+        fmt = "num_streams was none even though it must be set to something (1 or 4) for compressed literals"
+    )]
     MissingNumStreams,
-    #[error(transparent)]
-    GetBitsError(#[from] GetBitsError),
-    #[error(transparent)]
-    HuffmanTableError(#[from] HuffmanTableError),
-    #[error(transparent)]
-    HuffmanDecoderError(#[from] HuffmanDecoderError),
-    #[error("Tried to reuse huffman table but it was never initialized")]
+    #[display(fmt = "{_0:?}")]
+    #[from]
+    GetBitsError(GetBitsError),
+    #[display(fmt = "{_0:?}")]
+    #[from]
+    HuffmanTableError(HuffmanTableError),
+    #[display(fmt = "{_0:?}")]
+    #[from]
+    HuffmanDecoderError(HuffmanDecoderError),
+    #[display(fmt = "Tried to reuse huffman table but it was never initialized")]
     UninitializedHuffmanTable,
-    #[error("Need 6 bytes to decode jump header, got {got} bytes")]
+    #[display(fmt = "Need 6 bytes to decode jump header, got {got} bytes")]
     MissingBytesForJumpHeader { got: usize },
-    #[error("Need at least {needed} bytes to decode literals. Have: {got} bytes")]
+    #[display(fmt = "Need at least {needed} bytes to decode literals. Have: {got} bytes")]
     MissingBytesForLiterals { got: usize, needed: usize },
-    #[error("Padding at the end of the sequence_section was more than a byte long: {skipped_bits} bits. Probably caused by data corruption")]
+    #[display(
+        fmt = "Padding at the end of the sequence_section was more than a byte long: {skipped_bits} bits. Probably caused by data corruption"
+    )]
     ExtraPadding { skipped_bits: i32 },
-    #[error("Bitstream was read till: {read_til}, should have been: {expected}")]
+    #[display(fmt = "Bitstream was read till: {read_til}, should have been: {expected}")]
     BitstreamReadMismatch { read_til: isize, expected: isize },
-    #[error("Did not decode enough literals: {decoded}, Should have been: {expected}")]
+    #[display(fmt = "Did not decode enough literals: {decoded}, Should have been: {expected}")]
     DecodedLiteralCountMismatch { decoded: usize, expected: usize },
 }
 

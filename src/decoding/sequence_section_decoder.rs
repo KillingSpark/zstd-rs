@@ -6,32 +6,38 @@ use super::scratch::FSEScratch;
 use crate::fse::{FSEDecoder, FSEDecoderError, FSETableError};
 use alloc::vec::Vec;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum DecodeSequenceError {
-    #[error(transparent)]
-    GetBitsError(#[from] GetBitsError),
-    #[error(transparent)]
-    FSEDecoderError(#[from] FSEDecoderError),
-    #[error(transparent)]
-    FSETableError(#[from] FSETableError),
-    #[error("Padding at the end of the sequence_section was more than a byte long: {skipped_bits} bits. Probably caused by data corruption")]
+    #[display(fmt = "{_0:?}")]
+    #[from]
+    GetBitsError(GetBitsError),
+    #[display(fmt = "{_0:?}")]
+    #[from]
+    FSEDecoderError(FSEDecoderError),
+    #[display(fmt = "{_0:?}")]
+    #[from]
+    FSETableError(FSETableError),
+    #[display(
+        fmt = "Padding at the end of the sequence_section was more than a byte long: {skipped_bits} bits. Probably caused by data corruption"
+    )]
     ExtraPadding { skipped_bits: i32 },
-    #[error("Do not support offsets bigger than 1<<32; got: {offset_code}")]
+    #[display(fmt = "Do not support offsets bigger than 1<<32; got: {offset_code}")]
     UnsupportedOffset { offset_code: u8 },
-    #[error("Read an offset == 0. That is an illegal value for offsets")]
+    #[display(fmt = "Read an offset == 0. That is an illegal value for offsets")]
     ZeroOffset,
-    #[error("Bytestream did not contain enough bytes to decode num_sequences")]
+    #[display(fmt = "Bytestream did not contain enough bytes to decode num_sequences")]
     NotEnoughBytesForNumSequences,
-    #[error("Did not use full bitstream. Bits left: {bits_remaining} ({} bytes)", bits_remaining / 8)]
+    #[display(fmt = "Did not use full bitstream. Bits left: {bits_remaining} ({} bytes)", bits_remaining / 8)]
     ExtraBits { bits_remaining: isize },
-    #[error("compression modes are none but they must be set to something")]
+    #[display(fmt = "compression modes are none but they must be set to something")]
     MissingCompressionMode,
-    #[error("Need a byte to read for RLE ll table")]
+    #[display(fmt = "Need a byte to read for RLE ll table")]
     MissingByteForRleLlTable,
-    #[error("Need a byte to read for RLE of table")]
+    #[display(fmt = "Need a byte to read for RLE of table")]
     MissingByteForRleOfTable,
-    #[error("Need a byte to read for RLE ml table")]
+    #[display(fmt = "Need a byte to read for RLE ml table")]
     MissingByteForRleMlTable,
 }
 
