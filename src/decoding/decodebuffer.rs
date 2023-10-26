@@ -2,8 +2,6 @@ use crate::io::{Error, Read, Write};
 use alloc::vec::Vec;
 use core::hash::Hasher;
 
-use twox_hash::XxHash64;
-
 use super::ringbuffer::RingBuffer;
 
 pub struct Decodebuffer {
@@ -12,7 +10,7 @@ pub struct Decodebuffer {
 
     pub window_size: usize,
     total_output_counter: u64,
-    pub hash: XxHash64,
+    pub hash: ahash::AHasher,
 }
 
 #[derive(Debug, derive_more::Display)]
@@ -47,7 +45,7 @@ impl Decodebuffer {
             dict_content: Vec::new(),
             window_size,
             total_output_counter: 0,
-            hash: XxHash64::with_seed(0),
+            hash: Default::default(),
         }
     }
 
@@ -57,7 +55,7 @@ impl Decodebuffer {
         self.buffer.reserve(self.window_size);
         self.dict_content.clear();
         self.total_output_counter = 0;
-        self.hash = XxHash64::with_seed(0);
+        self.hash = Default::default();
     }
 
     pub fn len(&self) -> usize {

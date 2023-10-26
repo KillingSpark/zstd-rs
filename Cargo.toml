@@ -11,8 +11,8 @@ exclude = ["decodecorpus_files/*", "dict_tests/*", "fuzz_decodecorpus/*"]
 readme = "Readme.md"
 
 [dependencies]
+ahash = { version = "0.8", default-features = false }
 byteorder = { version = "1.5", default-features = false }
-twox-hash = { version = "1.6", default-features = false }
 derive_more = { version = "0.99", default-features = false, features = ["display", "from"] }
 
 [dev-dependencies]
