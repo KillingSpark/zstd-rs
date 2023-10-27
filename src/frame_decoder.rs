@@ -6,7 +6,6 @@ use crate::io::{Error, Read, Write};
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use core::convert::TryInto;
-use core::hash::Hasher;
 
 /// This implements a decoder for zstd frames. This decoder is able to decode frames only partially and gives control
 /// over how many bytes/blocks will be decoded at a time (so you don't have to decode a 10GB file into memory all at once).
@@ -256,7 +255,10 @@ impl FrameDecoder {
 
     /// Returns the checksum that was calculated while decoding.
     /// Only a sensible value after all decoded bytes have been collected/read from the FrameDecoder
+    #[cfg(feature = "hash")]
     pub fn get_calculated_checksum(&self) -> Option<u32> {
+        use core::hash::Hasher;
+
         let state = match &self.state {
             None => return None,
             Some(s) => s,
