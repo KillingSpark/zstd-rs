@@ -48,7 +48,7 @@ impl Decodebuffer {
             window_size,
             total_output_counter: 0,
             #[cfg(feature = "hash")]
-            hash: Default::default(),
+            hash: twox_hash::XxHash64::with_seed(0),
         }
     }
 
@@ -60,7 +60,7 @@ impl Decodebuffer {
         self.total_output_counter = 0;
         #[cfg(feature = "hash")]
         {
-            self.hash = Default::default();
+            self.hash = twox_hash::XxHash64::with_seed(0);
         }
     }
 
