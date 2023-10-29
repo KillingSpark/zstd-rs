@@ -97,3 +97,7 @@ recommended approach.
 
 For an example see the src/bin/zstd.rs file. Basically you can decode the frame until either a
 given block count has been decoded or the decodebuffer has reached a certain size. Then you can collect no longer needed bytes from the buffer and do something with them, discard them and resume decoding the frame in a loop until the frame has been decoded completely.
+
+# Contributing
+
+Contributions will be published under the same MIT license as this project. Please make an entry in the Changelog.md file when you make a PR.
