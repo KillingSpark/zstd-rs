@@ -133,6 +133,7 @@ fn test_dict_decoding() {
 
         match frame_dec.get_checksum_from_data() {
             Some(chksum) => {
+                #[cfg(feature = "hash")]
                 if frame_dec.get_calculated_checksum().unwrap() != chksum {
                     println!(
                         "Checksum did not match! From data: {}, calculated while decoding: {}\n",
@@ -142,6 +143,11 @@ fn test_dict_decoding() {
                 } else {
                     println!("Checksums are ok!\n");
                 }
+                #[cfg(not(feature = "hash"))]
+                println!(
+                    "Checksum feature not enabled, skipping. From data: {}\n",
+                    chksum
+                );
             }
             None => println!("No checksums to test\n"),
         }

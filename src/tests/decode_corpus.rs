@@ -13,6 +13,7 @@ fn test_decode_corpus_files() {
     let mut fail_counter_diff = 0;
     let mut fail_counter_size = 0;
     let mut fail_counter_bytes_read = 0;
+    #[cfg_attr(not(feature = "hash"), allow(unused_mut))]
     let mut fail_counter_chksum = 0;
     let mut total_counter = 0;
     let mut failed: Vec<String> = Vec::new();
@@ -57,6 +58,7 @@ fn test_decode_corpus_files() {
 
         match frame_dec.get_checksum_from_data() {
             Some(chksum) => {
+                #[cfg(feature = "hash")]
                 if frame_dec.get_calculated_checksum().unwrap() != chksum {
                     println!(
                         "Checksum did not match! From data: {}, calculated while decoding: {}\n",
@@ -68,6 +70,11 @@ fn test_decode_corpus_files() {
                 } else {
                     println!("Checksums are ok!\n");
                 }
+                #[cfg(not(feature = "hash"))]
+                println!(
+                    "Checksum feature not enabled, skipping. From data: {}\n",
+                    chksum
+                );
             }
             None => println!("No checksums to test\n"),
         }

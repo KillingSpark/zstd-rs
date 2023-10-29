@@ -1,8 +1,7 @@
 use crate::io::{Error, Read, Write};
 use alloc::vec::Vec;
+#[cfg(feature = "hash")]
 use core::hash::Hasher;
-
-use twox_hash::XxHash64;
 
 use super::ringbuffer::RingBuffer;
 
@@ -12,7 +11,8 @@ pub struct Decodebuffer {
 
     pub window_size: usize,
     total_output_counter: u64,
-    pub hash: XxHash64,
+    #[cfg(feature = "hash")]
+    pub hash: twox_hash::XxHash64,
 }
 
 #[derive(Debug, derive_more::Display)]
@@ -47,7 +47,8 @@ impl Decodebuffer {
             dict_content: Vec::new(),
             window_size,
             total_output_counter: 0,
-            hash: XxHash64::with_seed(0),
+            #[cfg(feature = "hash")]
+            hash: twox_hash::XxHash64::with_seed(0),
         }
     }
 
@@ -57,7 +58,10 @@ impl Decodebuffer {
         self.buffer.reserve(self.window_size);
         self.dict_content.clear();
         self.total_output_counter = 0;
-        self.hash = XxHash64::with_seed(0);
+        #[cfg(feature = "hash")]
+        {
+            self.hash = twox_hash::XxHash64::with_seed(0);
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -208,8 +212,11 @@ impl Decodebuffer {
     //drain the buffer completely
     pub fn drain(&mut self) -> Vec<u8> {
         let (slice1, slice2) = self.buffer.as_slices();
-        self.hash.write(slice1);
-        self.hash.write(slice2);
+        #[cfg(feature = "hash")]
+        {
+            self.hash.write(slice1);
+            self.hash.write(slice2);
+        }
 
         let mut vec = Vec::with_capacity(slice1.len() + slice2.len());
         vec.extend_from_slice(slice1);
@@ -273,6 +280,7 @@ impl Decodebuffer {
 
         if n1 != 0 {
             let (written1, res1) = write_bytes(&slice1[..n1]);
+            #[cfg(feature = "hash")]
             self.hash.write(&slice1[..written1]);
             drain_guard.amount += written1;
 
@@ -283,6 +291,7 @@ impl Decodebuffer {
             // Partial writes SHOULD never happen without res1 being an error, but lets just protect against it anyways.
             if written1 == n1 && n2 != 0 {
                 let (written2, res2) = write_bytes(&slice2[..n2]);
+                #[cfg(feature = "hash")]
                 self.hash.write(&slice2[..written2]);
                 drain_guard.amount += written2;
 

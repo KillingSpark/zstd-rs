@@ -95,6 +95,7 @@ fn main() {
                 do_something(&result[..x], &mut tracker);
             }
 
+            #[cfg(feature = "hash")]
             if let Some(chksum) = frame_dec.get_checksum_from_data() {
                 if frame_dec.get_calculated_checksum().unwrap() != chksum {
                     tracker.invalid_checksums += 1;

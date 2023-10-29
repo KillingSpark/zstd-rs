@@ -161,6 +161,7 @@ fn test_decode_from_to() {
 
     match frame_dec.get_checksum_from_data() {
         Some(chksum) => {
+            #[cfg(feature = "hash")]
             if frame_dec.get_calculated_checksum().unwrap() != chksum {
                 std::println!(
                     "Checksum did not match! From data: {}, calculated while decoding: {}\n",
@@ -170,6 +171,11 @@ fn test_decode_from_to() {
             } else {
                 std::println!("Checksums are ok!\n");
             }
+            #[cfg(not(feature = "hash"))]
+            std::println!(
+                "Checksum feature not enabled, skipping. From data: {}\n",
+                chksum
+            );
         }
         None => std::println!("No checksums to test\n"),
     }

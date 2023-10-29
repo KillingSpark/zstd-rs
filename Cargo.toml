@@ -12,15 +12,16 @@ readme = "Readme.md"
 
 [dependencies]
 byteorder = { version = "1.5", default-features = false }
-twox-hash = { version = "1.6", default-features = false }
+twox-hash = { version = "1.6", default-features = false, optional = true }
 derive_more = { version = "0.99", default-features = false, features = ["display", "from"] }
 
 [dev-dependencies]
 criterion = "0.3"
-rand = {version = "0.8.5", features = ["small_rng"]}
+rand = { version = "0.8.5", features = ["small_rng"] }
 
 [features]
-default = ["std"]
+default = ["hash", "std"]
+hash = ["dep:twox-hash"]
 std = ["derive_more/error"]
 
 [[bench]]
