@@ -25,8 +25,8 @@ jobs:
         - run: cargo hack clippy --feature-powerset
         - run: cargo hack test --feature-powerset
 
-  lints-nightly:
-    name: Lints (no std)
+  clippy-nightly:
+    name: clippy nightly
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
