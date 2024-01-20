@@ -9,6 +9,8 @@ repository = "https://github.com/KillingSpark/zstd-rs"
 description = "A decoder for the zstd compression format"
 exclude = ["decodecorpus_files/*", "dict_tests/*", "fuzz_decodecorpus/*"]
 readme = "Readme.md"
+keywords = ["zstd", "zstandard", "decompression"]
+categories = ["compression"]
 
 [dependencies]
 byteorder = { version = "1.5", default-features = false }
