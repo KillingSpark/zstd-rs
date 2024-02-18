@@ -32,6 +32,18 @@ fn assure_error_impl() {
     let _err: &dyn std::error::Error = &FrameDecoderError::NotYetInitialized;
 }
 
+#[cfg(all(test, feature = "std"))]
+#[allow(dead_code)]
+fn assure_decoder_send_sync() {
+    // not a real test just there to throw an compiler error if FrameDecoder is Send + Sync
+
+    use crate::frame_decoder::FrameDecoder;
+    let decoder = FrameDecoder::new();
+    std::thread::spawn(move || {
+        drop(decoder);
+    });
+}
+
 #[test]
 fn skippable_frame() {
     use crate::frame;

@@ -19,6 +19,11 @@ pub struct RingBuffer {
     tail: usize,
 }
 
+// SAFETY: RingBuffer does not hold any thread specific values -> it can be sent to another thread -> RingBuffer is Send
+unsafe impl Send for RingBuffer {}
+// SAFETY: Ringbuffer does not provide unsyncronized interior mutability which makes &RingBuffer Send -> RingBuffer is Sync
+unsafe impl Sync for RingBuffer {}
+
 impl RingBuffer {
     pub fn new() -> Self {
         RingBuffer {
