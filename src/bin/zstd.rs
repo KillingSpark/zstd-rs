@@ -67,6 +67,7 @@ fn main() {
                     skip_size,
                 ))) => {
                     eprintln!("Found a skippable frame with magic number: {magic_num} and size: {skip_size}");
+                    tracker.file_pos = f.stream_position().unwrap();
                     tracker.file_pos += skip_size as u64;
                     f.seek(SeekFrom::Current(skip_size as i64)).unwrap();
                     continue;
