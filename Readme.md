@@ -14,9 +14,9 @@ This crate might look like it is not active, this is because there isn't really 
 
 # Current Status
 
-This started as a toy project but it is in a usable state now.
+Feature complete on the decoder side. In terms of speed it is still behind the original C implementation which has a rust binding located [here](https://github.com/gyscos/zstd-rs).
 
-In terms of speed it is still behind the original C implementation which has a rust binding located [here](https://github.com/gyscos/zstd-rs).
+Actively maintained but no new features currently planned. If you have suggestions please open an issue and I'll consider it.
 
 ## Speed
 
@@ -38,8 +38,6 @@ This decoder is pretty much feature complete. If there are any wishes for new AP
 ## Roadmap
 
 1. More Performance optimizations (targets would be sequence_decoding and reverse_bitreader::get_bits. Those account for about 50% of the whole time used)
-1. More tests (especially unit-tests for the bitreaders and other lower-level parts)
-1. Find more bugs
 
 ## Testing
 
