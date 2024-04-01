@@ -127,7 +127,7 @@ impl<'s> BitReaderReversed<'s> {
             let emulated_read_shift = signed_n - self.bits_remaining();
             let v = self.get_bits(self.bits_remaining() as u8);
             debug_assert!(self.idx == 0);
-            let value = v << emulated_read_shift;
+            let value = v.wrapping_shl(emulated_read_shift as u32);
             self.idx -= emulated_read_shift;
             return value;
         }

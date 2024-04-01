@@ -4,7 +4,7 @@ extern crate ruzstd;
 use ruzstd::frame_decoder;
 
 fuzz_target!(|data: &[u8]| {
-    let mut content = data.clone();
+    let mut content = data;
     let mut frame_dec = frame_decoder::FrameDecoder::new();
 
     match frame_dec.reset(&mut content){
