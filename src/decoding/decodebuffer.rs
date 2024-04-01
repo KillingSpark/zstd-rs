@@ -79,36 +79,7 @@ impl Decodebuffer {
 
     pub fn repeat(&mut self, offset: usize, match_length: usize) -> Result<(), DecodebufferError> {
         if offset > self.buffer.len() {
-            if self.total_output_counter <= self.window_size as u64 {
-                // at least part of that repeat is from the dictionary content
-                let bytes_from_dict = offset - self.buffer.len();
-
-                if bytes_from_dict > self.dict_content.len() {
-                    return Err(DecodebufferError::NotEnoughBytesInDictionary {
-                        got: self.dict_content.len(),
-                        need: bytes_from_dict,
-                    });
-                }
-
-                if bytes_from_dict < match_length {
-                    let dict_slice =
-                        &self.dict_content[self.dict_content.len() - bytes_from_dict..];
-                    self.buffer.extend(dict_slice);
-
-                    self.total_output_counter += bytes_from_dict as u64;
-                    return self.repeat(self.buffer.len(), match_length - bytes_from_dict);
-                } else {
-                    let low = self.dict_content.len() - bytes_from_dict;
-                    let high = low + match_length;
-                    let dict_slice = &self.dict_content[low..high];
-                    self.buffer.extend(dict_slice);
-                }
-            } else {
-                return Err(DecodebufferError::OffsetTooBig {
-                    offset,
-                    buf_len: self.buffer.len(),
-                });
-            }
+            self.repeat_from_dict(offset, match_length)
         } else {
             let buf_len = self.buffer.len();
             let start_idx = buf_len - offset;
@@ -117,33 +88,7 @@ impl Decodebuffer {
             self.buffer.reserve(match_length);
             if end_idx > buf_len {
                 // We need to copy in chunks.
-                // We have at max offset bytes in one chunk, the last one can be smaller
-                let mut start_idx = start_idx;
-                let mut copied_counter_left = match_length;
-                // TODO this can  be optimized further I think.
-                // Each time we copy a chunk we have a repetiton of length 'offset', so we can copy offset * iteration many bytes from start_idx
-                while copied_counter_left > 0 {
-                    let chunksize = usize::min(offset, copied_counter_left);
-
-                    // SAFETY: Requirements checked:
-                    // 1. start_idx + chunksize must be <= self.buffer.len()
-                    //      We know that:
-                    //      1. start_idx starts at buffer.len() - offset
-                    //      2. chunksize <= offset (== offset for each iteration but the last, and match_length modulo offset in the last iteration)
-                    //      3. the buffer grows by offset many bytes each iteration but the last
-                    //      4. start_idx is increased by the same amount as the buffer grows each iteration
-                    //
-                    //      Thus follows: start_idx + chunksize == self.buffer.len() in each iteration but the last, where match_length modulo offset == chunksize < offset
-                    //          Meaning: start_idx + chunksize <= self.buffer.len()
-                    //
-                    // 2. explicitly reserved enough memory for the whole match_length
-                    unsafe {
-                        self.buffer
-                            .extend_from_within_unchecked(start_idx, chunksize)
-                    };
-                    copied_counter_left -= chunksize;
-                    start_idx += chunksize;
-                }
+                self.repeat_in_chunks(offset, match_length, start_idx);
             } else {
                 // can just copy parts of the existing buffer
                 // SAFETY: Requirements checked:
@@ -162,9 +107,76 @@ impl Decodebuffer {
             }
 
             self.total_output_counter += match_length as u64;
+            Ok(())
         }
+    }
 
-        Ok(())
+    fn repeat_in_chunks(&mut self, offset: usize, match_length: usize, start_idx: usize) {
+        // We have at max offset bytes in one chunk, the last one can be smaller
+        let mut start_idx = start_idx;
+        let mut copied_counter_left = match_length;
+        // TODO this can  be optimized further I think.
+        // Each time we copy a chunk we have a repetiton of length 'offset', so we can copy offset * iteration many bytes from start_idx
+        while copied_counter_left > 0 {
+            let chunksize = usize::min(offset, copied_counter_left);
+
+            // SAFETY: Requirements checked:
+            // 1. start_idx + chunksize must be <= self.buffer.len()
+            //      We know that:
+            //      1. start_idx starts at buffer.len() - offset
+            //      2. chunksize <= offset (== offset for each iteration but the last, and match_length modulo offset in the last iteration)
+            //      3. the buffer grows by offset many bytes each iteration but the last
+            //      4. start_idx is increased by the same amount as the buffer grows each iteration
+            //
+            //      Thus follows: start_idx + chunksize == self.buffer.len() in each iteration but the last, where match_length modulo offset == chunksize < offset
+            //          Meaning: start_idx + chunksize <= self.buffer.len()
+            //
+            // 2. explicitly reserved enough memory for the whole match_length
+            unsafe {
+                self.buffer
+                    .extend_from_within_unchecked(start_idx, chunksize)
+            };
+            copied_counter_left -= chunksize;
+            start_idx += chunksize;
+        }
+    }
+
+    #[cold]
+    fn repeat_from_dict(
+        &mut self,
+        offset: usize,
+        match_length: usize,
+    ) -> Result<(), DecodebufferError> {
+        if self.total_output_counter <= self.window_size as u64 {
+            // at least part of that repeat is from the dictionary content
+            let bytes_from_dict = offset - self.buffer.len();
+
+            if bytes_from_dict > self.dict_content.len() {
+                return Err(DecodebufferError::NotEnoughBytesInDictionary {
+                    got: self.dict_content.len(),
+                    need: bytes_from_dict,
+                });
+            }
+
+            if bytes_from_dict < match_length {
+                let dict_slice = &self.dict_content[self.dict_content.len() - bytes_from_dict..];
+                self.buffer.extend(dict_slice);
+
+                self.total_output_counter += bytes_from_dict as u64;
+                return self.repeat(self.buffer.len(), match_length - bytes_from_dict);
+            } else {
+                let low = self.dict_content.len() - bytes_from_dict;
+                let high = low + match_length;
+                let dict_slice = &self.dict_content[low..high];
+                self.buffer.extend(dict_slice);
+            }
+            Ok(())
+        } else {
+            return Err(DecodebufferError::OffsetTooBig {
+                offset,
+                buf_len: self.buffer.len(),
+            });
+        }
     }
 
     // Check if and how many bytes can currently be drawn from the buffer
