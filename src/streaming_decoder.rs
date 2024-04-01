@@ -8,6 +8,14 @@ use crate::io::{Error, ErrorKind, Read};
 ///
 /// The lower level FrameDecoder by comparison allows for finer grained control but need sto have it's decode_blocks method called continously
 /// to decode the zstd-frame.
+///
+/// ## Caveat
+/// [StreamingDecoder] expects the underlying stream to only contain a single frame.
+/// To decode all the frames in a finite stream, the calling code needs to recreate
+/// the instance of the decoder
+/// and handle
+/// [crate::frame::ReadFrameHeaderError::SkipFrame]
+/// errors by skipping forward the `length` amount of bytes, see <https://github.com/KillingSpark/zstd-rs/issues/57>
 pub struct StreamingDecoder<READ: Read, DEC: BorrowMut<FrameDecoder>> {
     pub decoder: DEC,
     source: READ,
