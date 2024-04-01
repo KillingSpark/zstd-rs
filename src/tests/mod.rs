@@ -55,7 +55,10 @@ fn skippable_frame() {
     let err = frame::read_frame_header(content.as_slice());
     assert!(matches!(
         err,
-        Err(frame::ReadFrameHeaderError::SkipFrame(0x184D2A50u32, 300))
+        Err(frame::ReadFrameHeaderError::SkipFrame {
+            magic_number: 0x184D2A50u32,
+            length: 300
+        })
     ));
 
     content.clear();
@@ -65,10 +68,10 @@ fn skippable_frame() {
     let err = frame::read_frame_header(content.as_slice());
     assert!(matches!(
         err,
-        Err(frame::ReadFrameHeaderError::SkipFrame(
-            0x184D2A5Fu32,
-            0xFFFFFFFF
-        ))
+        Err(frame::ReadFrameHeaderError::SkipFrame {
+            magic_number: 0x184D2A5Fu32,
+            length: 0xFFFFFFFF
+        })
     ));
 }
 

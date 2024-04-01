@@ -154,8 +154,10 @@ pub enum ReadFrameHeaderError {
     DictionaryIdReadError(Error),
     #[display(fmt = "Error while reading frame content size: {_0}")]
     FrameContentSizeReadError(Error),
-    #[display(fmt = "SkippableFrame encountered with MagicNumber 0x{_0:X} and length {_1} bytes")]
-    SkipFrame(u32, u32),
+    #[display(
+        fmt = "SkippableFrame encountered with MagicNumber 0x{magic_number:X} and length {length} bytes"
+    )]
+    SkipFrame { magic_number: u32, length: u32 },
 }
 
 pub fn read_frame_header(mut r: impl Read) -> Result<(Frame, u8), ReadFrameHeaderError> {
@@ -171,7 +173,10 @@ pub fn read_frame_header(mut r: impl Read) -> Result<(Frame, u8), ReadFrameHeade
         r.read_exact(&mut buf)
             .map_err(err::FrameDescriptorReadError)?;
         let skip_size = u32::from_le_bytes(buf);
-        return Err(ReadFrameHeaderError::SkipFrame(magic_num, skip_size));
+        return Err(ReadFrameHeaderError::SkipFrame {
+            magic_number: magic_num,
+            length: skip_size,
+        });
     }
 
     if magic_num != MAGIC_NUM {
