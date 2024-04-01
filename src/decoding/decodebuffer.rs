@@ -172,10 +172,10 @@ impl Decodebuffer {
             }
             Ok(())
         } else {
-            return Err(DecodebufferError::OffsetTooBig {
+            Err(DecodebufferError::OffsetTooBig {
                 offset,
                 buf_len: self.buffer.len(),
-            });
+            })
         }
     }
 
