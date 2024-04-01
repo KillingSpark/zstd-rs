@@ -109,26 +109,20 @@ impl<'t> HuffmanDecoder<'t> {
         self.table.decode[self.state as usize].symbol
     }
 
-    pub fn init_state(
-        &mut self,
-        br: &mut BitReaderReversed<'_>,
-    ) -> Result<u8, HuffmanDecoderError> {
+    pub fn init_state(&mut self, br: &mut BitReaderReversed<'_>) -> u8 {
         let num_bits = self.table.max_num_bits;
-        let new_bits = br.get_bits(num_bits)?;
+        let new_bits = br.get_bits(num_bits);
         self.state = new_bits;
-        Ok(num_bits)
+        num_bits
     }
 
-    pub fn next_state(
-        &mut self,
-        br: &mut BitReaderReversed<'_>,
-    ) -> Result<u8, HuffmanDecoderError> {
+    pub fn next_state(&mut self, br: &mut BitReaderReversed<'_>) -> u8 {
         let num_bits = self.table.decode[self.state as usize].num_bits;
-        let new_bits = br.get_bits(num_bits)?;
+        let new_bits = br.get_bits(num_bits);
         self.state <<= num_bits;
         self.state &= self.table.decode.len() as u64 - 1;
         self.state |= new_bits;
-        Ok(num_bits)
+        num_bits
     }
 }
 
@@ -235,7 +229,7 @@ impl HuffmanTable {
                 //skip the 0 padding at the end of the last byte of the bit stream and throw away the first 1 found
                 let mut skipped_bits = 0;
                 loop {
-                    let val = br.get_bits(1)?;
+                    let val = br.get_bits(1);
                     skipped_bits += 1;
                     if val == 1 || skipped_bits > 8 {
                         break;
@@ -254,7 +248,7 @@ impl HuffmanTable {
                 loop {
                     let w = dec1.decode_symbol();
                     self.weights.push(w);
-                    dec1.update_state(&mut br)?;
+                    dec1.update_state(&mut br);
 
                     if br.bits_remaining() <= -1 {
                         //collect final states
@@ -264,7 +258,7 @@ impl HuffmanTable {
 
                     let w = dec2.decode_symbol();
                     self.weights.push(w);
-                    dec2.update_state(&mut br)?;
+                    dec2.update_state(&mut br);
 
                     if br.bits_remaining() <= -1 {
                         //collect final states

@@ -89,23 +89,19 @@ impl<'t> FSEDecoder<'t> {
         if self.table.accuracy_log == 0 {
             return Err(FSEDecoderError::TableIsUninitialized);
         }
-        self.state = self.table.decode[bits.get_bits(self.table.accuracy_log)? as usize];
+        self.state = self.table.decode[bits.get_bits(self.table.accuracy_log) as usize];
 
         Ok(())
     }
 
-    pub fn update_state(
-        &mut self,
-        bits: &mut BitReaderReversed<'_>,
-    ) -> Result<(), FSEDecoderError> {
+    pub fn update_state(&mut self, bits: &mut BitReaderReversed<'_>) {
         let num_bits = self.state.num_bits;
-        let add = bits.get_bits(num_bits)?;
+        let add = bits.get_bits(num_bits);
         let base_line = self.state.base_line;
         let new_state = base_line + add as u32;
         self.state = self.table.decode[new_state as usize];
 
         //println!("Update: {}, {} -> {}", base_line, add,  self.state);
-        Ok(())
     }
 }
 

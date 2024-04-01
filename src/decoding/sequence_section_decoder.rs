@@ -58,7 +58,7 @@ pub fn decode_sequences(
     //skip the 0 padding at the end of the last byte of the bit stream and throw away the first 1 found
     let mut skipped_bits = 0;
     loop {
-        let val = br.get_bits(1)?;
+        let val = br.get_bits(1);
         skipped_bits += 1;
         if val == 1 || skipped_bits > 8 {
             break;
@@ -137,7 +137,7 @@ fn decode_sequences_with_rle(
             });
         }
 
-        let (obits, ml_add, ll_add) = br.get_bits_triple(of_code, ml_num_bits, ll_num_bits)?;
+        let (obits, ml_add, ll_add) = br.get_bits_triple(of_code, ml_num_bits, ll_num_bits);
         let offset = obits as u32 + (1u32 << of_code);
 
         if offset == 0 {
@@ -157,13 +157,13 @@ fn decode_sequences_with_rle(
             //    br.bits_remaining() / 8,
             //);
             if scratch.ll_rle.is_none() {
-                ll_dec.update_state(br)?;
+                ll_dec.update_state(br);
             }
             if scratch.ml_rle.is_none() {
-                ml_dec.update_state(br)?;
+                ml_dec.update_state(br);
             }
             if scratch.of_rle.is_none() {
-                of_dec.update_state(br)?;
+                of_dec.update_state(br);
             }
         }
 
@@ -212,7 +212,7 @@ fn decode_sequences_without_rle(
             });
         }
 
-        let (obits, ml_add, ll_add) = br.get_bits_triple(of_code, ml_num_bits, ll_num_bits)?;
+        let (obits, ml_add, ll_add) = br.get_bits_triple(of_code, ml_num_bits, ll_num_bits);
         let offset = obits as u32 + (1u32 << of_code);
 
         if offset == 0 {
@@ -231,9 +231,9 @@ fn decode_sequences_without_rle(
             //    br.bits_remaining(),
             //    br.bits_remaining() / 8,
             //);
-            ll_dec.update_state(br)?;
-            ml_dec.update_state(br)?;
-            of_dec.update_state(br)?;
+            ll_dec.update_state(br);
+            ml_dec.update_state(br);
+            of_dec.update_state(br);
         }
 
         if br.bits_remaining() < 0 {
