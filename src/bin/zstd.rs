@@ -62,10 +62,10 @@ fn main() {
 
         while tracker.file_pos < tracker.file_size {
             match frame_dec.reset(&mut f) {
-                Err(FrameDecoderError::ReadFrameHeaderError(ReadFrameHeaderError::SkipFrame(
-                    magic_num,
-                    skip_size,
-                ))) => {
+                Err(FrameDecoderError::ReadFrameHeaderError(ReadFrameHeaderError::SkipFrame {
+                    magic_number: magic_num,
+                    length: skip_size,
+                })) => {
                     eprintln!("Found a skippable frame with magic number: {magic_num} and size: {skip_size}");
                     tracker.file_pos = f.stream_position().unwrap();
                     tracker.file_pos += skip_size as u64;
