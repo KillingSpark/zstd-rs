@@ -21,6 +21,7 @@ pub struct RingBuffer {
 
 // SAFETY: RingBuffer does not hold any thread specific values -> it can be sent to another thread -> RingBuffer is Send
 unsafe impl Send for RingBuffer {}
+
 // SAFETY: Ringbuffer does not provide unsyncronized interior mutability which makes &RingBuffer Send -> RingBuffer is Sync
 unsafe impl Sync for RingBuffer {}
 
@@ -277,15 +278,17 @@ impl RingBuffer {
             // continous data slice  |____HDDDDDDDT_____|
             let after_tail = usize::min(len, self.cap - self.tail);
             unsafe {
-                self.buf
-                    .as_ptr()
-                    .add(self.tail)
-                    .copy_from_nonoverlapping(self.buf.as_ptr().add(self.head + start), after_tail);
+                let src = (
+                    self.buf.as_ptr().cast_const().add(self.head + start),
+                    self.tail - self.head,
+                );
+                let dst = (self.buf.as_ptr().add(self.tail), self.cap - self.tail);
+                copy_bytes_overshooting(src, dst, after_tail);
+
                 if after_tail < len {
-                    self.buf.as_ptr().copy_from_nonoverlapping(
-                        self.buf.as_ptr().add(self.head + start + after_tail),
-                        len - after_tail,
-                    );
+                    let src = (src.0.add(after_tail), src.1 - after_tail);
+                    let dst = (self.buf.as_ptr(), self.head);
+                    copy_bytes_overshooting(src, dst, len - after_tail);
                 }
             }
         } else {
@@ -293,23 +296,27 @@ impl RingBuffer {
             if self.head + start > self.cap {
                 let start = (self.head + start) % self.cap;
                 unsafe {
-                    self.buf
-                        .as_ptr()
-                        .add(self.tail)
-                        .copy_from_nonoverlapping(self.buf.as_ptr().add(start), len)
+                    let src = (
+                        self.buf.as_ptr().add(start).cast_const(),
+                        self.cap - self.head,
+                    );
+                    let dst = (self.buf.as_ptr().add(self.tail), self.head - self.tail);
+                    copy_bytes_overshooting(src, dst, len);
                 }
             } else {
                 let after_start = usize::min(len, self.cap - self.head - start);
                 unsafe {
-                    self.buf.as_ptr().add(self.tail).copy_from_nonoverlapping(
-                        self.buf.as_ptr().add(self.head + start),
-                        after_start,
+                    let src = (
+                        self.buf.as_ptr().add(self.head + start).cast_const(),
+                        self.cap - self.head,
                     );
+                    let dst = (self.buf.as_ptr().add(self.tail), self.head - self.tail);
+                    copy_bytes_overshooting(src, dst, after_start);
+
                     if after_start < len {
-                        self.buf
-                            .as_ptr()
-                            .add(self.tail + after_start)
-                            .copy_from_nonoverlapping(self.buf.as_ptr(), len - after_start);
+                        let src = (self.buf.as_ptr().cast_const(), self.tail);
+                        let dst = (dst.0.add(after_start), dst.1 - after_start);
+                        copy_bytes_overshooting(src, dst, len - after_start);
                     }
                 }
             }
@@ -390,6 +397,68 @@ impl Drop for RingBuffer {
             dealloc(self.buf.as_ptr(), current_layout);
         }
     }
+}
+
+/// Similar to ptr::copy_nonoverlapping
+///
+/// But it might overshoot the desired copy length if deemed useful
+///
+/// src and dst specify the entire length they are eligible for reading/writing respectively
+/// in addition to the desired copy length.
+///
+/// This function will then copy in chunks and might copy up to chunk size - 1 more bytes from src to dst
+/// if that operation does not read/write memory that does not belong to src/dst.
+///
+/// The chunk size is not part of the contract and may change depending on the target platform.
+///
+/// If that isn't possible we just fall back to ptr::copy_nonoverlapping
+#[inline(always)]
+unsafe fn copy_bytes_overshooting(
+    src: (*const u8, usize),
+    dst: (*mut u8, usize),
+    copy_at_least: usize,
+) {
+    // By default use usize as the copy size
+    #[cfg(all(not(target_feature = "sse2"), not(target_feature = "neon")))]
+    type CopyType = usize;
+
+    // Use u128 if we detect a simd feature
+    #[cfg(target_feature = "neon")]
+    type CopyType = u128;
+    #[cfg(target_feature = "sse2")]
+    type CopyType = u128;
+
+    const COPY_AT_ONCE_SIZE: usize = std::mem::size_of::<CopyType>();
+    let min_buffer_size = usize::min(src.1, dst.1);
+
+    // Can copy in just one read+write, very common case
+    if min_buffer_size >= COPY_AT_ONCE_SIZE && copy_at_least <= COPY_AT_ONCE_SIZE {
+        dst.0
+            .cast::<CopyType>()
+            .write_unaligned(src.0.cast::<CopyType>().read_unaligned())
+    } else {
+        let copy_multiple = copy_at_least.next_multiple_of(COPY_AT_ONCE_SIZE);
+        // Can copy in multiple simple instructions
+        if min_buffer_size >= copy_multiple {
+            let mut src_ptr = src.0.cast::<CopyType>();
+            let src_ptr_end = src.0.add(copy_multiple).cast::<CopyType>();
+            let mut dst_ptr = dst.0.cast::<CopyType>();
+
+            while src_ptr < src_ptr_end {
+                dst_ptr.write_unaligned(src_ptr.read_unaligned());
+                src_ptr = src_ptr.add(1);
+                dst_ptr = dst_ptr.add(1);
+            }
+        } else {
+            // Fall back to standard memcopy
+            dst.0.copy_from_nonoverlapping(src.0, copy_at_least);
+        }
+    }
+
+    debug_assert_eq!(
+        slice::from_raw_parts(src.0, copy_at_least),
+        slice::from_raw_parts(dst.0, copy_at_least)
+    );
 }
 
 #[allow(dead_code)]
