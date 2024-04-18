@@ -428,7 +428,7 @@ unsafe fn copy_bytes_overshooting(
     #[cfg(target_feature = "sse2")]
     type CopyType = u128;
 
-    const COPY_AT_ONCE_SIZE: usize = std::mem::size_of::<CopyType>();
+    const COPY_AT_ONCE_SIZE: usize = core::mem::size_of::<CopyType>();
     let min_buffer_size = usize::min(src.1, dst.1);
 
     // Can copy in just one read+write, very common case
