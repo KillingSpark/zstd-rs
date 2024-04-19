@@ -116,6 +116,7 @@ impl<'s> BitReaderReversed<'s> {
 
     #[cold]
     fn get_bits_cold(&mut self, n: u8) -> u64 {
+        let n = u8::min(n, 56);
         let signed_n = n as isize;
 
         if self.bits_remaining() <= 0 {
