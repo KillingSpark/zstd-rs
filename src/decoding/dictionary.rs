@@ -43,8 +43,8 @@ impl core::fmt::Display for DictionaryDecodeError {
                     got, MAGIC_NUM,
                 )
             }
-            DictionaryDecodeError::FSETableError(_0) => write!(f, "{:?}", _0),
-            DictionaryDecodeError::HuffmanTableError(_0) => write!(f, "{:?}", _0),
+            DictionaryDecodeError::FSETableError(e => write!(f, "{:?}", e),
+            DictionaryDecodeError::HuffmanTableError(e) => write!(f, "{:?}", e),
         }
     }
 }
