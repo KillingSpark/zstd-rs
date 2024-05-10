@@ -1,5 +1,7 @@
 use crate::io::{Error, Read};
 use core::fmt;
+#[cfg(feature = "std")]
+use std::error::Error as StdError;
 
 pub const MAGIC_NUM: u32 = 0xFD2F_B528;
 pub const MIN_WINDOW_SIZE: u64 = 1024;
@@ -25,7 +27,7 @@ pub enum FrameDescriptorError {
 }
 
 impl fmt::Display for FrameDescriptorError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match Self {
             Self::InvalidFrameContentSizeFlag { got } => write!(f, "Invalid Frame_Content_Size_Flag; Is: {}, Should be one of: 0, 1, 2, 3", got)
         }
@@ -33,7 +35,7 @@ impl fmt::Display for FrameDescriptorError {
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for FrameDescriptorError {}
+impl StdError for FrameDescriptorError {}
 
 impl FrameDescriptor {
     pub fn frame_content_size_flag(&self) -> u8 {
@@ -97,7 +99,7 @@ pub enum FrameHeaderError {
 }
 
 impl fmt::Display for FrameHeaderError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match Self {
             Self::WindowTooBig { got } => write!(f, "window_size bigger than allowed maximum. Is: {}, Should be lower than: {}", got, MAX_WINDOW_SIZE),
             Self::WindowTooSmall { got } => write!(f,  "window_size smaller than allowed minimum. Is: {}, Should be greater than: {}", got, MIN_WINDOW_SIZE),
@@ -111,7 +113,16 @@ impl fmt::Display for FrameHeaderError {
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for FrameHeaderError {}
+impl StdError for FrameHeaderError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            FrameHeaderError::FrameDescriptorError(source) => {
+                Some(source)
+            }
+            _ => None,
+        }
+    }
+}
 
 impl From<FrameDescriptorError> for FrameHeaderError {
     fn from(error: FrameDescriptorError) -> Self {
@@ -168,7 +179,7 @@ pub enum ReadFrameHeaderError {
 }
 
 impl fmt::Display for ReadFrameHeaderError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match Self {
             Self::MagicNumberReadError(e) => write!(f, "Error while reading magic number: {}", e),
             Self::BadMagicNumber(e) => write!(f, "Read wrong magic number: 0x{:X}", e),
@@ -183,7 +194,32 @@ impl fmt::Display for ReadFrameHeaderError {
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for ReadFrameHeaderError {}
+impl StdError for ReadFrameHeaderError {
+
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            ReadFrameHeaderError::MagicNumberReadError(source) => {
+                Some(source)
+            }
+            ReadFrameHeaderError::FrameDescriptorReadError(source) => {
+                Some(source)
+            }
+            ReadFrameHeaderError::InvalidFrameDescriptor(source) => {
+                Some(source)
+            }
+            ReadFrameHeaderError::WindowDescriptorReadError(source) => {
+                Some(source)
+            }
+            ReadFrameHeaderError::DictionaryIdReadError(source) => {
+                Some(source)
+            }
+            ReadFrameHeaderError::FrameContentSizeReadError(source) => {
+                Some(source)
+            }
+            _ => None,
+        }
+    }
+}
 
 impl From<FrameDescriptorError> for ReadFrameHeaderError {
     fn from(error: FrameDescriptorError) -> Self {
