@@ -3,19 +3,47 @@ pub struct BitReader<'s> {
     source: &'s [u8],
 }
 
-#[derive(Debug, derive_more::Display)]
-#[cfg_attr(feature = "std", derive(derive_more::Error))]
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum GetBitsError {
-    #[display(
-        fmt = "Cant serve this request. The reader is limited to {limit} bits, requested {num_requested_bits} bits"
-    )]
     TooManyBits {
         num_requested_bits: usize,
         limit: u8,
     },
-    #[display(fmt = "Can't read {requested} bits, only have {remaining} bits left")]
-    NotEnoughRemainingBits { requested: usize, remaining: usize },
+    NotEnoughRemainingBits {
+        requested: usize,
+        remaining: usize,
+    },
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for GetBitsError {}
+
+impl core::fmt::Display for GetBitsError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            GetBitsError::TooManyBits {
+                num_requested_bits,
+                limit,
+            } => {
+                write!(
+                    f,
+                    "Cant serve this request. The reader is limited to {} bits, requested {} bits",
+                    limit, num_requested_bits,
+                )
+            }
+            GetBitsError::NotEnoughRemainingBits {
+                requested,
+                remaining,
+            } => {
+                write!(
+                    f,
+                    "Can\'t read {} bits, only have {} bits left",
+                    requested, remaining,
+                )
+            }
+        }
+    }
 }
 
 impl<'s> BitReader<'s> {

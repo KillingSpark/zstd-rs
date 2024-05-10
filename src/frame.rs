@@ -28,8 +28,12 @@ pub enum FrameDescriptorError {
 
 impl fmt::Display for FrameDescriptorError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match Self {
-            Self::InvalidFrameContentSizeFlag { got } => write!(f, "Invalid Frame_Content_Size_Flag; Is: {}, Should be one of: 0, 1, 2, 3", got)
+        match self {
+            Self::InvalidFrameContentSizeFlag { got } => write!(
+                f,
+                "Invalid Frame_Content_Size_Flag; Is: {}, Should be one of: 0, 1, 2, 3",
+                got
+            ),
         }
     }
 }
@@ -100,25 +104,43 @@ pub enum FrameHeaderError {
 
 impl fmt::Display for FrameHeaderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match Self {
-            Self::WindowTooBig { got } => write!(f, "window_size bigger than allowed maximum. Is: {}, Should be lower than: {}", got, MAX_WINDOW_SIZE),
-            Self::WindowTooSmall { got } => write!(f,  "window_size smaller than allowed minimum. Is: {}, Should be greater than: {}", got, MIN_WINDOW_SIZE),
-            Self::FrameDescriptorError(e) => write!(f, "{:?}", e ),
-            Self::DictIdTooSmall { got, expected} => write!(f, "Not enough bytes in dict_id. Is: {}, Should be: {}",got, expected),
-            Self::MismatchedFrameSize { got, expected } => write!(f, "frame_content_size does not have the right length. Is: {}, Should be: {}", got, expected),
+        match self {
+            Self::WindowTooBig { got } => write!(
+                f,
+                "window_size bigger than allowed maximum. Is: {}, Should be lower than: {}",
+                got, MAX_WINDOW_SIZE
+            ),
+            Self::WindowTooSmall { got } => write!(
+                f,
+                "window_size smaller than allowed minimum. Is: {}, Should be greater than: {}",
+                got, MIN_WINDOW_SIZE
+            ),
+            Self::FrameDescriptorError(e) => write!(f, "{:?}", e),
+            Self::DictIdTooSmall { got, expected } => write!(
+                f,
+                "Not enough bytes in dict_id. Is: {}, Should be: {}",
+                got, expected
+            ),
+            Self::MismatchedFrameSize { got, expected } => write!(
+                f,
+                "frame_content_size does not have the right length. Is: {}, Should be: {}",
+                got, expected
+            ),
             Self::FrameSizeIsZero => write!(f, "frame_content_size was zero"),
-            Self::InvalidFrameSize { got } => write!(f, "Invalid frame_content_size. Is: {}, Should be one of 1, 2, 4, 8 bytes", got),
+            Self::InvalidFrameSize { got } => write!(
+                f,
+                "Invalid frame_content_size. Is: {}, Should be one of 1, 2, 4, 8 bytes",
+                got
+            ),
         }
     }
 }
 
 #[cfg(feature = "std")]
 impl StdError for FrameHeaderError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
-            FrameHeaderError::FrameDescriptorError(source) => {
-                Some(source)
-            }
+            FrameHeaderError::FrameDescriptorError(source) => Some(source),
             _ => None,
         }
     }
@@ -180,42 +202,42 @@ pub enum ReadFrameHeaderError {
 
 impl fmt::Display for ReadFrameHeaderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match Self {
+        match self {
             Self::MagicNumberReadError(e) => write!(f, "Error while reading magic number: {}", e),
             Self::BadMagicNumber(e) => write!(f, "Read wrong magic number: 0x{:X}", e),
-            Self::FrameDescriptorReadError(e) => write!(f, "Error while reading frame descriptor: {}", e),
+            Self::FrameDescriptorReadError(e) => {
+                write!(f, "Error while reading frame descriptor: {}", e)
+            }
             Self::InvalidFrameDescriptor(e) => write!(f, "{:?}", e),
-            Self::WindowDescriptorReadError(e) => write!(f, "Error while reading window descriptor: {}", e),
+            Self::WindowDescriptorReadError(e) => {
+                write!(f, "Error while reading window descriptor: {}", e)
+            }
             Self::DictionaryIdReadError(e) => write!(f, "Error while reading dictionary id: {}", e),
-            Self::FrameContentSizeReadError(e) => write!(f, "Error while reading frame content size: {}", e),
-            Self::SkipFrame { magic_number, length} => write!(f, "SkippableFrame encountered with MagicNumber 0x{:X} and length {} bytes", magic_number, length),
+            Self::FrameContentSizeReadError(e) => {
+                write!(f, "Error while reading frame content size: {}", e)
+            }
+            Self::SkipFrame {
+                magic_number,
+                length,
+            } => write!(
+                f,
+                "SkippableFrame encountered with MagicNumber 0x{:X} and length {} bytes",
+                magic_number, length
+            ),
         }
     }
 }
 
 #[cfg(feature = "std")]
 impl StdError for ReadFrameHeaderError {
-
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
-            ReadFrameHeaderError::MagicNumberReadError(source) => {
-                Some(source)
-            }
-            ReadFrameHeaderError::FrameDescriptorReadError(source) => {
-                Some(source)
-            }
-            ReadFrameHeaderError::InvalidFrameDescriptor(source) => {
-                Some(source)
-            }
-            ReadFrameHeaderError::WindowDescriptorReadError(source) => {
-                Some(source)
-            }
-            ReadFrameHeaderError::DictionaryIdReadError(source) => {
-                Some(source)
-            }
-            ReadFrameHeaderError::FrameContentSizeReadError(source) => {
-                Some(source)
-            }
+            ReadFrameHeaderError::MagicNumberReadError(source) => Some(source),
+            ReadFrameHeaderError::FrameDescriptorReadError(source) => Some(source),
+            ReadFrameHeaderError::InvalidFrameDescriptor(source) => Some(source),
+            ReadFrameHeaderError::WindowDescriptorReadError(source) => Some(source),
+            ReadFrameHeaderError::DictionaryIdReadError(source) => Some(source),
+            ReadFrameHeaderError::FrameContentSizeReadError(source) => Some(source),
             _ => None,
         }
     }

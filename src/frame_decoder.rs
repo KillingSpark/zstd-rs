@@ -81,44 +81,113 @@ pub enum BlockDecodingStrategy {
     UptoBytes(usize),
 }
 
-#[derive(Debug, derive_more::Display, derive_more::From)]
-#[cfg_attr(feature = "std", derive(derive_more::Error))]
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum FrameDecoderError {
-    #[display(fmt = "{_0:?}")]
-    #[from]
     ReadFrameHeaderError(frame::ReadFrameHeaderError),
-    #[display(fmt = "{_0:?}")]
-    #[from]
     FrameHeaderError(frame::FrameHeaderError),
-    #[display(
-        fmt = "Specified window_size is too big; Requested: {requested}, Max: {MAX_WINDOW_SIZE}"
-    )]
     WindowSizeTooBig { requested: u64 },
-    #[display(fmt = "{_0:?}")]
-    #[from]
     DictionaryDecodeError(dictionary::DictionaryDecodeError),
-    #[display(fmt = "Failed to parse/decode block body: {_0}")]
-    #[from]
     FailedToReadBlockHeader(decoding::block_decoder::BlockHeaderReadError),
-    #[display(fmt = "Failed to parse block header: {_0}")]
     FailedToReadBlockBody(decoding::block_decoder::DecodeBlockContentError),
-    #[display(fmt = "Failed to read checksum: {_0}")]
     FailedToReadChecksum(Error),
-    #[display(fmt = "Decoder must initialized or reset before using it")]
     NotYetInitialized,
-    #[display(fmt = "Decoder encountered error while initializing: {_0}")]
     FailedToInitialize(frame::FrameHeaderError),
-    #[display(fmt = "Decoder encountered error while draining the decodebuffer: {_0}")]
     FailedToDrainDecodebuffer(Error),
-    #[display(
-        fmt = "Target must have at least as many bytes as the contentsize of the frame reports"
-    )]
     TargetTooSmall,
-    #[display(
-        fmt = "Frame header specified dictionary id 0x{dict_id:X} that wasnt provided by add_dict() or reset_with_dict()"
-    )]
     DictNotProvided { dict_id: u32 },
+}
+
+#[cfg(feature = "std")]
+impl StdError for FrameDecoderError {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        match self {
+            FrameDecoderError::ReadFrameHeaderError(source) => Some(source),
+            FrameDecoderError::FrameHeaderError(source) => Some(source),
+            FrameDecoderError::DictionaryDecodeError(source) => Some(source),
+            FrameDecoderError::FailedToReadBlockHeader(source) => Some(source),
+            FrameDecoderError::FailedToReadBlockBody(source) => Some(source),
+            FrameDecoderError::FailedToReadChecksum(source) => Some(source),
+            FrameDecoderError::FailedToInitialize(source) => Some(source),
+            FrameDecoderError::FailedToDrainDecodebuffer(source) => Some(source),
+            _ => None,
+        }
+    }
+}
+
+impl core::fmt::Display for FrameDecoderError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        match self {
+            FrameDecoderError::ReadFrameHeaderError(e) => {
+                write!(f, "{:?}", e)
+            }
+            FrameDecoderError::FrameHeaderError(e) => {
+                write!(f, "{:?}", e)
+            }
+            FrameDecoderError::WindowSizeTooBig { requested } => {
+                write!(
+                    f,
+                    "Specified window_size is too big; Requested: {}, Max: {}",
+                    requested, MAX_WINDOW_SIZE,
+                )
+            }
+            FrameDecoderError::DictionaryDecodeError(e) => {
+                write!(f, "{:?}", e)
+            }
+            FrameDecoderError::FailedToReadBlockHeader(e) => {
+                write!(f, "Failed to parse/decode block body: {}", e)
+            }
+            FrameDecoderError::FailedToReadBlockBody(e) => {
+                write!(f, "Failed to parse block header: {}", e)
+            }
+            FrameDecoderError::FailedToReadChecksum(e) => {
+                write!(f, "Failed to read checksum: {}", e)
+            }
+            FrameDecoderError::NotYetInitialized => {
+                write!(f, "Decoder must initialized or reset before using it",)
+            }
+            FrameDecoderError::FailedToInitialize(e) => {
+                write!(f, "Decoder encountered error while initializing: {}", e)
+            }
+            FrameDecoderError::FailedToDrainDecodebuffer(e) => {
+                write!(
+                    f,
+                    "Decoder encountered error while draining the decodebuffer: {}",
+                    e,
+                )
+            }
+            FrameDecoderError::TargetTooSmall => {
+                write!(f, "Target must have at least as many bytes as the contentsize of the frame reports")
+            }
+            FrameDecoderError::DictNotProvided { dict_id } => {
+                write!(f, "Frame header specified dictionary id 0x{:X} that wasnt provided by add_dict() or reset_with_dict()", dict_id)
+            }
+        }
+    }
+}
+
+impl From<dictionary::DictionaryDecodeError> for FrameDecoderError {
+    fn from(val: dictionary::DictionaryDecodeError) -> Self {
+        Self::DictionaryDecodeError(val)
+    }
+}
+
+impl From<decoding::block_decoder::BlockHeaderReadError> for FrameDecoderError {
+    fn from(val: decoding::block_decoder::BlockHeaderReadError) -> Self {
+        Self::FailedToReadBlockHeader(val)
+    }
+}
+
+impl From<frame::FrameHeaderError> for FrameDecoderError {
+    fn from(val: frame::FrameHeaderError) -> Self {
+        Self::FrameHeaderError(val)
+    }
+}
+
+impl From<frame::ReadFrameHeaderError> for FrameDecoderError {
+    fn from(val: frame::ReadFrameHeaderError) -> Self {
+        Self::ReadFrameHeaderError(val)
+    }
 }
 
 const MAX_WINDOW_SIZE: u64 = 1024 * 1024 * 100;
