@@ -15,14 +15,31 @@ pub struct Decodebuffer {
     pub hash: twox_hash::XxHash64,
 }
 
-#[derive(Debug, derive_more::Display)]
-#[cfg_attr(feature = "std", derive(derive_more::Error))]
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum DecodebufferError {
-    #[display(fmt = "Need {need} bytes from the dictionary but it is only {got} bytes long")]
     NotEnoughBytesInDictionary { got: usize, need: usize },
-    #[display(fmt = "offset: {offset} bigger than buffer: {buf_len}")]
     OffsetTooBig { offset: usize, buf_len: usize },
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for DecodebufferError {}
+
+impl core::fmt::Display for DecodebufferError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            DecodebufferError::NotEnoughBytesInDictionary { got, need } => {
+                write!(
+                    f,
+                    "Need {} bytes from the dictionary but it is only {} bytes long",
+                    need, got,
+                )
+            }
+            DecodebufferError::OffsetTooBig { offset, buf_len } => {
+                write!(f, "offset: {} bigger than buffer: {}", offset, buf_len,)
+            }
+        }
+    }
 }
 
 impl Read for Decodebuffer {

@@ -6,39 +6,96 @@ use super::scratch::FSEScratch;
 use crate::fse::{FSEDecoder, FSEDecoderError, FSETableError};
 use alloc::vec::Vec;
 
-#[derive(Debug, derive_more::Display, derive_more::From)]
-#[cfg_attr(feature = "std", derive(derive_more::Error))]
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum DecodeSequenceError {
-    #[display(fmt = "{_0:?}")]
-    #[from]
     GetBitsError(GetBitsError),
-    #[display(fmt = "{_0:?}")]
-    #[from]
     FSEDecoderError(FSEDecoderError),
-    #[display(fmt = "{_0:?}")]
-    #[from]
     FSETableError(FSETableError),
-    #[display(
-        fmt = "Padding at the end of the sequence_section was more than a byte long: {skipped_bits} bits. Probably caused by data corruption"
-    )]
     ExtraPadding { skipped_bits: i32 },
-    #[display(fmt = "Do not support offsets bigger than 1<<32; got: {offset_code}")]
     UnsupportedOffset { offset_code: u8 },
-    #[display(fmt = "Read an offset == 0. That is an illegal value for offsets")]
     ZeroOffset,
-    #[display(fmt = "Bytestream did not contain enough bytes to decode num_sequences")]
     NotEnoughBytesForNumSequences,
-    #[display(fmt = "Did not use full bitstream. Bits left: {bits_remaining} ({} bytes)", bits_remaining / 8)]
     ExtraBits { bits_remaining: isize },
-    #[display(fmt = "compression modes are none but they must be set to something")]
     MissingCompressionMode,
-    #[display(fmt = "Need a byte to read for RLE ll table")]
     MissingByteForRleLlTable,
-    #[display(fmt = "Need a byte to read for RLE of table")]
     MissingByteForRleOfTable,
-    #[display(fmt = "Need a byte to read for RLE ml table")]
     MissingByteForRleMlTable,
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for DecodeSequenceError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            DecodeSequenceError::GetBitsError(source) => Some(source),
+            DecodeSequenceError::FSEDecoderError(source) => Some(source),
+            DecodeSequenceError::FSETableError(source) => Some(source),
+            _ => None,
+        }
+    }
+}
+
+impl core::fmt::Display for DecodeSequenceError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            DecodeSequenceError::GetBitsError(e) => write!(f, "{:?}", e),
+            DecodeSequenceError::FSEDecoderError(e) => write!(f, "{:?}", e),
+            DecodeSequenceError::FSETableError(e) => write!(f, "{:?}", e),
+            DecodeSequenceError::ExtraPadding { skipped_bits } => {
+                write!(f,
+                    "Padding at the end of the sequence_section was more than a byte long: {} bits. Probably caused by data corruption",
+                    skipped_bits,
+                )
+            }
+            DecodeSequenceError::UnsupportedOffset { offset_code } => {
+                write!(
+                    f,
+                    "Do not support offsets bigger than 1<<32; got: {}",
+                    offset_code,
+                )
+            }
+            DecodeSequenceError::ZeroOffset => write!(
+                f,
+                "Read an offset == 0. That is an illegal value for offsets"
+            ),
+            DecodeSequenceError::NotEnoughBytesForNumSequences => write!(
+                f,
+                "Bytestream did not contain enough bytes to decode num_sequences"
+            ),
+            DecodeSequenceError::ExtraBits { bits_remaining } => write!(f, "{}", bits_remaining),
+            DecodeSequenceError::MissingCompressionMode => write!(
+                f,
+                "compression modes are none but they must be set to something"
+            ),
+            DecodeSequenceError::MissingByteForRleLlTable => {
+                write!(f, "Need a byte to read for RLE ll table")
+            }
+            DecodeSequenceError::MissingByteForRleOfTable => {
+                write!(f, "Need a byte to read for RLE of table")
+            }
+            DecodeSequenceError::MissingByteForRleMlTable => {
+                write!(f, "Need a byte to read for RLE ml table")
+            }
+        }
+    }
+}
+
+impl From<GetBitsError> for DecodeSequenceError {
+    fn from(val: GetBitsError) -> Self {
+        Self::GetBitsError(val)
+    }
+}
+
+impl From<FSETableError> for DecodeSequenceError {
+    fn from(val: FSETableError) -> Self {
+        Self::FSETableError(val)
+    }
+}
+
+impl From<FSEDecoderError> for DecodeSequenceError {
+    fn from(val: FSEDecoderError) -> Self {
+        Self::FSEDecoderError(val)
+    }
 }
 
 pub fn decode_sequences(

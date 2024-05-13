@@ -14,20 +14,51 @@ pub struct Dictionary {
     pub offset_hist: [u32; 3],
 }
 
-#[derive(Debug, derive_more::Display, derive_more::From)]
-#[cfg_attr(feature = "std", derive(derive_more::Error))]
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum DictionaryDecodeError {
-    #[display(
-        fmt = "Bad magic_num at start of the dictionary; Got: {got:#04X?}, Expected: {MAGIC_NUM:#04x?}"
-    )]
     BadMagicNum { got: [u8; 4] },
-    #[display(fmt = "{_0:?}")]
-    #[from]
     FSETableError(FSETableError),
-    #[display(fmt = "{_0:?}")]
-    #[from]
     HuffmanTableError(HuffmanTableError),
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for DictionaryDecodeError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            DictionaryDecodeError::FSETableError(source) => Some(source),
+            DictionaryDecodeError::HuffmanTableError(source) => Some(source),
+            _ => None,
+        }
+    }
+}
+
+impl core::fmt::Display for DictionaryDecodeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            DictionaryDecodeError::BadMagicNum { got } => {
+                write!(
+                    f,
+                    "Bad magic_num at start of the dictionary; Got: {:#04X?}, Expected: {:#04x?}",
+                    got, MAGIC_NUM,
+                )
+            }
+            DictionaryDecodeError::FSETableError(e) => write!(f, "{:?}", e),
+            DictionaryDecodeError::HuffmanTableError(e) => write!(f, "{:?}", e),
+        }
+    }
+}
+
+impl From<FSETableError> for DictionaryDecodeError {
+    fn from(val: FSETableError) -> Self {
+        Self::FSETableError(val)
+    }
+}
+
+impl From<HuffmanTableError> for DictionaryDecodeError {
+    fn from(val: HuffmanTableError) -> Self {
+        Self::HuffmanTableError(val)
+    }
 }
 
 pub const MAGIC_NUM: [u8; 4] = [0x37, 0xA4, 0x30, 0xEC];
