@@ -22,10 +22,13 @@ use crate::io::{Error, ErrorKind, Read};
 /// [crate::frame::ReadFrameHeaderError::SkipFrame]
 /// errors by skipping forward the `length` amount of bytes, see <https://github.com/KillingSpark/zstd-rs/issues/57>
 ///
-/// ```rust
+/// ```no_run
+/// use std::fs::File;
+/// use std::io::Read;
+/// use ruzstd::StreamingDecoder;
 /// // Read a Zstandard archive from the filesystem then decompress it into a vec.
 /// let mut f = File::open("./example.zst").unwrap();
-/// let mut decoder = StreamingDecoder::new(&mut f).unwrap()
+/// let mut decoder = StreamingDecoder::new(&mut f).unwrap();
 /// let mut result = Vec::new();
 /// decoder.read_to_end(&mut result).unwrap();
 /// ```

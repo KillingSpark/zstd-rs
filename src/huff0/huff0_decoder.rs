@@ -42,25 +42,136 @@ pub enum HuffmanTableError {
         got: usize,
     },
     MissingWeights,
-    #[display(fmt = "Leftover must be power of two but is: {got}")]
-    LeftoverIsNotAPowerOf2 { got: u32 },
-    #[display(
-        fmt = "Not enough bytes in stream to decompress weights. Is: {have}, Should be: {need}"
-    )]
-    NotEnoughBytesToDecompressWeights { have: usize, need: usize },
-    #[display(
-        fmt = "FSE table used more bytes: {used} than were meant to be used for the whole stream of huffman weights ({available_bytes})"
-    )]
-    FSETableUsedTooManyBytes { used: usize, available_bytes: u8 },
-    #[display(fmt = "Source needs to have at least {need} bytes, got: {got}")]
-    NotEnoughBytesInSource { got: usize, need: usize },
-    #[display(fmt = "Cant have weight: {got} bigger than max_num_bits: {MAX_MAX_NUM_BITS}")]
-    WeightBiggerThanMaxNumBits { got: u8 },
-    #[display(
-        fmt = "max_bits derived from weights is: {got} should be lower than: {MAX_MAX_NUM_BITS}"
-    )]
-    MaxBitsTooHigh { got: u8 },
+    LeftoverIsNotAPowerOf2 {
+        got: u32,
+    },
+    NotEnoughBytesToDecompressWeights {
+        have: usize,
+        need: usize,
+    },
+    FSETableUsedTooManyBytes {
+        used: usize,
+        available_bytes: u8,
+    },
+    NotEnoughBytesInSource {
+        got: usize,
+        need: usize,
+    },
+    WeightBiggerThanMaxNumBits {
+        got: u8,
+    },
+    MaxBitsTooHigh {
+        got: u8,
+    },
 }
+
+#[cfg(feature = "std")]
+impl StdError for HuffmanTableError {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        match self {
+            HuffmanTableError::GetBitsError(source) => Some(source),
+            HuffmanTableError::FSEDecoderError(source) => Some(source),
+            HuffmanTableError::FSETableError(source) => Some(source),
+            _ => None,
+        }
+    }
+}
+
+impl core::fmt::Display for HuffmanTableError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        match self {
+            HuffmanTableError::GetBitsError(e) => write!(f, "{:?}", e),
+            HuffmanTableError::FSEDecoderError(e) => write!(f, "{:?}", e),
+            HuffmanTableError::FSETableError(e) => write!(f, "{:?}", e),
+            HuffmanTableError::SourceIsEmpty => write!(f, "Source needs to have at least one byte"),
+            HuffmanTableError::NotEnoughBytesForWeights {
+                got_bytes,
+                expected_bytes,
+            } => {
+                write!(f, "Header says there should be {} bytes for the weights but there are only {} bytes in the stream",
+                    expected_bytes,
+                    got_bytes)
+            }
+            HuffmanTableError::ExtraPadding { skipped_bits } => {
+                write!(f,
+                    "Padding at the end of the sequence_section was more than a byte long: {} bits. Probably caused by data corruption",
+                    skipped_bits,
+                )
+            }
+            HuffmanTableError::TooManyWeights { got } => {
+                write!(
+                    f,
+                    "More than 255 weights decoded (got {} weights). Stream is probably corrupted",
+                    got,
+                )
+            }
+            HuffmanTableError::MissingWeights => {
+                write!(f, "Can\'t build huffman table without any weights")
+            }
+            HuffmanTableError::LeftoverIsNotAPowerOf2 { got } => {
+                write!(f, "Leftover must be power of two but is: {}", got)
+            }
+            HuffmanTableError::NotEnoughBytesToDecompressWeights { have, need } => {
+                write!(
+                    f,
+                    "Not enough bytes in stream to decompress weights. Is: {}, Should be: {}",
+                    have, need,
+                )
+            }
+            HuffmanTableError::FSETableUsedTooManyBytes {
+                used,
+                available_bytes,
+            } => {
+                write!(f,
+                    "FSE table used more bytes: {} than were meant to be used for the whole stream of huffman weights ({})",
+                    used,
+                    available_bytes,
+                )
+            }
+            HuffmanTableError::NotEnoughBytesInSource { got, need } => {
+                write!(
+                    f,
+                    "Source needs to have at least {} bytes, got: {}",
+                    need, got,
+                )
+            }
+            HuffmanTableError::WeightBiggerThanMaxNumBits { got } => {
+                write!(
+                    f,
+                    "Cant have weight: {} bigger than max_num_bits: {}",
+                    got, MAX_MAX_NUM_BITS,
+                )
+            }
+            HuffmanTableError::MaxBitsTooHigh { got } => {
+                write!(
+                    f,
+                    "max_bits derived from weights is: {} should be lower than: {}",
+                    got, MAX_MAX_NUM_BITS,
+                )
+            }
+        }
+    }
+}
+
+impl From<GetBitsError> for HuffmanTableError {
+    fn from(val: GetBitsError) -> Self {
+        Self::GetBitsError(val)
+    }
+}
+
+impl From<FSEDecoderError> for HuffmanTableError {
+    fn from(val: FSEDecoderError) -> Self {
+        Self::FSEDecoderError(val)
+    }
+}
+
+impl From<FSETableError> for HuffmanTableError {
+    fn from(val: FSETableError) -> Self {
+        Self::FSETableError(val)
+    }
+}
+
+
 
 /// An interface around a huffman table used to decode data.
 pub struct HuffmanDecoder<'table> {

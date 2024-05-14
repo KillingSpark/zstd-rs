@@ -17,45 +17,25 @@ pub struct DecodeBuffer {
 
 #[derive(Debug)]
 #[non_exhaustive]
-pub enum DecodebufferError {
+pub enum DecodeBufferError {
     NotEnoughBytesInDictionary { got: usize, need: usize },
     OffsetTooBig { offset: usize, buf_len: usize },
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for DecodebufferError {}
+impl std::error::Error for DecodeBufferError {}
 
-impl core::fmt::Display for DecodebufferError {
+impl core::fmt::Display for DecodeBufferError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            DecodebufferError::NotEnoughBytesInDictionary { got, need } => {
+            DecodeBufferError::NotEnoughBytesInDictionary { got, need } => {
                 write!(
                     f,
                     "Need {} bytes from the dictionary but it is only {} bytes long",
                     need, got,
                 )
             }
-            DecodebufferError::OffsetTooBig { offset, buf_len } => {
-                write!(f, "offset: {} bigger than buffer: {}", offset, buf_len,)
-            }
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for DecodebufferError {}
-
-impl core::fmt::Display for DecodebufferError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            DecodebufferError::NotEnoughBytesInDictionary { got, need } => {
-                write!(
-                    f,
-                    "Need {} bytes from the dictionary but it is only {} bytes long",
-                    need, got,
-                )
-            }
-            DecodebufferError::OffsetTooBig { offset, buf_len } => {
+            DecodeBufferError::OffsetTooBig { offset, buf_len } => {
                 write!(f, "offset: {} bigger than buffer: {}", offset, buf_len,)
             }
         }
@@ -114,7 +94,7 @@ impl DecodeBuffer {
         self.total_output_counter += data.len() as u64;
     }
 
-    pub fn repeat(&mut self, offset: usize, match_length: usize) -> Result<(), DecodebufferError> {
+    pub fn repeat(&mut self, offset: usize, match_length: usize) -> Result<(), DecodeBufferError> {
         if offset > self.buffer.len() {
             self.repeat_from_dict(offset, match_length)
         } else {
@@ -183,13 +163,13 @@ impl DecodeBuffer {
         &mut self,
         offset: usize,
         match_length: usize,
-    ) -> Result<(), DecodebufferError> {
+    ) -> Result<(), DecodeBufferError> {
         if self.total_output_counter <= self.window_size as u64 {
             // at least part of that repeat is from the dictionary content
             let bytes_from_dict = offset - self.buffer.len();
 
             if bytes_from_dict > self.dict_content.len() {
-                return Err(DecodebufferError::NotEnoughBytesInDictionary {
+                return Err(DecodeBufferError::NotEnoughBytesInDictionary {
                     got: self.dict_content.len(),
                     need: bytes_from_dict,
                 });
@@ -209,7 +189,7 @@ impl DecodeBuffer {
             }
             Ok(())
         } else {
-            Err(DecodebufferError::OffsetTooBig {
+            Err(DecodeBufferError::OffsetTooBig {
                 offset,
                 buf_len: self.buffer.len(),
             })

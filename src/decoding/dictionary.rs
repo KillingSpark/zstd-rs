@@ -84,45 +84,6 @@ impl From<HuffmanTableError> for DictionaryDecodeError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for DictionaryDecodeError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            DictionaryDecodeError::FSETableError(source) => Some(source),
-            DictionaryDecodeError::HuffmanTableError(source) => Some(source),
-            _ => None,
-        }
-    }
-}
-
-impl core::fmt::Display for DictionaryDecodeError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            DictionaryDecodeError::BadMagicNum { got } => {
-                write!(
-                    f,
-                    "Bad magic_num at start of the dictionary; Got: {:#04X?}, Expected: {:#04x?}",
-                    got, MAGIC_NUM,
-                )
-            }
-            DictionaryDecodeError::FSETableError(e) => write!(f, "{:?}", e),
-            DictionaryDecodeError::HuffmanTableError(e) => write!(f, "{:?}", e),
-        }
-    }
-}
-
-impl From<FSETableError> for DictionaryDecodeError {
-    fn from(val: FSETableError) -> Self {
-        Self::FSETableError(val)
-    }
-}
-
-impl From<HuffmanTableError> for DictionaryDecodeError {
-    fn from(val: HuffmanTableError) -> Self {
-        Self::HuffmanTableError(val)
-    }
-}
-
 /// This 4 byte (little endian) magic number refers to the start of a dictionary
 pub const MAGIC_NUM: [u8; 4] = [0x37, 0xA4, 0x30, 0xEC];
 

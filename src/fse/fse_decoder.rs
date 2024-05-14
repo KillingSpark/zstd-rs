@@ -147,33 +147,6 @@ impl From<GetBitsError> for FSEDecoderError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for FSEDecoderError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            FSEDecoderError::GetBitsError(source) => Some(source),
-            _ => None,
-        }
-    }
-}
-
-impl core::fmt::Display for FSEDecoderError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            FSEDecoderError::GetBitsError(e) => write!(f, "{:?}", e),
-            FSEDecoderError::TableIsUninitialized => {
-                write!(f, "Tried to use an uninitialized table!")
-            }
-        }
-    }
-}
-
-impl From<GetBitsError> for FSEDecoderError {
-    fn from(val: GetBitsError) -> Self {
-        Self::GetBitsError(val)
-    }
-}
-
 /// A single entry in an FSE table.
 #[derive(Copy, Clone)]
 pub struct Entry {

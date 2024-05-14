@@ -264,45 +264,6 @@ impl From<DecompressBlockError> for DecodeBlockContentError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for DecodeBlockContentError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            DecodeBlockContentError::ReadError { step: _, source } => Some(source),
-            DecodeBlockContentError::DecompressBlockError(source) => Some(source),
-            _ => None,
-        }
-    }
-}
-
-impl core::fmt::Display for DecodeBlockContentError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            DecodeBlockContentError::DecoderStateIsFailed => {
-                write!(
-                    f,
-                    "Can't decode next block if failed along the way. Results will be nonsense",
-                )
-            }
-            DecodeBlockContentError::ExpectedHeaderOfPreviousBlock => {
-                write!(f,
-                            "Can't decode next block body, while expecting to decode the header of the previous block. Results will be nonsense",
-                        )
-            }
-            DecodeBlockContentError::ReadError { step, source } => {
-                write!(f, "Error while reading bytes for {}: {}", step, source,)
-            }
-            DecodeBlockContentError::DecompressBlockError(e) => write!(f, "{:?}", e),
-        }
-    }
-}
-
-impl From<DecompressBlockError> for DecodeBlockContentError {
-    fn from(val: DecompressBlockError) -> Self {
-        Self::DecompressBlockError(val)
-    }
-}
-
 /// Create a new [BlockDecoder].
 pub fn new() -> BlockDecoder {
     BlockDecoder {

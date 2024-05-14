@@ -1,9 +1,9 @@
-use super::{decodebuffer::DecodebufferError, scratch::DecoderScratch};
+use super::{decodebuffer::DecodeBufferError, scratch::DecoderScratch};
 
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum ExecuteSequencesError {
-    DecodebufferError(DecodebufferError),
+    DecodebufferError(DecodeBufferError),
     NotEnoughBytesForSequence { wanted: usize, have: usize },
     ZeroOffset,
 }
@@ -38,44 +38,8 @@ impl std::error::Error for ExecuteSequencesError {
     }
 }
 
-impl From<DecodebufferError> for ExecuteSequencesError {
-    fn from(val: DecodebufferError) -> Self {
-        Self::DecodebufferError(val)
-    }
-}
-
-impl core::fmt::Display for ExecuteSequencesError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            ExecuteSequencesError::DecodebufferError(e) => {
-                write!(f, "{:?}", e)
-            }
-            ExecuteSequencesError::NotEnoughBytesForSequence { wanted, have } => {
-                write!(
-                    f,
-                    "Sequence wants to copy up to byte {}. Bytes in literalsbuffer: {}",
-                    wanted, have
-                )
-            }
-            ExecuteSequencesError::ZeroOffset => {
-                write!(f, "Illegal offset: 0 found")
-            }
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for ExecuteSequencesError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            ExecuteSequencesError::DecodebufferError(source) => Some(source),
-            _ => None,
-        }
-    }
-}
-
-impl From<DecodebufferError> for ExecuteSequencesError {
-    fn from(val: DecodebufferError) -> Self {
+impl From<DecodeBufferError> for ExecuteSequencesError {
+    fn from(val: DecodeBufferError) -> Self {
         Self::DecodebufferError(val)
     }
 }
