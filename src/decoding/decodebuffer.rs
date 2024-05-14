@@ -5,7 +5,7 @@ use core::hash::Hasher;
 
 use super::ringbuffer::RingBuffer;
 
-pub struct Decodebuffer {
+pub struct DecodeBuffer {
     buffer: RingBuffer,
     pub dict_content: Vec<u8>,
 
@@ -42,7 +42,27 @@ impl core::fmt::Display for DecodebufferError {
     }
 }
 
-impl Read for Decodebuffer {
+#[cfg(feature = "std")]
+impl std::error::Error for DecodebufferError {}
+
+impl core::fmt::Display for DecodebufferError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            DecodebufferError::NotEnoughBytesInDictionary { got, need } => {
+                write!(
+                    f,
+                    "Need {} bytes from the dictionary but it is only {} bytes long",
+                    need, got,
+                )
+            }
+            DecodebufferError::OffsetTooBig { offset, buf_len } => {
+                write!(f, "offset: {} bigger than buffer: {}", offset, buf_len,)
+            }
+        }
+    }
+}
+
+impl Read for DecodeBuffer {
     fn read(&mut self, target: &mut [u8]) -> Result<usize, Error> {
         let max_amount = self.can_drain_to_window_size().unwrap_or(0);
         let amount = max_amount.min(target.len());
@@ -57,9 +77,9 @@ impl Read for Decodebuffer {
     }
 }
 
-impl Decodebuffer {
-    pub fn new(window_size: usize) -> Decodebuffer {
-        Decodebuffer {
+impl DecodeBuffer {
+    pub fn new(window_size: usize) -> DecodeBuffer {
+        DecodeBuffer {
             buffer: RingBuffer::new(),
             dict_content: Vec::new(),
             window_size,
@@ -196,7 +216,7 @@ impl Decodebuffer {
         }
     }
 
-    // Check if and how many bytes can currently be drawn from the buffer
+    /// Check if and how many bytes can currently be drawn from the buffer
     pub fn can_drain_to_window_size(&self) -> Option<usize> {
         if self.buffer.len() > self.window_size {
             Some(self.buffer.len() - self.window_size)
@@ -210,8 +230,8 @@ impl Decodebuffer {
         self.buffer.len()
     }
 
-    //drain as much as possible while retaining enough so that decoding si still possible with the required window_size
-    //At best call only if can_drain_to_window_size reports a 'high' number of bytes to reduce allocations
+    /// Drain as much as possible while retaining enough so that decoding si still possible with the required window_size
+    /// At best call only if can_drain_to_window_size reports a 'high' number of bytes to reduce allocations
     pub fn drain_to_window_size(&mut self) -> Option<Vec<u8>> {
         //TODO investigate if it is possible to return the std::vec::Drain iterator directly without collecting here
         match self.can_drain_to_window_size() {
@@ -238,7 +258,7 @@ impl Decodebuffer {
         }
     }
 
-    //drain the buffer completely
+    /// drain the buffer completely
     pub fn drain(&mut self) -> Vec<u8> {
         let (slice1, slice2) = self.buffer.as_slices();
         #[cfg(feature = "hash")]
@@ -350,7 +370,7 @@ fn write_all_bytes(mut sink: impl Write, buf: &[u8]) -> (usize, Result<(), Error
 
 #[cfg(test)]
 mod tests {
-    use super::Decodebuffer;
+    use super::DecodeBuffer;
     use crate::io::{Error, ErrorKind, Write};
 
     extern crate std;
@@ -385,7 +405,7 @@ mod tests {
             write_len: 10,
         };
 
-        let mut decode_buf = Decodebuffer::new(100);
+        let mut decode_buf = DecodeBuffer::new(100);
         decode_buf.push(b"0123456789");
         decode_buf.repeat(10, 90).unwrap();
         let repeats = 1000;
@@ -435,7 +455,7 @@ mod tests {
             block_every: 5,
         };
 
-        let mut decode_buf = Decodebuffer::new(100);
+        let mut decode_buf = DecodeBuffer::new(100);
         decode_buf.push(b"0123456789");
         decode_buf.repeat(10, 90).unwrap();
         let repeats = 1000;

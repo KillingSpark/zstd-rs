@@ -1,3 +1,6 @@
+//! This module contains the [decompress_literals] function, used to take a
+//! parsed literals header and a source and decompress it.
+
 use super::super::blocks::literals_section::{LiteralsSection, LiteralsSectionType};
 use super::bit_reader_reverse::{BitReaderReversed, GetBitsError};
 use super::scratch::HuffmanScratch;
@@ -105,6 +108,92 @@ impl From<HuffmanTableError> for DecompressLiteralsError {
     }
 }
 
+#[cfg(feature = "std")]
+impl std::error::Error for DecompressLiteralsError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            DecompressLiteralsError::GetBitsError(source) => Some(source),
+            DecompressLiteralsError::HuffmanTableError(source) => Some(source),
+            DecompressLiteralsError::HuffmanDecoderError(source) => Some(source),
+            _ => None,
+        }
+    }
+}
+impl core::fmt::Display for DecompressLiteralsError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            DecompressLiteralsError::MissingCompressedSize => {
+                write!(f,
+                    "compressed size was none even though it must be set to something for compressed literals",
+                )
+            }
+            DecompressLiteralsError::MissingNumStreams => {
+                write!(f,
+                    "num_streams was none even though it must be set to something (1 or 4) for compressed literals",
+                )
+            }
+            DecompressLiteralsError::GetBitsError(e) => write!(f, "{:?}", e),
+            DecompressLiteralsError::HuffmanTableError(e) => write!(f, "{:?}", e),
+            DecompressLiteralsError::HuffmanDecoderError(e) => write!(f, "{:?}", e),
+            DecompressLiteralsError::UninitializedHuffmanTable => {
+                write!(
+                    f,
+                    "Tried to reuse huffman table but it was never initialized",
+                )
+            }
+            DecompressLiteralsError::MissingBytesForJumpHeader { got } => {
+                write!(f, "Need 6 bytes to decode jump header, got {} bytes", got,)
+            }
+            DecompressLiteralsError::MissingBytesForLiterals { got, needed } => {
+                write!(
+                    f,
+                    "Need at least {} bytes to decode literals. Have: {} bytes",
+                    needed, got,
+                )
+            }
+            DecompressLiteralsError::ExtraPadding { skipped_bits } => {
+                write!(f,
+                    "Padding at the end of the sequence_section was more than a byte long: {} bits. Probably caused by data corruption",
+                    skipped_bits,
+                )
+            }
+            DecompressLiteralsError::BitstreamReadMismatch { read_til, expected } => {
+                write!(
+                    f,
+                    "Bitstream was read till: {}, should have been: {}",
+                    read_til, expected,
+                )
+            }
+            DecompressLiteralsError::DecodedLiteralCountMismatch { decoded, expected } => {
+                write!(
+                    f,
+                    "Did not decode enough literals: {}, Should have been: {}",
+                    decoded, expected,
+                )
+            }
+        }
+    }
+}
+
+impl From<HuffmanDecoderError> for DecompressLiteralsError {
+    fn from(val: HuffmanDecoderError) -> Self {
+        Self::HuffmanDecoderError(val)
+    }
+}
+
+impl From<GetBitsError> for DecompressLiteralsError {
+    fn from(val: GetBitsError) -> Self {
+        Self::GetBitsError(val)
+    }
+}
+
+impl From<HuffmanTableError> for DecompressLiteralsError {
+    fn from(val: HuffmanTableError) -> Self {
+        Self::HuffmanTableError(val)
+    }
+}
+
+/// Decode and decompress the provided literals section into `target`, returning the number of bytes read.
 pub fn decode_literals(
     section: &LiteralsSection,
     scratch: &mut HuffmanScratch,
@@ -129,6 +218,10 @@ pub fn decode_literals(
     }
 }
 
+/// Decompress the provided literals section and source into the provided `target`.
+/// This function is used when the literals section is `Compressed` or `Treeless`
+///
+/// Returns the number of bytes read.
 fn decompress_literals(
     section: &LiteralsSection,
     scratch: &mut HuffmanScratch,

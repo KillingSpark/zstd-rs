@@ -264,6 +264,46 @@ impl From<DecompressBlockError> for DecodeBlockContentError {
     }
 }
 
+#[cfg(feature = "std")]
+impl std::error::Error for DecodeBlockContentError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            DecodeBlockContentError::ReadError { step: _, source } => Some(source),
+            DecodeBlockContentError::DecompressBlockError(source) => Some(source),
+            _ => None,
+        }
+    }
+}
+
+impl core::fmt::Display for DecodeBlockContentError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            DecodeBlockContentError::DecoderStateIsFailed => {
+                write!(
+                    f,
+                    "Can't decode next block if failed along the way. Results will be nonsense",
+                )
+            }
+            DecodeBlockContentError::ExpectedHeaderOfPreviousBlock => {
+                write!(f,
+                            "Can't decode next block body, while expecting to decode the header of the previous block. Results will be nonsense",
+                        )
+            }
+            DecodeBlockContentError::ReadError { step, source } => {
+                write!(f, "Error while reading bytes for {}: {}", step, source,)
+            }
+            DecodeBlockContentError::DecompressBlockError(e) => write!(f, "{:?}", e),
+        }
+    }
+}
+
+impl From<DecompressBlockError> for DecodeBlockContentError {
+    fn from(val: DecompressBlockError) -> Self {
+        Self::DecompressBlockError(val)
+    }
+}
+
+/// Create a new [BlockDecoder].
 pub fn new() -> BlockDecoder {
     BlockDecoder {
         internal_state: DecoderState::ReadyToDecodeNextHeader,
@@ -474,14 +514,14 @@ impl BlockDecoder {
         let decompressed_size = match btype {
             BlockType::Raw => block_size,
             BlockType::RLE => block_size,
-            BlockType::Reserved => 0, //should be catched above, this is an error state
+            BlockType::Reserved => 0, //should be caught above, this is an error state
             BlockType::Compressed => 0, //unknown but will be smaller than 128kb (or window_size if that is smaller than 128kb)
         };
         let content_size = match btype {
             BlockType::Raw => block_size,
             BlockType::Compressed => block_size,
             BlockType::RLE => 1,
-            BlockType::Reserved => 0, //should be catched above, this is an error state
+            BlockType::Reserved => 0, //should be caught above, this is an error state
         };
 
         let last_block = self.is_last();

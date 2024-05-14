@@ -1,3 +1,5 @@
+//! Manual implementations of representations for `#![no_std]`
+
 use alloc::boxed::Box;
 
 #[non_exhaustive]
