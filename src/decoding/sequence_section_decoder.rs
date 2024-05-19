@@ -488,7 +488,7 @@ fn maybe_update_fse_tables(
     Ok(bytes_read)
 }
 
-// The default Literal Length Length decoding table uses an accuracy logarithm of 6 bits.
+// The default Literal Length decoding table uses an accuracy logarithm of 6 bits.
 const LL_DEFAULT_ACC_LOG: u8 = 6;
 /// If [ModeType::Predefined] is selected for a symbol type, its FSE decoding
 /// table is generated using a predefined distribution table.

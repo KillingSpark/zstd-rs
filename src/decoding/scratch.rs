@@ -7,7 +7,7 @@ use crate::fse::FSETable;
 use crate::huff0::HuffmanTable;
 use alloc::vec::Vec;
 
-/// A block level decoding decoding buffer
+/// A block level decoding buffer.
 pub struct DecoderScratch {
     /// The decoder used for Huffman blocks.
     pub huf: HuffmanScratch,

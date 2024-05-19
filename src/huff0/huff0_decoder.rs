@@ -270,11 +270,15 @@ impl<'t> HuffmanDecoder<'t> {
         &mut self,
         br: &mut BitReaderReversed<'_>,
     ) -> Result<u8, HuffmanDecoderError> {
-        // I have no clue how this works
+        // self.state stores a small section, or a window of the bit stream. The table can be indexed via this state,
+        // telling you how many bits identify the current symbol.
         let num_bits = self.table.decode[self.state as usize].num_bits;
+        // New bits are read from the stream
         let new_bits = br.get_bits(num_bits)?;
+        // Shift and mask out the bits that identify the current symbol
         self.state <<= num_bits;
         self.state &= self.table.decode.len() as u64 - 1;
+        // The new bits are appended at the end of the current state.
         self.state |= new_bits;
         Ok(num_bits)
     }

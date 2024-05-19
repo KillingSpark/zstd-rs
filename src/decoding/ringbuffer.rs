@@ -214,7 +214,7 @@ impl RingBuffer {
     }
 
     // SAFETY: other code relies on this pointing to initialized halves of the buffer only
-    /// Return pointers to the head and tail, and the length of each section
+    /// Return pointers to the head and tail, and the length of each section.
     fn data_slice_parts(&self) -> ((*const u8, usize), (*const u8, usize)) {
         let (len_after_head, len_to_tail) = self.data_slice_lengths();
 
@@ -235,10 +235,9 @@ impl RingBuffer {
         }
     }
 
-    /// Returns free space between the tail and the head, and the length
-    /// after the table.
     // SAFETY: other code relies on this producing the lengths of free zones
     // at the beginning/end of the buffer. Everything else must be initialized
+    /// Returns the size of the two unoccupied sections of memory used by the buffer.
     fn free_slice_lengths(&self) -> (usize, usize) {
         let len_to_head;
         let len_after_tail;

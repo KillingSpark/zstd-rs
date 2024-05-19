@@ -155,7 +155,7 @@ pub struct Entry {
     pub base_line: u32,
     /// How many bits should be read from the stream when decoding this entry.
     pub num_bits: u8,
-    /// The byte to replace this entry with during decoding (I think?).
+    /// The byte that should be put in the decode output when encountering this state.
     pub symbol: u8,
 }
 

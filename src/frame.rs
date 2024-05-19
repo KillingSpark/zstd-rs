@@ -249,7 +249,7 @@ impl FrameHeader {
         }
     }
 
-    /// Read the dictionary ID required to decode the frame from the header.
+    /// The ID (if provided) of the dictionary required to decode this frame.
     pub fn dictionary_id(&self) -> Option<u32> {
         self.dict_id
     }
