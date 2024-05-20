@@ -171,8 +171,6 @@ impl From<FSETableError> for HuffmanTableError {
     }
 }
 
-
-
 /// An interface around a huffman table used to decode data.
 pub struct HuffmanDecoder<'table> {
     table: &'table HuffmanTable,

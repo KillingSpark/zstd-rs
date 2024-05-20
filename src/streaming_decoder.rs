@@ -23,14 +23,20 @@ use crate::io::{Error, ErrorKind, Read};
 /// errors by skipping forward the `length` amount of bytes, see <https://github.com/KillingSpark/zstd-rs/issues/57>
 ///
 /// ```no_run
-/// use std::fs::File;
-/// use std::io::Read;
-/// use ruzstd::StreamingDecoder;
-/// // Read a Zstandard archive from the filesystem then decompress it into a vec.
-/// let mut f = File::open("./example.zst").unwrap();
-/// let mut decoder = StreamingDecoder::new(&mut f).unwrap();
-/// let mut result = Vec::new();
-/// decoder.read_to_end(&mut result).unwrap();
+/// // `read_to_end` is not implemented by the no_std implementation.
+/// #[cfg(feature = "std")]
+/// {
+///     use std::fs::File;
+///     use std::io::Read;
+///     use std::io::IoSlice;
+///     use ruzstd::{StreamingDecoder};
+///
+///     // Read a Zstandard archive from the filesystem then decompress it into a vec.
+///     let mut f: File = todo!("Read a .zstd archive from somewhere");
+///     let mut decoder = StreamingDecoder::new(f).unwrap();
+///     let mut result = Vec::new();
+///     Read::read_to_end(&mut decoder, &mut result).unwrap();
+/// }
 /// ```
 pub struct StreamingDecoder<READ: Read, DEC: BorrowMut<FrameDecoder>> {
     pub decoder: DEC,
