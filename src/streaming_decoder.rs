@@ -28,7 +28,6 @@ use crate::io::{Error, ErrorKind, Read};
 /// {
 ///     use std::fs::File;
 ///     use std::io::Read;
-///     use std::io::IoSlice;
 ///     use ruzstd::{StreamingDecoder};
 ///
 ///     // Read a Zstandard archive from the filesystem then decompress it into a vec.
