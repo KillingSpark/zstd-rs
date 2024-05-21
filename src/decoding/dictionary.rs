@@ -6,11 +6,34 @@ use crate::decoding::scratch::HuffmanScratch;
 use crate::fse::FSETableError;
 use crate::huff0::HuffmanTableError;
 
+/// Zstandard includes support for "raw content" dictionaries, that store bytes optionally used
+/// during sequence execution.
+///
+/// <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#dictionary-format>
 pub struct Dictionary {
+    /// A 4 byte value used by decoders to check if they can use
+    /// the correct dictionary. This value must not be zero.
     pub id: u32,
+    /// A dictionary can contain an entropy table, either FSE or
+    /// Huffman.
     pub fse: FSEScratch,
+    /// A dictionary can contain an entropy table, either FSE or
+    /// Huffman.
     pub huf: HuffmanScratch,
+    /// The content of a dictionary acts as a "past" in front of data
+    /// to compress or decompress,
+    /// so it can be referenced in sequence commands.
+    /// As long as the amount of data decoded from this frame is less than or
+    /// equal to Window_Size, sequence commands may specify offsets longer than
+    /// the total length of decoded output so far to reference back to the
+    /// dictionary, even parts of the dictionary with offsets larger than Window_Size.
+    /// After the total output has surpassed Window_Size however,
+    /// this is no longer allowed and the dictionary is no longer accessible
     pub dict_content: Vec<u8>,
+    /// The 3 most recent offsets are stored so that they can be used
+    /// during sequence execution, see
+    /// <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#repeat-offsets>
+    /// for more.
     pub offset_hist: [u32; 3],
 }
 
@@ -61,11 +84,12 @@ impl From<HuffmanTableError> for DictionaryDecodeError {
     }
 }
 
+/// This 4 byte (little endian) magic number refers to the start of a dictionary
 pub const MAGIC_NUM: [u8; 4] = [0x37, 0xA4, 0x30, 0xEC];
 
 impl Dictionary {
-    /// parses the dictionary and set the tables
-    /// it returns the dict_id for checking with the frame's dict_id
+    /// Parses the dictionary from `raw` and set the tables
+    /// it returns the dict_id for checking with the frame's `dict_id``
     pub fn decode_dict(raw: &[u8]) -> Result<Dictionary, DictionaryDecodeError> {
         let mut new_dict = Dictionary {
             id: 0,

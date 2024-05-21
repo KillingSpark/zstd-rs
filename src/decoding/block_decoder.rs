@@ -264,6 +264,7 @@ impl From<DecompressBlockError> for DecodeBlockContentError {
     }
 }
 
+/// Create a new [BlockDecoder].
 pub fn new() -> BlockDecoder {
     BlockDecoder {
         internal_state: DecoderState::ReadyToDecodeNextHeader,
@@ -474,14 +475,14 @@ impl BlockDecoder {
         let decompressed_size = match btype {
             BlockType::Raw => block_size,
             BlockType::RLE => block_size,
-            BlockType::Reserved => 0, //should be catched above, this is an error state
+            BlockType::Reserved => 0, //should be caught above, this is an error state
             BlockType::Compressed => 0, //unknown but will be smaller than 128kb (or window_size if that is smaller than 128kb)
         };
         let content_size = match btype {
             BlockType::Raw => block_size,
             BlockType::Compressed => block_size,
             BlockType::RLE => 1,
-            BlockType::Reserved => 0, //should be catched above, this is an error state
+            BlockType::Reserved => 0, //should be caught above, this is an error state
         };
 
         let last_block = self.is_last();

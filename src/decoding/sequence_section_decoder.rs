@@ -98,6 +98,7 @@ impl From<FSEDecoderError> for DecodeSequenceError {
     }
 }
 
+/// Decode the provided source as a series of sequences into the supplied `target`.
 pub fn decode_sequences(
     section: &SequencesHeader,
     source: &[u8],
@@ -307,6 +308,10 @@ fn decode_sequences_without_rle(
     }
 }
 
+/// Look up the provided state value from a literal length table predefined
+/// by the Zstandard reference document. Returns a tuple of (value, number of bits).
+///
+/// <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#appendix-a---decoding-tables-for-predefined-codes>
 fn lookup_ll_code(code: u8) -> (u32, u8) {
     match code {
         0..=15 => (u32::from(code), 0),
@@ -334,6 +339,10 @@ fn lookup_ll_code(code: u8) -> (u32, u8) {
     }
 }
 
+/// Look up the provided state value from a match length table predefined
+/// by the Zstandard reference document. Returns a tuple of (value, number of bits).
+///
+/// <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#appendix-a---decoding-tables-for-predefined-codes>
 fn lookup_ml_code(code: u8) -> (u32, u8) {
     match code {
         0..=31 => (u32::from(code) + 3, 0),
@@ -362,8 +371,12 @@ fn lookup_ml_code(code: u8) -> (u32, u8) {
     }
 }
 
+// This info is buried in the symbol compression mode table
+/// "The maximum allowed accuracy log for literals length and match length tables is 9"
 pub const LL_MAX_LOG: u8 = 9;
+/// "The maximum allowed accuracy log for literals length and match length tables is 9"
 pub const ML_MAX_LOG: u8 = 9;
+/// "The maximum accuracy log for the offset table is 8."
 pub const OF_MAX_LOG: u8 = 8;
 
 fn maybe_update_fse_tables(
@@ -475,19 +488,34 @@ fn maybe_update_fse_tables(
     Ok(bytes_read)
 }
 
+// The default Literal Length decoding table uses an accuracy logarithm of 6 bits.
 const LL_DEFAULT_ACC_LOG: u8 = 6;
+/// If [ModeType::Predefined] is selected for a symbol type, its FSE decoding
+/// table is generated using a predefined distribution table.
+///
+/// https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#literals-length
 const LITERALS_LENGTH_DEFAULT_DISTRIBUTION: [i32; 36] = [
     4, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 1, 1, 1, 1, 1,
     -1, -1, -1, -1,
 ];
 
+// The default Match Length decoding table uses an accuracy logarithm of 6 bits.
 const ML_DEFAULT_ACC_LOG: u8 = 6;
+/// If [ModeType::Predefined] is selected for a symbol type, its FSE decoding
+/// table is generated using a predefined distribution table.
+///
+/// https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#match-length
 const MATCH_LENGTH_DEFAULT_DISTRIBUTION: [i32; 53] = [
     1, 4, 3, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1, -1, -1,
 ];
 
+// The default Match Length decoding table uses an accuracy logarithm of 5 bits.
 const OF_DEFAULT_ACC_LOG: u8 = 5;
+/// If [ModeType::Predefined] is selected for a symbol type, its FSE decoding
+/// table is generated using a predefined distribution table.
+///
+/// https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#match-length
 const OFFSET_DEFAULT_DISTRIBUTION: [i32; 29] = [
     1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1,
 ];

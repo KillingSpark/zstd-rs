@@ -1,3 +1,4 @@
+/// Interact with a provided source at a bit level.
 pub struct BitReader<'s> {
     idx: usize, //index counts bits already read
     source: &'s [u8],
