@@ -1,3 +1,6 @@
+//! This module contains the [decompress_literals] function, used to take a
+//! parsed literals header and a source and decompress it.
+
 use super::super::blocks::literals_section::{LiteralsSection, LiteralsSectionType};
 use super::bit_reader_reverse::{BitReaderReversed, GetBitsError};
 use super::scratch::HuffmanScratch;
@@ -105,6 +108,7 @@ impl From<HuffmanTableError> for DecompressLiteralsError {
     }
 }
 
+/// Decode and decompress the provided literals section into `target`, returning the number of bytes read.
 pub fn decode_literals(
     section: &LiteralsSection,
     scratch: &mut HuffmanScratch,
@@ -129,6 +133,10 @@ pub fn decode_literals(
     }
 }
 
+/// Decompress the provided literals section and source into the provided `target`.
+/// This function is used when the literals section is `Compressed` or `Treeless`
+///
+/// Returns the number of bytes read.
 fn decompress_literals(
     section: &LiteralsSection,
     scratch: &mut HuffmanScratch,

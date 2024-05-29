@@ -1,9 +1,9 @@
-use super::{decodebuffer::DecodebufferError, scratch::DecoderScratch};
+use super::{decodebuffer::DecodeBufferError, scratch::DecoderScratch};
 
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum ExecuteSequencesError {
-    DecodebufferError(DecodebufferError),
+    DecodebufferError(DecodeBufferError),
     NotEnoughBytesForSequence { wanted: usize, have: usize },
     ZeroOffset,
 }
@@ -38,12 +38,13 @@ impl std::error::Error for ExecuteSequencesError {
     }
 }
 
-impl From<DecodebufferError> for ExecuteSequencesError {
-    fn from(val: DecodebufferError) -> Self {
+impl From<DecodeBufferError> for ExecuteSequencesError {
+    fn from(val: DecodeBufferError) -> Self {
         Self::DecodebufferError(val)
     }
 }
 
+/// Take the provided decoder and execute the sequences stored within
 pub fn execute_sequences(scratch: &mut DecoderScratch) -> Result<(), ExecuteSequencesError> {
     let mut literals_copy_counter = 0;
     let old_buffer_size = scratch.buffer.len();
@@ -95,6 +96,9 @@ pub fn execute_sequences(scratch: &mut DecoderScratch) -> Result<(), ExecuteSequ
     Ok(())
 }
 
+/// Update the most recently used offsets to reflect the provided offset value, and return the
+/// "actual" offset needed because offsets are not stored in a raw way, some transformations are needed
+/// before you get a functional number.
 fn do_offset_history(offset_value: u32, lit_len: u32, scratch: &mut [u32; 3]) -> u32 {
     let actual_offset = if lit_len > 0 {
         match offset_value {

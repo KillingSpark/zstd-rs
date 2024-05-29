@@ -1,3 +1,5 @@
+//! Utilities for decoding Huff0 encoded huffman data.
+
 use crate::decoding::bit_reader_reverse::{BitReaderReversed, GetBitsError};
 use crate::fse::{FSEDecoder, FSEDecoderError, FSETable, FSETableError};
 use alloc::vec::Vec;
@@ -6,13 +8,19 @@ use std::error::Error as StdError;
 
 pub struct HuffmanTable {
     decode: Vec<Entry>,
-
+    /// The weight of a symbol is the number of occurences in a table.
+    /// This value is used in constructing a binary tree referred to as
+    /// a huffman tree.
     weights: Vec<u8>,
+    /// The maximum size in bits a prefix code in the encoded data can be.
+    /// This value is used so that the decoder knows how many bits
+    /// to read from the bitstream before checking the table. This
+    /// value must be 11 or lower.
     pub max_num_bits: u8,
     bits: Vec<u8>,
     bit_ranks: Vec<u32>,
     rank_indexes: Vec<usize>,
-
+    /// In some cases, the list of weights is compressed using FSE compression.
     fse_table: FSETable,
 }
 
@@ -163,8 +171,10 @@ impl From<FSETableError> for HuffmanTableError {
     }
 }
 
+/// An interface around a huffman table used to decode data.
 pub struct HuffmanDecoder<'table> {
     table: &'table HuffmanTable,
+    /// State is used to index into the table.
     pub state: u64,
 }
 
@@ -197,24 +207,35 @@ impl From<GetBitsError> for HuffmanDecoderError {
     }
 }
 
+/// A single entry in the table contains the decoded symbol/literal and the
+/// size of the prefix code.
 #[derive(Copy, Clone)]
 pub struct Entry {
+    /// The byte that the prefix code replaces during encoding.
     symbol: u8,
+    /// The number of bits the prefix code occupies.
     num_bits: u8,
 }
 
+/// The Zstandard specification limits the maximum length of a code to 11 bits.
 const MAX_MAX_NUM_BITS: u8 = 11;
 
+/// Assert that the provided value is greater than zero, and returns the
+/// 32 - the number of leading zeros
 fn highest_bit_set(x: u32) -> u32 {
     assert!(x > 0);
     u32::BITS - x.leading_zeros()
 }
 
 impl<'t> HuffmanDecoder<'t> {
+    /// Create a new decoder with the provided table
     pub fn new(table: &'t HuffmanTable) -> HuffmanDecoder<'t> {
         HuffmanDecoder { table, state: 0 }
     }
 
+    /// Re-initialize the decoder, using the new table if one is provided.
+    /// This might used for treeless blocks, because they re-use the table from old
+    /// data.
     pub fn reset(mut self, new_table: Option<&'t HuffmanTable>) {
         self.state = 0;
         if let Some(next_table) = new_table {
@@ -222,10 +243,15 @@ impl<'t> HuffmanDecoder<'t> {
         }
     }
 
+    /// Decode the symbol the internal state (cursor) is pointed at and return the
+    /// decoded literal.
     pub fn decode_symbol(&mut self) -> u8 {
         self.table.decode[self.state as usize].symbol
     }
 
+    /// Initialize internal state and prepare to decode data. Then, `decode_symbol` can be called
+    /// to read the byte the internal cursor is pointing at, and `next_state` can be called to advance
+    /// the cursor until the max number of bits has been read.
     pub fn init_state(
         &mut self,
         br: &mut BitReaderReversed<'_>,
@@ -236,14 +262,21 @@ impl<'t> HuffmanDecoder<'t> {
         Ok(num_bits)
     }
 
+    /// Advance the internal cursor to the next symbol. After this, you can call `decode_symbol`
+    /// to read from the new position.
     pub fn next_state(
         &mut self,
         br: &mut BitReaderReversed<'_>,
     ) -> Result<u8, HuffmanDecoderError> {
+        // self.state stores a small section, or a window of the bit stream. The table can be indexed via this state,
+        // telling you how many bits identify the current symbol.
         let num_bits = self.table.decode[self.state as usize].num_bits;
+        // New bits are read from the stream
         let new_bits = br.get_bits(num_bits)?;
+        // Shift and mask out the bits that identify the current symbol
         self.state <<= num_bits;
         self.state &= self.table.decode.len() as u64 - 1;
+        // The new bits are appended at the end of the current state.
         self.state |= new_bits;
         Ok(num_bits)
     }
@@ -256,6 +289,7 @@ impl Default for HuffmanTable {
 }
 
 impl HuffmanTable {
+    /// Create a new, empty table.
     pub fn new() -> HuffmanTable {
         HuffmanTable {
             decode: Vec::new(),
@@ -269,6 +303,8 @@ impl HuffmanTable {
         }
     }
 
+    /// Completely empty the table then repopulate as a replica
+    /// of `other`.
     pub fn reinit_from(&mut self, other: &Self) {
         self.reset();
         self.decode.extend_from_slice(&other.decode);
@@ -279,6 +315,7 @@ impl HuffmanTable {
         self.fse_table.reinit_from(&other.fse_table);
     }
 
+    /// Completely empty the table of all data.
     pub fn reset(&mut self) {
         self.decode.clear();
         self.weights.clear();
@@ -289,6 +326,9 @@ impl HuffmanTable {
         self.fse_table.reset();
     }
 
+    /// Read from `source` and parse it into a huffman table.
+    ///
+    /// Returns the number of bytes read.
     pub fn build_decoder(&mut self, source: &[u8]) -> Result<u32, HuffmanTableError> {
         self.decode.clear();
 
@@ -297,6 +337,13 @@ impl HuffmanTable {
         Ok(bytes_used)
     }
 
+    /// Read weights from the provided source.
+    ///
+    /// The huffman table is represented in the encoded data as a list of weights
+    /// at the most basic level. After the header, weights are read, then the table
+    /// can be built using that list of weights.
+    ///
+    /// Returns the number of bytes read.
     fn read_weights(&mut self, source: &[u8]) -> Result<u32, HuffmanTableError> {
         use HuffmanTableError as err;
 
@@ -307,6 +354,9 @@ impl HuffmanTable {
         let mut bits_read = 8;
 
         match header {
+            // If the header byte is less than 128, the series of weights
+            // is compressed using two interleaved FSE streams that share
+            // a distribution table.
             0..=127 => {
                 let fse_stream = &source[1..];
                 if header as usize > fse_stream.len() {
@@ -331,6 +381,9 @@ impl HuffmanTable {
                     "Building fse table for huffman weights used: {}",
                     bytes_used_by_fse_header
                 );
+                // Huffman headers are compressed using two interleaved
+                // FSE bitstreams, where the first state (decoder) handles
+                // even symbols, and the second handles odd symbols.
                 let mut dec1 = FSEDecoder::new(&self.fse_table);
                 let mut dec2 = FSEDecoder::new(&self.fse_table);
 
@@ -368,6 +421,7 @@ impl HuffmanTable {
 
                 self.weights.clear();
 
+                // The two decoders take turns decoding a single symbol and updating their state.
                 loop {
                     let w = dec1.decode_symbol();
                     self.weights.push(w);
@@ -396,6 +450,12 @@ impl HuffmanTable {
                     }
                 }
             }
+            // If the header byte is greater than or equal to 128,
+            // weights are directly represented, where each weight is
+            // encoded directly as a 4 bit field. The weights will
+            // always be encoded with full bytes, meaning if there's
+            // an odd number of weights, the last weight will still
+            // occupy a full byte.
             _ => {
                 // weights are directly encoded
                 let weights_raw = &source[1..];
@@ -434,6 +494,10 @@ impl HuffmanTable {
         Ok(bytes_read as u32)
     }
 
+    /// Once the weights have been read from the data, you can decode the weights
+    /// into a table, and use that table to decode the actual compressed data.
+    ///
+    /// This function populates the rest of the table from the series of weights.
     fn build_table_from_weights(&mut self) -> Result<(), HuffmanTableError> {
         use HuffmanTableError as err;
 

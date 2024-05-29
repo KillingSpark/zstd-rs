@@ -3,21 +3,54 @@ use core::fmt;
 #[cfg(feature = "std")]
 use std::error::Error as StdError;
 
+/// This magic number is included at the start of a single Zstandard frame
 pub const MAGIC_NUM: u32 = 0xFD2F_B528;
+/// The minimum window size is defined as 1 KB
 pub const MIN_WINDOW_SIZE: u64 = 1024;
+/// The maximum window size is 3.75TB
 pub const MAX_WINDOW_SIZE: u64 = (1 << 41) + 7 * (1 << 38);
 
+/// Zstandard compressed data is made of one or more [Frame]s. Each frame is independent and can be
+/// decompressed independently of other frames.
+///
+/// There are two frame formats defined by Zstandard: Zstandard frames and Skippable frames.
+/// Zstandard frames contain compressed data, while skippable frames contain custom user metadata.
+///
+/// This structure contains the header of the frame.
+///
+/// <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#frames>
 pub struct Frame {
     pub header: FrameHeader,
 }
 
+/// A frame header has a variable size, with a minimum of 2 bytes, and a maximum of 14 bytes.
 pub struct FrameHeader {
     pub descriptor: FrameDescriptor,
+    /// The `Window_Descriptor` field contains the minimum size of a memory buffer needed to
+    /// decompress the entire frame.
+    ///
+    /// This byte is not included in the frame header when the `Single_Segment_flag` is set.
+    ///
+    /// Bits 7-3 refer to the `Exponent`, where bits 2-0 refer to the `Mantissa`.
+    ///
+    /// To determine the size of a window, the following formula can be used:
+    /// ```text
+    /// windowLog = 10 + Exponent;
+    /// windowBase = 1 << windowLog;
+    /// windowAdd = (windowBase / 8) * Mantissa;
+    /// Window_Size = windowBase + windowAdd;
+    /// ```
+    /// <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#window_descriptor>
     window_descriptor: u8,
+    /// The `Dictionary_ID` field contains the ID of the dictionary to be used to decode the frame.
+    /// When this value is not present, it's up to the decoder to know which dictionary to use.
     dict_id: Option<u32>,
+    /// The size of the original/uncompressed content.
     frame_content_size: u64,
 }
 
+/// The first byte is called the `Frame Header Descriptor`, and it describes what other fields
+/// are present.
 pub struct FrameDescriptor(u8);
 
 #[derive(Debug)]
@@ -42,27 +75,61 @@ impl fmt::Display for FrameDescriptorError {
 impl StdError for FrameDescriptorError {}
 
 impl FrameDescriptor {
+    /// Read the `Frame_Content_Size_flag` from the frame header descriptor.
+    ///
+    /// This is a 2 bit flag, specifying if the `Frame_Content_Size` field is present
+    /// within the header. It notates the number of bytes used by `Frame_Content_size`
+    ///
+    /// When this value is is 0, `FCS_Field_Size` depends on Single_Segment_flag.
+    /// If the `Single_Segment_flag` field is set in the frame header descriptor,
+    /// the size of the `Frame_Content_Size` field of the header is 1 byte.
+    /// Otherwise, `FCS_Field_Size` is 0, and the `Frame_Content_Size` is not provided.
+    ///
+    /// | Flag Value (decimal) | Size of the `Frame_Content_Size` field in bytes |
+    /// | -- | -- |
+    /// | 0 | 0 or 1 (see above) |
+    /// | 1 | 2 |
+    /// | 2 | 4 |
+    /// | 3 | 8 |
     pub fn frame_content_size_flag(&self) -> u8 {
         self.0 >> 6
     }
 
+    /// This bit is reserved for some future feature, a compliant decoder **must ensure**
+    /// that this value is set to zero.
     pub fn reserved_flag(&self) -> bool {
         ((self.0 >> 3) & 0x1) == 1
     }
 
+    /// If this flag is set, data must be regenerated within a single continuous memory segment.
+    ///
+    /// In this case, the `Window_Descriptor` byte is skipped, but `Frame_Content_Size` is present.
+    /// The decoder must allocate a memory segment equal to or larger than `Frame_Content_Size`.
     pub fn single_segment_flag(&self) -> bool {
         ((self.0 >> 5) & 0x1) == 1
     }
 
+    /// If this flag is set, a 32 bit `Content_Checksum` will be present at the end of the frame.
     pub fn content_checksum_flag(&self) -> bool {
         ((self.0 >> 2) & 0x1) == 1
     }
 
+    /// This is a two bit flag telling if a dictionary ID is provided within the header. It also
+    /// specifies the size of this field
+    ///
+    /// | Value (Decimal) | `DID_Field_Size` (bytes) |
+    /// | -- | -- |
+    /// | 0 | 0 |
+    /// | 1 | 1 |
+    /// | 2 | 2 |
+    /// | 3 | 4 |
     pub fn dict_id_flag(&self) -> u8 {
         self.0 & 0x3
     }
 
-    // Deriving info from the flags
+    /// Read the size of the `Frame_Content_size` field from the frame header descriptor, returning
+    /// the size in bytes.
+    /// If this value is zero, then the `Frame_Content_Size` field is not present within the header.
     pub fn frame_content_size_bytes(&self) -> Result<u8, FrameDescriptorError> {
         match self.frame_content_size_flag() {
             0 => {
@@ -79,6 +146,9 @@ impl FrameDescriptor {
         }
     }
 
+    /// Read the size of the `Dictionary_ID` field from the frame header descriptor, returning the size in bytes.
+    /// If this value is zero, then the dictionary id is not present within the header,
+    /// and "It's up to the decoder to know which dictionary to use."
     pub fn dictionary_id_bytes(&self) -> Result<u8, FrameDescriptorError> {
         match self.dict_id_flag() {
             0 => Ok(0),
@@ -153,6 +223,7 @@ impl From<FrameDescriptorError> for FrameHeaderError {
 }
 
 impl FrameHeader {
+    /// Read the size of the window from the header, returning the size in bytes.
     pub fn window_size(&self) -> Result<u64, FrameHeaderError> {
         if self.descriptor.single_segment_flag() {
             Ok(self.frame_content_size())
@@ -178,10 +249,12 @@ impl FrameHeader {
         }
     }
 
+    /// The ID (if provided) of the dictionary required to decode this frame.
     pub fn dictionary_id(&self) -> Option<u32> {
         self.dict_id
     }
 
+    /// Obtain the uncompressed size (in bytes) of the frame contents.
     pub fn frame_content_size(&self) -> u64 {
         self.frame_content_size
     }
@@ -249,6 +322,7 @@ impl From<FrameDescriptorError> for ReadFrameHeaderError {
     }
 }
 
+/// Read a single serialized frame from the reader and return a tuple containing the parsed frame and the number of bytes read.
 pub fn read_frame_header(mut r: impl Read) -> Result<(Frame, u8), ReadFrameHeaderError> {
     use ReadFrameHeaderError as err;
     let mut buf = [0u8; 4];

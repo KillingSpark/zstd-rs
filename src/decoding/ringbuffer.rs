@@ -37,16 +37,19 @@ impl RingBuffer {
         }
     }
 
+    /// Return the number of bytes in the buffer.
     pub fn len(&self) -> usize {
         let (x, y) = self.data_slice_lengths();
         x + y
     }
 
+    /// Return the amount of available space (in bytes) of the buffer.
     pub fn free(&self) -> usize {
         let (x, y) = self.free_slice_lengths();
         (x + y).saturating_sub(1)
     }
 
+    /// Empty the buffer and reset the head and tail.
     pub fn clear(&mut self) {
         // SAFETY: Upholds invariant 2, trivially
         // SAFETY: Upholds invariant 3; 0 is always valid
@@ -54,10 +57,12 @@ impl RingBuffer {
         self.tail = 0;
     }
 
+    /// Whether the buffer is empty
     pub fn is_empty(&self) -> bool {
         self.head == self.tail
     }
 
+    /// Ensure that there's space for `amount` elements in the buffer.
     pub fn reserve(&mut self, amount: usize) {
         let free = self.free();
         if free >= amount {
@@ -131,6 +136,8 @@ impl RingBuffer {
         self.tail = (self.tail + 1) % self.cap;
     }
 
+    /// Fetch the byte stored at the selected index from the buffer, returning it, or
+    /// `None` if the index is out of bounds.
     #[allow(dead_code)]
     pub fn get(&self, idx: usize) -> Option<u8> {
         if idx < self.len() {
@@ -142,7 +149,7 @@ impl RingBuffer {
             None
         }
     }
-
+    /// Append the provided data to the end of `self`.
     pub fn extend(&mut self, data: &[u8]) {
         let len = data.len();
         let ptr = data.as_ptr();
@@ -178,6 +185,8 @@ impl RingBuffer {
         self.tail = (self.tail + len) % self.cap;
     }
 
+    /// Advance head past `amount` elements, effectively removing
+    /// them from the buffer.
     pub fn drop_first_n(&mut self, amount: usize) {
         debug_assert!(amount <= self.len());
         let amount = usize::min(amount, self.len());
@@ -186,6 +195,8 @@ impl RingBuffer {
         self.head = (self.head + amount) % self.cap;
     }
 
+    /// Return the size of the two contiguous occupied sections of memory used
+    /// by the buffer.
     // SAFETY: other code relies on this pointing to initialized halves of the buffer only
     fn data_slice_lengths(&self) -> (usize, usize) {
         let len_after_head;
@@ -203,6 +214,7 @@ impl RingBuffer {
     }
 
     // SAFETY: other code relies on this pointing to initialized halves of the buffer only
+    /// Return pointers to the head and tail, and the length of each section.
     fn data_slice_parts(&self) -> ((*const u8, usize), (*const u8, usize)) {
         let (len_after_head, len_to_tail) = self.data_slice_lengths();
 
@@ -211,6 +223,8 @@ impl RingBuffer {
             (self.buf.as_ptr(), len_to_tail),
         )
     }
+
+    /// Return references to each part of the ring buffer.
     pub fn as_slices(&self) -> (&[u8], &[u8]) {
         let (s1, s2) = self.data_slice_parts();
         unsafe {
@@ -223,6 +237,7 @@ impl RingBuffer {
 
     // SAFETY: other code relies on this producing the lengths of free zones
     // at the beginning/end of the buffer. Everything else must be initialized
+    /// Returns the size of the two unoccupied sections of memory used by the buffer.
     fn free_slice_lengths(&self) -> (usize, usize) {
         let len_to_head;
         let len_after_tail;
@@ -238,6 +253,8 @@ impl RingBuffer {
         (len_to_head, len_after_tail)
     }
 
+    /// Returns mutable references to the available space and the size of that available space,
+    /// for the two sections in the buffer.
     // SAFETY: Other code relies on this pointing to the free zones, data after the first and before the second must
     // be valid
     fn free_slice_parts(&self) -> ((*mut u8, usize), (*mut u8, usize)) {
@@ -249,6 +266,7 @@ impl RingBuffer {
         )
     }
 
+    /// Copies elements from the provided range to the end of the buffer.
     #[allow(dead_code)]
     pub fn extend_from_within(&mut self, start: usize, len: usize) {
         if start + len > self.len() {
@@ -268,6 +286,9 @@ impl RingBuffer {
         unsafe { self.extend_from_within_unchecked(start, len) }
     }
 
+    /// Copies data from the provided range to the end of the buffer, without
+    /// first verifying that the unoccupied capacity is available.
+    ///
     /// SAFETY:
     /// For this to be safe two requirements need to hold:
     /// 1. start + len <= self.len() so we do not copy uninitialised memory
@@ -326,6 +347,9 @@ impl RingBuffer {
     }
 
     #[allow(dead_code)]
+    /// This function is functionally the same as [RingBuffer::extend_from_within_unchecked],
+    /// but it does not contain any branching operations.
+    ///
     /// SAFETY:
     /// Needs start + len <= self.len()
     /// And more then len reserved space

@@ -1,3 +1,7 @@
+//! Zstandard compressed data is made of one or more [Frame]s. Each frame is independent and can be
+//! decompressed independently of other frames. This module contains structures
+//! and utilities that can be used to decode a frame.
+
 use super::frame;
 use crate::decoding::dictionary::Dictionary;
 use crate::decoding::scratch::DecoderScratch;
@@ -13,7 +17,7 @@ use std::error::Error as StdError;
 /// over how many bytes/blocks will be decoded at a time (so you don't have to decode a 10GB file into memory all at once).
 /// It reads bytes as needed from a provided source and can be read from to collect partial results.
 ///
-/// If you want to just read the whole frame with an io::Read without having to deal with manually calling decode_blocks
+/// If you want to just read the whole frame with an `io::Read` without having to deal with manually calling [FrameDecoder::decode_blocks]
 /// you can use the provided StreamingDecoder with wraps this FrameDecoder
 ///
 /// Workflow is as follows:

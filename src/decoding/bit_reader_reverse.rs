@@ -2,15 +2,21 @@ pub use super::bit_reader::GetBitsError;
 use byteorder::ByteOrder;
 use byteorder::LittleEndian;
 
+/// Zstandard encodes some types of data in a way that the data must be read
+/// back to front to decode it properly. `BitReaderReversed` provides a
+/// convenient interface to do that.
 pub struct BitReaderReversed<'s> {
     idx: isize, //index counts bits already read
     source: &'s [u8],
-
+    /// The reader doesn't read directly from the source,
+    /// it reads bits from here, and the container is
+    /// "refilled" as it's emptied.
     bit_container: u64,
     bits_in_container: u8,
 }
 
 impl<'s> BitReaderReversed<'s> {
+    /// How many bits are left to read by the reader.
     pub fn bits_remaining(&self) -> isize {
         self.idx + self.bits_in_container as isize
     }
@@ -102,6 +108,8 @@ impl<'s> BitReaderReversed<'s> {
         (self.idx - 1) / 8
     }
 
+    /// Read `n` number of bits from the source. Returns an error if the reader
+    /// requests more bits than remain for reading.
     #[inline(always)]
     pub fn get_bits(&mut self, n: u8) -> Result<u64, GetBitsError> {
         if n == 0 {
@@ -162,7 +170,7 @@ impl<'s> BitReaderReversed<'s> {
             return Ok((0, 0, 0));
         }
         if sum > 56 {
-            // try and get the values separatly
+            // try and get the values separately
             return Ok((self.get_bits(n1)?, self.get_bits(n2)?, self.get_bits(n3)?));
         }
         let sum = sum as u8;
