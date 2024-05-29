@@ -331,9 +331,11 @@ fn test_streaming() {
     // Test resetting to a new file while keeping the old decoder
 
     let mut content = fs::File::open("./decodecorpus_files/z000068.zst").unwrap();
-    let mut stream =
-        crate::streaming_decoder::StreamingDecoder::new_with_decoder(&mut content, stream.inner())
-            .unwrap();
+    let mut stream = crate::streaming_decoder::StreamingDecoder::new_with_decoder(
+        &mut content,
+        stream.into_frame_decoder(),
+    )
+    .unwrap();
 
     let mut result = Vec::new();
     Read::read_to_end(&mut stream, &mut result).unwrap();
@@ -415,9 +417,11 @@ fn test_streaming_no_std() {
 
     let content = include_bytes!("../../decodecorpus_files/z000068.zst");
     let mut content = content.as_slice();
-    let mut stream =
-        crate::streaming_decoder::StreamingDecoder::new_with_decoder(&mut content, stream.inner())
-            .unwrap();
+    let mut stream = crate::streaming_decoder::StreamingDecoder::new_with_decoder(
+        &mut content,
+        stream.into_frame_decoder(),
+    )
+    .unwrap();
 
     let original = include_bytes!("../../decodecorpus_files/z000068");
     let mut result = vec![0; original.len()];
