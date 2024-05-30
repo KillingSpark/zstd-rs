@@ -12,3 +12,9 @@ This document records the changes made between versions, starting with version 0
 * Small performance improvement by reorganizing code with `#[cold]` annotations
 * Documentation for `StreamDecoder` mentioning the limitations around multiple frames (https://github.com/Sorseg)
 * Documentation around skippable frames (https://github.com/Sorseg)
+* **Breaking** `StreamDecoder` API changes to get access to the inner parts (https://github.com/ifd3f)
+* Big internal documentation contribution (https://github.com/zleyyij)
+* Dropped derive_more as a dependency (https://github.com/xd009642)
+* Small improvement by removing the error cases from the reverse bitreader (and making sure invalid requests can't even happen)
+
+# After 0.7.0
