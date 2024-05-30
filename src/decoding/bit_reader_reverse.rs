@@ -108,8 +108,8 @@ impl<'s> BitReaderReversed<'s> {
         (self.idx - 1) / 8
     }
 
-    /// Read `n` number of bits from the source. Returns an error if the reader
-    /// requests more bits than remain for reading.
+    /// Read `n` number of bits from the source. Will read at most 56 bits.
+    /// If there are no more bits to be read from the source zero bits will be returned instead.
     #[inline(always)]
     pub fn get_bits(&mut self, n: u8) -> u64 {
         if n == 0 {
@@ -152,6 +152,7 @@ impl<'s> BitReaderReversed<'s> {
         self.get_bits_unchecked(n)
     }
 
+    /// Same as calling get_bits three times but slightly more performant
     #[inline(always)]
     pub fn get_bits_triple(&mut self, n1: u8, n2: u8, n3: u8) -> (u64, u64, u64) {
         let sum = n1 as usize + n2 as usize + n3 as usize;
