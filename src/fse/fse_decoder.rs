@@ -2,61 +2,161 @@ use crate::decoding::bit_reader::BitReader;
 use crate::decoding::bit_reader_reverse::{BitReaderReversed, GetBitsError};
 use alloc::vec::Vec;
 
+/// FSE decoding involves a decoding table that describes the probabilities of
+/// all literals from 0 to the highest present one
+///
+/// <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#fse-table-description>
 pub struct FSETable {
+    /// The maximum symbol in the table (inclusive). Limits the probabilities length to max_symbol + 1.
     max_symbol: u8,
+    /// The actual table containing the decoded symbol and the compression data
+    /// connected to that symbol.
     pub decode: Vec<Entry>, //used to decode symbols, and calculate the next state
-
+    /// The size of the table is stored in logarithm base 2 format,
+    /// with the **size of the table** being equal to `(1 << accuracy_log)`.
+    /// This value is used so that the decoder knows how many bits to read from the bitstream.
     pub accuracy_log: u8,
+    /// In this context, probability refers to the likelihood that a symbol occurs in the given data.
+    /// Given this info, the encoder can assign shorter codes to symbols that appear more often,
+    /// and longer codes that appear less often, then the decoder can use the probability
+    /// to determine what code was assigned to what symbol.
+    ///
+    /// The probability of a single symbol is a value representing the proportion of times the symbol
+    /// would fall within the data.
+    ///
+    /// If a symbol probability is set to `-1`, it means that the probability of a symbol
+    /// occurring in the data is less than one.
     pub symbol_probabilities: Vec<i32>, //used while building the decode Vector
+    /// The number of times each symbol occurs (The first entry being 0x0, the second being 0x1) and so on
+    /// up until the highest possible symbol (255).
     symbol_counter: Vec<u32>,
 }
 
-#[derive(Debug, derive_more::Display, derive_more::From)]
-#[cfg_attr(feature = "std", derive(derive_more::Error))]
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum FSETableError {
-    #[display(fmt = "Acclog must be at least 1")]
     AccLogIsZero,
-    #[display(fmt = "Found FSE acc_log: {got} bigger than allowed maximum in this case: {max}")]
-    AccLogTooBig { got: u8, max: u8 },
-    #[display(fmt = "{_0:?}")]
-    #[from]
+    AccLogTooBig {
+        got: u8,
+        max: u8,
+    },
     GetBitsError(GetBitsError),
-    #[display(
-        fmt = "The counter ({got}) exceeded the expected sum: {expected_sum}. This means an error or corrupted data \n {symbol_probabilities:?}"
-    )]
     ProbabilityCounterMismatch {
         got: u32,
         expected_sum: u32,
         symbol_probabilities: Vec<i32>,
     },
-    #[display(fmt = "There are too many symbols in this distribution: {got}. Max: 256")]
-    TooManySymbols { got: usize },
+    TooManySymbols {
+        got: usize,
+    },
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for FSETableError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            FSETableError::GetBitsError(source) => Some(source),
+            _ => None,
+        }
+    }
+}
+
+impl core::fmt::Display for FSETableError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            FSETableError::AccLogIsZero => write!(f, "Acclog must be at least 1"),
+            FSETableError::AccLogTooBig { got, max } => {
+                write!(
+                    f,
+                    "Found FSE acc_log: {0} bigger than allowed maximum in this case: {1}",
+                    got, max
+                )
+            }
+            FSETableError::GetBitsError(e) => write!(f, "{:?}", e),
+            FSETableError::ProbabilityCounterMismatch {
+                got,
+                expected_sum,
+                symbol_probabilities,
+            } => {
+                write!(f,
+                    "The counter ({}) exceeded the expected sum: {}. This means an error or corrupted data \n {:?}",
+                    got,
+                    expected_sum,
+                    symbol_probabilities,
+                )
+            }
+            FSETableError::TooManySymbols { got } => {
+                write!(
+                    f,
+                    "There are too many symbols in this distribution: {}. Max: 256",
+                    got,
+                )
+            }
+        }
+    }
+}
+
+impl From<GetBitsError> for FSETableError {
+    fn from(val: GetBitsError) -> Self {
+        Self::GetBitsError(val)
+    }
 }
 
 pub struct FSEDecoder<'table> {
+    /// An FSE state value represents an index in the FSE table.
     pub state: Entry,
+    /// A reference to the table used for decoding.
     table: &'table FSETable,
 }
 
-#[derive(Debug, derive_more::Display, derive_more::From)]
-#[cfg_attr(feature = "std", derive(derive_more::Error))]
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum FSEDecoderError {
-    #[display(fmt = "{_0:?}")]
-    #[from]
     GetBitsError(GetBitsError),
-    #[display(fmt = "Tried to use an uninitialized table!")]
     TableIsUninitialized,
 }
 
+#[cfg(feature = "std")]
+impl std::error::Error for FSEDecoderError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            FSEDecoderError::GetBitsError(source) => Some(source),
+            _ => None,
+        }
+    }
+}
+
+impl core::fmt::Display for FSEDecoderError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            FSEDecoderError::GetBitsError(e) => write!(f, "{:?}", e),
+            FSEDecoderError::TableIsUninitialized => {
+                write!(f, "Tried to use an uninitialized table!")
+            }
+        }
+    }
+}
+
+impl From<GetBitsError> for FSEDecoderError {
+    fn from(val: GetBitsError) -> Self {
+        Self::GetBitsError(val)
+    }
+}
+
+/// A single entry in an FSE table.
 #[derive(Copy, Clone)]
 pub struct Entry {
+    /// This value is used as an offset value, and it is added
+    /// to a value read from the stream to determine the next state value.
     pub base_line: u32,
+    /// How many bits should be read from the stream when decoding this entry.
     pub num_bits: u8,
+    /// The byte that should be put in the decode output when encountering this state.
     pub symbol: u8,
 }
 
+/// This value is added to the first 4 bits of the stream to determine the
+/// `Accuracy_Log`
 const ACC_LOG_OFFSET: u8 = 5;
 
 fn highest_bit_set(x: u32) -> u32 {
@@ -65,6 +165,7 @@ fn highest_bit_set(x: u32) -> u32 {
 }
 
 impl<'t> FSEDecoder<'t> {
+    /// Initialize a new Finite State Entropy decoder.
     pub fn new(table: &'t FSETable) -> FSEDecoder<'_> {
         FSEDecoder {
             state: table.decode.first().copied().unwrap_or(Entry {
@@ -76,10 +177,13 @@ impl<'t> FSEDecoder<'t> {
         }
     }
 
+    /// Returns the byte associated with the symbol the internal cursor is pointing at.
     pub fn decode_symbol(&self) -> u8 {
         self.state.symbol
     }
 
+    /// Initialize internal state and prepare for decoding. After this, `decode_symbol` can be called
+    /// to read the first symbol and `update_state` can be called to prepare to read the next symbol.
     pub fn init_state(&mut self, bits: &mut BitReaderReversed<'_>) -> Result<(), FSEDecoderError> {
         if self.table.accuracy_log == 0 {
             return Err(FSEDecoderError::TableIsUninitialized);
@@ -89,6 +193,7 @@ impl<'t> FSEDecoder<'t> {
         Ok(())
     }
 
+    /// Advance the internal state to decode the next symbol in the bitstream.
     pub fn update_state(&mut self, bits: &mut BitReaderReversed<'_>) {
         let num_bits = self.state.num_bits;
         let add = bits.get_bits(num_bits);
@@ -101,6 +206,7 @@ impl<'t> FSEDecoder<'t> {
 }
 
 impl FSETable {
+    /// Initialize a new empty Finite State Entropy decoding table.
     pub fn new(max_symbol: u8) -> FSETable {
         FSETable {
             max_symbol,
@@ -111,6 +217,7 @@ impl FSETable {
         }
     }
 
+    /// Reset `self` and update `self`'s state to mirror the provided table.
     pub fn reinit_from(&mut self, other: &Self) {
         self.reset();
         self.symbol_counter.extend_from_slice(&other.symbol_counter);
@@ -120,6 +227,7 @@ impl FSETable {
         self.accuracy_log = other.accuracy_log;
     }
 
+    /// Empty the table and clear all internal state.
     pub fn reset(&mut self) {
         self.symbol_counter.clear();
         self.symbol_probabilities.clear();
@@ -127,7 +235,7 @@ impl FSETable {
         self.accuracy_log = 0;
     }
 
-    //returns how many BYTEs (not bits) were read while building the decoder
+    /// returns how many BYTEs (not bits) were read while building the decoder
     pub fn build_decoder(&mut self, source: &[u8], max_log: u8) -> Result<usize, FSETableError> {
         self.accuracy_log = 0;
 
@@ -137,6 +245,7 @@ impl FSETable {
         Ok(bytes_read)
     }
 
+    /// Given the provided accuracy log, build a decoding table from that log.
     pub fn build_from_probabilities(
         &mut self,
         acc_log: u8,
@@ -150,12 +259,15 @@ impl FSETable {
         self.build_decoding_table()
     }
 
+    /// Build the actual decoding table after probabilities have been read into the table.
+    /// After this function is called, the decoding process can begin.
     fn build_decoding_table(&mut self) -> Result<(), FSETableError> {
         if self.symbol_probabilities.len() > self.max_symbol as usize + 1 {
             return Err(FSETableError::TooManySymbols {
                 got: self.symbol_probabilities.len(),
             });
         }
+
         self.decode.clear();
 
         let table_size = 1 << self.accuracy_log;
@@ -230,6 +342,8 @@ impl FSETable {
         Ok(())
     }
 
+    /// Read the accuracy log and the probability table from the source and return the number of bytes
+    /// read. If the size of the table is larger than the provided `max_log`, return an error.
     fn read_probabilities(&mut self, source: &[u8], max_log: u8) -> Result<usize, FSETableError> {
         self.symbol_probabilities.clear(); //just clear, we will fill a probability for each entry anyways. No need to force new allocs here
 
@@ -245,11 +359,11 @@ impl FSETable {
             return Err(FSETableError::AccLogIsZero);
         }
 
-        let probablility_sum = 1 << self.accuracy_log;
+        let probability_sum = 1 << self.accuracy_log;
         let mut probability_counter = 0;
 
-        while probability_counter < probablility_sum {
-            let max_remaining_value = probablility_sum - probability_counter + 1;
+        while probability_counter < probability_sum {
+            let max_remaining_value = probability_sum - probability_counter + 1;
             let bits_to_read = highest_bit_set(max_remaining_value);
 
             let unchecked_value = br.get_bits(bits_to_read as usize)? as u32;
@@ -293,10 +407,10 @@ impl FSETable {
             }
         }
 
-        if probability_counter != probablility_sum {
+        if probability_counter != probability_sum {
             return Err(FSETableError::ProbabilityCounterMismatch {
                 got: probability_counter,
-                expected_sum: probablility_sum,
+                expected_sum: probability_sum,
                 symbol_probabilities: self.symbol_probabilities.clone(),
             });
         }
@@ -317,6 +431,8 @@ impl FSETable {
 }
 
 //utility functions for building the decoding table from probabilities
+/// Calculate the position of the next entry of the table given the current
+/// position and size of the table.
 fn next_position(mut p: usize, table_size: usize) -> usize {
     p += (table_size >> 1) + (table_size >> 3) + 3;
     p &= table_size - 1;

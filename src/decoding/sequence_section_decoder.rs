@@ -9,41 +9,99 @@ use crate::blocks::sequence_section::{
 use crate::fse::{FSEDecoder, FSEDecoderError, FSETableError};
 use alloc::vec::Vec;
 
-#[derive(Debug, derive_more::Display, derive_more::From)]
-#[cfg_attr(feature = "std", derive(derive_more::Error))]
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum DecodeSequenceError {
-    #[display(fmt = "{_0:?}")]
-    #[from]
     GetBitsError(GetBitsError),
-    #[display(fmt = "{_0:?}")]
-    #[from]
     FSEDecoderError(FSEDecoderError),
-    #[display(fmt = "{_0:?}")]
-    #[from]
     FSETableError(FSETableError),
-    #[display(
-        fmt = "Padding at the end of the sequence_section was more than a byte long: {skipped_bits} bits. Probably caused by data corruption"
-    )]
     ExtraPadding { skipped_bits: i32 },
-    #[display(fmt = "Do not support offsets bigger than 1<<32; got: {offset_code}")]
     UnsupportedOffset { offset_code: u8 },
-    #[display(fmt = "Read an offset == 0. That is an illegal value for offsets")]
     ZeroOffset,
-    #[display(fmt = "Bytestream did not contain enough bytes to decode num_sequences")]
     NotEnoughBytesForNumSequences,
-    #[display(fmt = "Did not use full bitstream. Bits left: {bits_remaining} ({} bytes)", bits_remaining / 8)]
     ExtraBits { bits_remaining: isize },
-    #[display(fmt = "compression modes are none but they must be set to something")]
     MissingCompressionMode,
-    #[display(fmt = "Need a byte to read for RLE ll table")]
     MissingByteForRleLlTable,
-    #[display(fmt = "Need a byte to read for RLE of table")]
     MissingByteForRleOfTable,
-    #[display(fmt = "Need a byte to read for RLE ml table")]
     MissingByteForRleMlTable,
 }
 
+#[cfg(feature = "std")]
+impl std::error::Error for DecodeSequenceError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            DecodeSequenceError::GetBitsError(source) => Some(source),
+            DecodeSequenceError::FSEDecoderError(source) => Some(source),
+            DecodeSequenceError::FSETableError(source) => Some(source),
+            _ => None,
+        }
+    }
+}
+
+impl core::fmt::Display for DecodeSequenceError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            DecodeSequenceError::GetBitsError(e) => write!(f, "{:?}", e),
+            DecodeSequenceError::FSEDecoderError(e) => write!(f, "{:?}", e),
+            DecodeSequenceError::FSETableError(e) => write!(f, "{:?}", e),
+            DecodeSequenceError::ExtraPadding { skipped_bits } => {
+                write!(f,
+                    "Padding at the end of the sequence_section was more than a byte long: {} bits. Probably caused by data corruption",
+                    skipped_bits,
+                )
+            }
+            DecodeSequenceError::UnsupportedOffset { offset_code } => {
+                write!(
+                    f,
+                    "Do not support offsets bigger than 1<<32; got: {}",
+                    offset_code,
+                )
+            }
+            DecodeSequenceError::ZeroOffset => write!(
+                f,
+                "Read an offset == 0. That is an illegal value for offsets"
+            ),
+            DecodeSequenceError::NotEnoughBytesForNumSequences => write!(
+                f,
+                "Bytestream did not contain enough bytes to decode num_sequences"
+            ),
+            DecodeSequenceError::ExtraBits { bits_remaining } => write!(f, "{}", bits_remaining),
+            DecodeSequenceError::MissingCompressionMode => write!(
+                f,
+                "compression modes are none but they must be set to something"
+            ),
+            DecodeSequenceError::MissingByteForRleLlTable => {
+                write!(f, "Need a byte to read for RLE ll table")
+            }
+            DecodeSequenceError::MissingByteForRleOfTable => {
+                write!(f, "Need a byte to read for RLE of table")
+            }
+            DecodeSequenceError::MissingByteForRleMlTable => {
+                write!(f, "Need a byte to read for RLE ml table")
+            }
+        }
+    }
+}
+
+impl From<GetBitsError> for DecodeSequenceError {
+    fn from(val: GetBitsError) -> Self {
+        Self::GetBitsError(val)
+    }
+}
+
+impl From<FSETableError> for DecodeSequenceError {
+    fn from(val: FSETableError) -> Self {
+        Self::FSETableError(val)
+    }
+}
+
+impl From<FSEDecoderError> for DecodeSequenceError {
+    fn from(val: FSEDecoderError) -> Self {
+        Self::FSEDecoderError(val)
+    }
+}
+
+/// Decode the provided source as a series of sequences into the supplied `target`.
 pub fn decode_sequences(
     section: &SequencesHeader,
     source: &[u8],
@@ -253,6 +311,10 @@ fn decode_sequences_without_rle(
     }
 }
 
+/// Look up the provided state value from a literal length table predefined
+/// by the Zstandard reference document. Returns a tuple of (value, number of bits).
+///
+/// <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#appendix-a---decoding-tables-for-predefined-codes>
 fn lookup_ll_code(code: u8) -> (u32, u8) {
     match code {
         0..=15 => (u32::from(code), 0),
@@ -280,6 +342,10 @@ fn lookup_ll_code(code: u8) -> (u32, u8) {
     }
 }
 
+/// Look up the provided state value from a match length table predefined
+/// by the Zstandard reference document. Returns a tuple of (value, number of bits).
+///
+/// <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#appendix-a---decoding-tables-for-predefined-codes>
 fn lookup_ml_code(code: u8) -> (u32, u8) {
     match code {
         0..=31 => (u32::from(code) + 3, 0),
@@ -308,8 +374,12 @@ fn lookup_ml_code(code: u8) -> (u32, u8) {
     }
 }
 
+// This info is buried in the symbol compression mode table
+/// "The maximum allowed accuracy log for literals length and match length tables is 9"
 pub const LL_MAX_LOG: u8 = 9;
+/// "The maximum allowed accuracy log for literals length and match length tables is 9"
 pub const ML_MAX_LOG: u8 = 9;
+/// "The maximum accuracy log for the offset table is 8."
 pub const OF_MAX_LOG: u8 = 8;
 
 fn maybe_update_fse_tables(
@@ -430,19 +500,34 @@ fn maybe_update_fse_tables(
     Ok(bytes_read)
 }
 
+// The default Literal Length decoding table uses an accuracy logarithm of 6 bits.
 const LL_DEFAULT_ACC_LOG: u8 = 6;
+/// If [ModeType::Predefined] is selected for a symbol type, its FSE decoding
+/// table is generated using a predefined distribution table.
+///
+/// https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#literals-length
 const LITERALS_LENGTH_DEFAULT_DISTRIBUTION: [i32; 36] = [
     4, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 1, 1, 1, 1, 1,
     -1, -1, -1, -1,
 ];
 
+// The default Match Length decoding table uses an accuracy logarithm of 6 bits.
 const ML_DEFAULT_ACC_LOG: u8 = 6;
+/// If [ModeType::Predefined] is selected for a symbol type, its FSE decoding
+/// table is generated using a predefined distribution table.
+///
+/// https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#match-length
 const MATCH_LENGTH_DEFAULT_DISTRIBUTION: [i32; 53] = [
     1, 4, 3, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1, -1, -1,
 ];
 
+// The default Match Length decoding table uses an accuracy logarithm of 5 bits.
 const OF_DEFAULT_ACC_LOG: u8 = 5;
+/// If [ModeType::Predefined] is selected for a symbol type, its FSE decoding
+/// table is generated using a predefined distribution table.
+///
+/// https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#match-length
 const OFFSET_DEFAULT_DISTRIBUTION: [i32; 29] = [
     1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1,
 ];
