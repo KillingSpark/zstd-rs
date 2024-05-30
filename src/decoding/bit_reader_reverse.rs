@@ -111,40 +111,34 @@ impl<'s> BitReaderReversed<'s> {
     /// Read `n` number of bits from the source. Returns an error if the reader
     /// requests more bits than remain for reading.
     #[inline(always)]
-    pub fn get_bits(&mut self, n: u8) -> Result<u64, GetBitsError> {
+    pub fn get_bits(&mut self, n: u8) -> u64 {
         if n == 0 {
-            return Ok(0);
+            return 0;
         }
         if self.bits_in_container >= n {
-            return Ok(self.get_bits_unchecked(n));
+            return self.get_bits_unchecked(n);
         }
 
         self.get_bits_cold(n)
     }
 
     #[cold]
-    fn get_bits_cold(&mut self, n: u8) -> Result<u64, GetBitsError> {
-        if n > 56 {
-            return Err(GetBitsError::TooManyBits {
-                num_requested_bits: usize::from(n),
-                limit: 56,
-            });
-        }
-
+    fn get_bits_cold(&mut self, n: u8) -> u64 {
+        let n = u8::min(n, 56);
         let signed_n = n as isize;
 
         if self.bits_remaining() <= 0 {
             self.idx -= signed_n;
-            return Ok(0);
+            return 0;
         }
 
         if self.bits_remaining() < signed_n {
             let emulated_read_shift = signed_n - self.bits_remaining();
-            let v = self.get_bits(self.bits_remaining() as u8)?;
+            let v = self.get_bits(self.bits_remaining() as u8);
             debug_assert!(self.idx == 0);
-            let value = v << emulated_read_shift;
+            let value = v.wrapping_shl(emulated_read_shift as u32);
             self.idx -= emulated_read_shift;
-            return Ok(value);
+            return value;
         }
 
         while (self.bits_in_container < n) && self.idx > 0 {
@@ -155,23 +149,18 @@ impl<'s> BitReaderReversed<'s> {
 
         //if we reach this point there are enough bits in the container
 
-        Ok(self.get_bits_unchecked(n))
+        self.get_bits_unchecked(n)
     }
 
     #[inline(always)]
-    pub fn get_bits_triple(
-        &mut self,
-        n1: u8,
-        n2: u8,
-        n3: u8,
-    ) -> Result<(u64, u64, u64), GetBitsError> {
+    pub fn get_bits_triple(&mut self, n1: u8, n2: u8, n3: u8) -> (u64, u64, u64) {
         let sum = n1 as usize + n2 as usize + n3 as usize;
         if sum == 0 {
-            return Ok((0, 0, 0));
+            return (0, 0, 0);
         }
         if sum > 56 {
             // try and get the values separately
-            return Ok((self.get_bits(n1)?, self.get_bits(n2)?, self.get_bits(n3)?));
+            return (self.get_bits(n1), self.get_bits(n2), self.get_bits(n3));
         }
         let sum = sum as u8;
 
@@ -192,29 +181,23 @@ impl<'s> BitReaderReversed<'s> {
                 self.get_bits_unchecked(n3)
             };
 
-            return Ok((v1, v2, v3));
+            return (v1, v2, v3);
         }
 
         self.get_bits_triple_cold(n1, n2, n3, sum)
     }
 
     #[cold]
-    fn get_bits_triple_cold(
-        &mut self,
-        n1: u8,
-        n2: u8,
-        n3: u8,
-        sum: u8,
-    ) -> Result<(u64, u64, u64), GetBitsError> {
+    fn get_bits_triple_cold(&mut self, n1: u8, n2: u8, n3: u8, sum: u8) -> (u64, u64, u64) {
         let sum_signed = sum as isize;
 
         if self.bits_remaining() <= 0 {
             self.idx -= sum_signed;
-            return Ok((0, 0, 0));
+            return (0, 0, 0);
         }
 
         if self.bits_remaining() < sum_signed {
-            return Ok((self.get_bits(n1)?, self.get_bits(n2)?, self.get_bits(n3)?));
+            return (self.get_bits(n1), self.get_bits(n2), self.get_bits(n3));
         }
 
         while (self.bits_in_container < sum) && self.idx > 0 {
@@ -241,7 +224,7 @@ impl<'s> BitReaderReversed<'s> {
             self.get_bits_unchecked(n3)
         };
 
-        Ok((v1, v2, v3))
+        (v1, v2, v3)
     }
 
     #[inline(always)]

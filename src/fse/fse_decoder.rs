@@ -7,6 +7,8 @@ use alloc::vec::Vec;
 ///
 /// <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#fse-table-description>
 pub struct FSETable {
+    /// The maximum symbol in the table (inclusive). Limits the probabilities length to max_symbol + 1.
+    max_symbol: u8,
     /// The actual table containing the decoded symbol and the compression data
     /// connected to that symbol.
     pub decode: Vec<Entry>, //used to decode symbols, and calculate the next state
@@ -28,12 +30,6 @@ pub struct FSETable {
     /// The number of times each symbol occurs (The first entry being 0x0, the second being 0x1) and so on
     /// up until the highest possible symbol (255).
     symbol_counter: Vec<u32>,
-}
-
-impl Default for FSETable {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 #[derive(Debug)]
@@ -192,31 +188,28 @@ impl<'t> FSEDecoder<'t> {
         if self.table.accuracy_log == 0 {
             return Err(FSEDecoderError::TableIsUninitialized);
         }
-        self.state = self.table.decode[bits.get_bits(self.table.accuracy_log)? as usize];
+        self.state = self.table.decode[bits.get_bits(self.table.accuracy_log) as usize];
 
         Ok(())
     }
 
     /// Advance the internal state to decode the next symbol in the bitstream.
-    pub fn update_state(
-        &mut self,
-        bits: &mut BitReaderReversed<'_>,
-    ) -> Result<(), FSEDecoderError> {
+    pub fn update_state(&mut self, bits: &mut BitReaderReversed<'_>) {
         let num_bits = self.state.num_bits;
-        let add = bits.get_bits(num_bits)?;
+        let add = bits.get_bits(num_bits);
         let base_line = self.state.base_line;
         let new_state = base_line + add as u32;
         self.state = self.table.decode[new_state as usize];
 
         //println!("Update: {}, {} -> {}", base_line, add,  self.state);
-        Ok(())
     }
 }
 
 impl FSETable {
     /// Initialize a new empty Finite State Entropy decoding table.
-    pub fn new() -> FSETable {
+    pub fn new(max_symbol: u8) -> FSETable {
         FSETable {
+            max_symbol,
             symbol_probabilities: Vec::with_capacity(256), //will never be more than 256 symbols because u8
             symbol_counter: Vec::with_capacity(256), //will never be more than 256 symbols because u8
             decode: Vec::new(),                      //depending on acc_log.
@@ -247,7 +240,7 @@ impl FSETable {
         self.accuracy_log = 0;
 
         let bytes_read = self.read_probabilities(source, max_log)?;
-        self.build_decoding_table();
+        self.build_decoding_table()?;
 
         Ok(bytes_read)
     }
@@ -263,13 +256,18 @@ impl FSETable {
         }
         self.symbol_probabilities = probs.to_vec();
         self.accuracy_log = acc_log;
-        self.build_decoding_table();
-        Ok(())
+        self.build_decoding_table()
     }
 
     /// Build the actual decoding table after probabilities have been read into the table.
     /// After this function is called, the decoding process can begin.
-    fn build_decoding_table(&mut self) {
+    fn build_decoding_table(&mut self) -> Result<(), FSETableError> {
+        if self.symbol_probabilities.len() > self.max_symbol as usize + 1 {
+            return Err(FSETableError::TooManySymbols {
+                got: self.symbol_probabilities.len(),
+            });
+        }
+
         self.decode.clear();
 
         let table_size = 1 << self.accuracy_log;
@@ -341,6 +339,7 @@ impl FSETable {
             entry.base_line = bl;
             entry.num_bits = nb;
         }
+        Ok(())
     }
 
     /// Read the accuracy log and the probability table from the source and return the number of bytes
@@ -415,7 +414,7 @@ impl FSETable {
                 symbol_probabilities: self.symbol_probabilities.clone(),
             });
         }
-        if self.symbol_probabilities.len() > 256 {
+        if self.symbol_probabilities.len() > self.max_symbol as usize + 1 {
             return Err(FSETableError::TooManySymbols {
                 got: self.symbol_probabilities.len(),
             });
@@ -426,6 +425,7 @@ impl FSETable {
         } else {
             (br.bits_read() / 8) + 1
         };
+
         Ok(bytes_read)
     }
 }

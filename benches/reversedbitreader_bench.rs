@@ -5,7 +5,7 @@ use ruzstd::decoding::bit_reader_reverse::BitReaderReversed;
 fn do_all_accesses(br: &mut BitReaderReversed, accesses: &[u8]) -> u64 {
     let mut sum = 0;
     for x in accesses {
-        sum += br.get_bits(*x).unwrap();
+        sum += br.get_bits(*x);
     }
     let _ = black_box(br);
     sum
@@ -24,7 +24,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     let mut br = BitReaderReversed::new(&rand_vec);
     while br.bits_remaining() > 0 {
         let x = rng.gen_range(0..20);
-        br.get_bits(x).unwrap();
+        br.get_bits(x);
         access_vec.push(x);
     }
 

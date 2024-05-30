@@ -7,6 +7,10 @@ use crate::fse::FSETable;
 use crate::huff0::HuffmanTable;
 use alloc::vec::Vec;
 
+use crate::blocks::sequence_section::{
+    MAX_LITERAL_LENGTH_CODE, MAX_MATCH_LENGTH_CODE, MAX_OFFSET_CODE,
+};
+
 /// A block level decoding buffer.
 pub struct DecoderScratch {
     /// The decoder used for Huffman blocks.
@@ -29,11 +33,11 @@ impl DecoderScratch {
                 table: HuffmanTable::new(),
             },
             fse: FSEScratch {
-                offsets: FSETable::new(),
+                offsets: FSETable::new(MAX_OFFSET_CODE),
                 of_rle: None,
-                literal_lengths: FSETable::new(),
+                literal_lengths: FSETable::new(MAX_LITERAL_LENGTH_CODE),
                 ll_rle: None,
-                match_lengths: FSETable::new(),
+                match_lengths: FSETable::new(MAX_MATCH_LENGTH_CODE),
                 ml_rle: None,
             },
             buffer: DecodeBuffer::new(window_size),
@@ -104,11 +108,11 @@ pub struct FSEScratch {
 impl FSEScratch {
     pub fn new() -> FSEScratch {
         FSEScratch {
-            offsets: FSETable::new(),
+            offsets: FSETable::new(MAX_OFFSET_CODE),
             of_rle: None,
-            literal_lengths: FSETable::new(),
+            literal_lengths: FSETable::new(MAX_LITERAL_LENGTH_CODE),
             ll_rle: None,
-            match_lengths: FSETable::new(),
+            match_lengths: FSETable::new(MAX_MATCH_LENGTH_CODE),
             ml_rle: None,
         }
     }

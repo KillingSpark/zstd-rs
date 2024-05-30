@@ -252,33 +252,27 @@ impl<'t> HuffmanDecoder<'t> {
     /// Initialize internal state and prepare to decode data. Then, `decode_symbol` can be called
     /// to read the byte the internal cursor is pointing at, and `next_state` can be called to advance
     /// the cursor until the max number of bits has been read.
-    pub fn init_state(
-        &mut self,
-        br: &mut BitReaderReversed<'_>,
-    ) -> Result<u8, HuffmanDecoderError> {
+    pub fn init_state(&mut self, br: &mut BitReaderReversed<'_>) -> u8 {
         let num_bits = self.table.max_num_bits;
-        let new_bits = br.get_bits(num_bits)?;
+        let new_bits = br.get_bits(num_bits);
         self.state = new_bits;
-        Ok(num_bits)
+        num_bits
     }
 
     /// Advance the internal cursor to the next symbol. After this, you can call `decode_symbol`
     /// to read from the new position.
-    pub fn next_state(
-        &mut self,
-        br: &mut BitReaderReversed<'_>,
-    ) -> Result<u8, HuffmanDecoderError> {
+    pub fn next_state(&mut self, br: &mut BitReaderReversed<'_>) -> u8 {
         // self.state stores a small section, or a window of the bit stream. The table can be indexed via this state,
         // telling you how many bits identify the current symbol.
         let num_bits = self.table.decode[self.state as usize].num_bits;
         // New bits are read from the stream
-        let new_bits = br.get_bits(num_bits)?;
+        let new_bits = br.get_bits(num_bits);
         // Shift and mask out the bits that identify the current symbol
         self.state <<= num_bits;
         self.state &= self.table.decode.len() as u64 - 1;
         // The new bits are appended at the end of the current state.
         self.state |= new_bits;
-        Ok(num_bits)
+        num_bits
     }
 }
 
@@ -299,7 +293,7 @@ impl HuffmanTable {
             bits: Vec::with_capacity(256),
             bit_ranks: Vec::with_capacity(11),
             rank_indexes: Vec::with_capacity(11),
-            fse_table: FSETable::new(),
+            fse_table: FSETable::new(100),
         }
     }
 
@@ -405,7 +399,7 @@ impl HuffmanTable {
                 //skip the 0 padding at the end of the last byte of the bit stream and throw away the first 1 found
                 let mut skipped_bits = 0;
                 loop {
-                    let val = br.get_bits(1)?;
+                    let val = br.get_bits(1);
                     skipped_bits += 1;
                     if val == 1 || skipped_bits > 8 {
                         break;
@@ -425,7 +419,7 @@ impl HuffmanTable {
                 loop {
                     let w = dec1.decode_symbol();
                     self.weights.push(w);
-                    dec1.update_state(&mut br)?;
+                    dec1.update_state(&mut br);
 
                     if br.bits_remaining() <= -1 {
                         //collect final states
@@ -435,7 +429,7 @@ impl HuffmanTable {
 
                     let w = dec2.decode_symbol();
                     self.weights.push(w);
-                    dec2.update_state(&mut br)?;
+                    dec2.update_state(&mut br);
 
                     if br.bits_remaining() <= -1 {
                         //collect final states

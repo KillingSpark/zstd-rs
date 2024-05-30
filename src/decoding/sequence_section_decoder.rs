@@ -3,6 +3,9 @@ use super::super::blocks::sequence_section::Sequence;
 use super::super::blocks::sequence_section::SequencesHeader;
 use super::bit_reader_reverse::{BitReaderReversed, GetBitsError};
 use super::scratch::FSEScratch;
+use crate::blocks::sequence_section::{
+    MAX_LITERAL_LENGTH_CODE, MAX_MATCH_LENGTH_CODE, MAX_OFFSET_CODE,
+};
 use crate::fse::{FSEDecoder, FSEDecoderError, FSETableError};
 use alloc::vec::Vec;
 
@@ -116,7 +119,7 @@ pub fn decode_sequences(
     //skip the 0 padding at the end of the last byte of the bit stream and throw away the first 1 found
     let mut skipped_bits = 0;
     loop {
-        let val = br.get_bits(1)?;
+        let val = br.get_bits(1);
         skipped_bits += 1;
         if val == 1 || skipped_bits > 8 {
             break;
@@ -189,13 +192,13 @@ fn decode_sequences_with_rle(
         //println!("ml Code: {}", ml_value);
         //println!("");
 
-        if of_code >= 32 {
+        if of_code > MAX_OFFSET_CODE {
             return Err(DecodeSequenceError::UnsupportedOffset {
                 offset_code: of_code,
             });
         }
 
-        let (obits, ml_add, ll_add) = br.get_bits_triple(of_code, ml_num_bits, ll_num_bits)?;
+        let (obits, ml_add, ll_add) = br.get_bits_triple(of_code, ml_num_bits, ll_num_bits);
         let offset = obits as u32 + (1u32 << of_code);
 
         if offset == 0 {
@@ -215,13 +218,13 @@ fn decode_sequences_with_rle(
             //    br.bits_remaining() / 8,
             //);
             if scratch.ll_rle.is_none() {
-                ll_dec.update_state(br)?;
+                ll_dec.update_state(br);
             }
             if scratch.ml_rle.is_none() {
-                ml_dec.update_state(br)?;
+                ml_dec.update_state(br);
             }
             if scratch.of_rle.is_none() {
-                of_dec.update_state(br)?;
+                of_dec.update_state(br);
             }
         }
 
@@ -264,13 +267,13 @@ fn decode_sequences_without_rle(
         let (ll_value, ll_num_bits) = lookup_ll_code(ll_code);
         let (ml_value, ml_num_bits) = lookup_ml_code(ml_code);
 
-        if of_code >= 32 {
+        if of_code > MAX_OFFSET_CODE {
             return Err(DecodeSequenceError::UnsupportedOffset {
                 offset_code: of_code,
             });
         }
 
-        let (obits, ml_add, ll_add) = br.get_bits_triple(of_code, ml_num_bits, ll_num_bits)?;
+        let (obits, ml_add, ll_add) = br.get_bits_triple(of_code, ml_num_bits, ll_num_bits);
         let offset = obits as u32 + (1u32 << of_code);
 
         if offset == 0 {
@@ -289,9 +292,9 @@ fn decode_sequences_without_rle(
             //    br.bits_remaining(),
             //    br.bits_remaining() / 8,
             //);
-            ll_dec.update_state(br)?;
-            ml_dec.update_state(br)?;
-            of_dec.update_state(br)?;
+            ll_dec.update_state(br);
+            ml_dec.update_state(br);
+            of_dec.update_state(br);
         }
 
         if br.bits_remaining() < 0 {
@@ -335,7 +338,7 @@ fn lookup_ll_code(code: u8) -> (u32, u8) {
         33 => (16384, 14),
         34 => (32768, 15),
         35 => (65536, 16),
-        _ => (0, 255),
+        _ => unreachable!("Illegal literal length code was: {}", code),
     }
 }
 
@@ -367,7 +370,7 @@ fn lookup_ml_code(code: u8) -> (u32, u8) {
         50 => (16387, 14),
         51 => (32771, 15),
         52 => (65539, 16),
-        _ => (0, 255),
+        _ => unreachable!("Illegal match length code was: {}", code),
     }
 }
 
@@ -405,6 +408,9 @@ fn maybe_update_fse_tables(
                 return Err(DecodeSequenceError::MissingByteForRleLlTable);
             }
             bytes_read += 1;
+            if source[0] > MAX_LITERAL_LENGTH_CODE {
+                return Err(DecodeSequenceError::MissingByteForRleMlTable);
+            }
             scratch.ll_rle = Some(source[0]);
         }
         ModeType::Predefined => {
@@ -437,6 +443,9 @@ fn maybe_update_fse_tables(
                 return Err(DecodeSequenceError::MissingByteForRleOfTable);
             }
             bytes_read += 1;
+            if of_source[0] > MAX_OFFSET_CODE {
+                return Err(DecodeSequenceError::MissingByteForRleMlTable);
+            }
             scratch.of_rle = Some(of_source[0]);
         }
         ModeType::Predefined => {
@@ -469,6 +478,9 @@ fn maybe_update_fse_tables(
                 return Err(DecodeSequenceError::MissingByteForRleMlTable);
             }
             bytes_read += 1;
+            if ml_source[0] > MAX_MATCH_LENGTH_CODE {
+                return Err(DecodeSequenceError::MissingByteForRleMlTable);
+            }
             scratch.ml_rle = Some(ml_source[0]);
         }
         ModeType::Predefined => {
@@ -522,7 +534,7 @@ const OFFSET_DEFAULT_DISTRIBUTION: [i32; 29] = [
 
 #[test]
 fn test_ll_default() {
-    let mut table = crate::fse::FSETable::new();
+    let mut table = crate::fse::FSETable::new(MAX_LITERAL_LENGTH_CODE);
     table
         .build_from_probabilities(
             LL_DEFAULT_ACC_LOG,

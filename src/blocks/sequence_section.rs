@@ -1,6 +1,10 @@
 //! Utilities and representations for the second half of a block, the sequence section.
 //! This section copies literals from the literals section into the decompressed output.
 
+pub(crate) const MAX_LITERAL_LENGTH_CODE: u8 = 35;
+pub(crate) const MAX_MATCH_LENGTH_CODE: u8 = 52;
+pub(crate) const MAX_OFFSET_CODE: u8 = 31;
+
 pub struct SequencesHeader {
     pub num_sequences: u32,
     pub modes: Option<CompressionModes>,

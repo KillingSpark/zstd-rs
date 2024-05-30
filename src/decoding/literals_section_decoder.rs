@@ -198,7 +198,7 @@ fn decompress_literals(
             //skip the 0 padding at the end of the last byte of the bit stream and throw away the first 1 found
             let mut skipped_bits = 0;
             loop {
-                let val = br.get_bits(1)?;
+                let val = br.get_bits(1);
                 skipped_bits += 1;
                 if val == 1 || skipped_bits > 8 {
                     break;
@@ -208,11 +208,11 @@ fn decompress_literals(
                 //if more than 7 bits are 0, this is not the correct end of the bitstream. Either a bug or corrupted data
                 return Err(DecompressLiteralsError::ExtraPadding { skipped_bits });
             }
-            decoder.init_state(&mut br)?;
+            decoder.init_state(&mut br);
 
             while br.bits_remaining() > -(scratch.table.max_num_bits as isize) {
                 target.push(decoder.decode_symbol());
-                decoder.next_state(&mut br)?;
+                decoder.next_state(&mut br);
             }
             if br.bits_remaining() != -(scratch.table.max_num_bits as isize) {
                 return Err(DecompressLiteralsError::BitstreamReadMismatch {
@@ -230,7 +230,7 @@ fn decompress_literals(
         let mut br = BitReaderReversed::new(source);
         let mut skipped_bits = 0;
         loop {
-            let val = br.get_bits(1)?;
+            let val = br.get_bits(1);
             skipped_bits += 1;
             if val == 1 || skipped_bits > 8 {
                 break;
@@ -240,10 +240,10 @@ fn decompress_literals(
             //if more than 7 bits are 0, this is not the correct end of the bitstream. Either a bug or corrupted data
             return Err(DecompressLiteralsError::ExtraPadding { skipped_bits });
         }
-        decoder.init_state(&mut br)?;
+        decoder.init_state(&mut br);
         while br.bits_remaining() > -(scratch.table.max_num_bits as isize) {
             target.push(decoder.decode_symbol());
-            decoder.next_state(&mut br)?;
+            decoder.next_state(&mut br);
         }
         bytes_read += source.len() as u32;
     }

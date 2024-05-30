@@ -9,3 +9,6 @@ This document records the changes made between versions, starting with version 0
 
 # After 0.6.0
 * Small fix in the zstd binary, progress tracking was slighty off for skippable frames resulting in an error only when the last frame in a file was skippable
+* Small performance improvement by reorganizing code with `#[cold]` annotations
+* Documentation for `StreamDecoder` mentioning the limitations around multiple frames (https://github.com/Sorseg)
+* Documentation around skippable frames (https://github.com/Sorseg)
