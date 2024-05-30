@@ -142,7 +142,7 @@ impl HuffmanTable {
             bits: Vec::with_capacity(256),
             bit_ranks: Vec::with_capacity(11),
             rank_indexes: Vec::with_capacity(11),
-            fse_table: FSETable::new(),
+            fse_table: FSETable::new(100),
         }
     }
 

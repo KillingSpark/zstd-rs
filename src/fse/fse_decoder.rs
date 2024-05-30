@@ -3,17 +3,12 @@ use crate::decoding::bit_reader_reverse::{BitReaderReversed, GetBitsError};
 use alloc::vec::Vec;
 
 pub struct FSETable {
+    max_symbol: u8,
     pub decode: Vec<Entry>, //used to decode symbols, and calculate the next state
 
     pub accuracy_log: u8,
     pub symbol_probabilities: Vec<i32>, //used while building the decode Vector
     symbol_counter: Vec<u32>,
-}
-
-impl Default for FSETable {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -106,8 +101,9 @@ impl<'t> FSEDecoder<'t> {
 }
 
 impl FSETable {
-    pub fn new() -> FSETable {
+    pub fn new(max_symbol: u8) -> FSETable {
         FSETable {
+            max_symbol,
             symbol_probabilities: Vec::with_capacity(256), //will never be more than 256 symbols because u8
             symbol_counter: Vec::with_capacity(256), //will never be more than 256 symbols because u8
             decode: Vec::new(),                      //depending on acc_log.
@@ -136,7 +132,7 @@ impl FSETable {
         self.accuracy_log = 0;
 
         let bytes_read = self.read_probabilities(source, max_log)?;
-        self.build_decoding_table();
+        self.build_decoding_table()?;
 
         Ok(bytes_read)
     }
@@ -151,11 +147,15 @@ impl FSETable {
         }
         self.symbol_probabilities = probs.to_vec();
         self.accuracy_log = acc_log;
-        self.build_decoding_table();
-        Ok(())
+        self.build_decoding_table()
     }
 
-    fn build_decoding_table(&mut self) {
+    fn build_decoding_table(&mut self) -> Result<(), FSETableError> {
+        if self.symbol_probabilities.len() > self.max_symbol as usize + 1 {
+            return Err(FSETableError::TooManySymbols {
+                got: self.symbol_probabilities.len(),
+            });
+        }
         self.decode.clear();
 
         let table_size = 1 << self.accuracy_log;
@@ -227,6 +227,7 @@ impl FSETable {
             entry.base_line = bl;
             entry.num_bits = nb;
         }
+        Ok(())
     }
 
     fn read_probabilities(&mut self, source: &[u8], max_log: u8) -> Result<usize, FSETableError> {
@@ -299,7 +300,7 @@ impl FSETable {
                 symbol_probabilities: self.symbol_probabilities.clone(),
             });
         }
-        if self.symbol_probabilities.len() > 256 {
+        if self.symbol_probabilities.len() > self.max_symbol as usize + 1 {
             return Err(FSETableError::TooManySymbols {
                 got: self.symbol_probabilities.len(),
             });
@@ -310,6 +311,7 @@ impl FSETable {
         } else {
             (br.bits_read() / 8) + 1
         };
+
         Ok(bytes_read)
     }
 }
