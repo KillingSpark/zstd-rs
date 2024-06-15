@@ -42,49 +42,19 @@ pub enum LiteralsSectionType {
     Treeless,
 }
 
-#[derive(Debug)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum LiteralsSectionParseError {
+    #[display(fmt = "Illegal literalssectiontype. Is: {got}, must be in: 0, 1, 2, 3")]
     IllegalLiteralSectionType { got: u8 },
+    #[display(fmt = "{_0:?}")]
+    #[from]
     GetBitsError(GetBitsError),
+    #[display(
+        fmt = "Not enough byte to parse the literals section header. Have: {have}, Need: {need}"
+    )]
     NotEnoughBytes { have: usize, need: u8 },
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for LiteralsSectionParseError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            LiteralsSectionParseError::GetBitsError(source) => Some(source),
-            _ => None,
-        }
-    }
-}
-impl core::fmt::Display for LiteralsSectionParseError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            LiteralsSectionParseError::IllegalLiteralSectionType { got } => {
-                write!(
-                    f,
-                    "Illegal literalssectiontype. Is: {}, must be in: 0, 1, 2, 3",
-                    got
-                )
-            }
-            LiteralsSectionParseError::GetBitsError(e) => write!(f, "{:?}", e),
-            LiteralsSectionParseError::NotEnoughBytes { have, need } => {
-                write!(
-                    f,
-                    "Not enough byte to parse the literals section header. Have: {}, Need: {}",
-                    have, need,
-                )
-            }
-        }
-    }
-}
-
-impl From<GetBitsError> for LiteralsSectionParseError {
-    fn from(val: GetBitsError) -> Self {
-        Self::GetBitsError(val)
-    }
 }
 
 impl core::fmt::Display for LiteralsSectionType {

@@ -92,27 +92,14 @@ impl Default for SequencesHeader {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, derive_more::Display)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum SequencesHeaderParseError {
+    #[display(
+        fmt = "source must have at least {need_at_least} bytes to parse header; got {got} bytes"
+    )]
     NotEnoughBytes { need_at_least: u8, got: usize },
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for SequencesHeaderParseError {}
-
-impl core::fmt::Display for SequencesHeaderParseError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            SequencesHeaderParseError::NotEnoughBytes { need_at_least, got } => {
-                write!(
-                    f,
-                    "source must have at least {} bytes to parse header; got {} bytes",
-                    need_at_least, got,
-                )
-            }
-        }
-    }
 }
 
 impl SequencesHeader {
