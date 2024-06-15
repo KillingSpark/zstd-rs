@@ -32,74 +32,27 @@ pub struct FSETable {
     symbol_counter: Vec<u32>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum FSETableError {
+    #[display(fmt = "Acclog must be at least 1")]
     AccLogIsZero,
-    AccLogTooBig {
-        got: u8,
-        max: u8,
-    },
+    #[display(fmt = "Found FSE acc_log: {got} bigger than allowed maximum in this case: {max}")]
+    AccLogTooBig { got: u8, max: u8 },
+    #[display(fmt = "{_0:?}")]
+    #[from]
     GetBitsError(GetBitsError),
+    #[display(
+        fmt = "The counter ({got}) exceeded the expected sum: {expected_sum}. This means an error or corrupted data \n {symbol_probabilities:?}"
+    )]
     ProbabilityCounterMismatch {
         got: u32,
         expected_sum: u32,
         symbol_probabilities: Vec<i32>,
     },
-    TooManySymbols {
-        got: usize,
-    },
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for FSETableError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            FSETableError::GetBitsError(source) => Some(source),
-            _ => None,
-        }
-    }
-}
-
-impl core::fmt::Display for FSETableError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            FSETableError::AccLogIsZero => write!(f, "Acclog must be at least 1"),
-            FSETableError::AccLogTooBig { got, max } => {
-                write!(
-                    f,
-                    "Found FSE acc_log: {0} bigger than allowed maximum in this case: {1}",
-                    got, max
-                )
-            }
-            FSETableError::GetBitsError(e) => write!(f, "{:?}", e),
-            FSETableError::ProbabilityCounterMismatch {
-                got,
-                expected_sum,
-                symbol_probabilities,
-            } => {
-                write!(f,
-                    "The counter ({}) exceeded the expected sum: {}. This means an error or corrupted data \n {:?}",
-                    got,
-                    expected_sum,
-                    symbol_probabilities,
-                )
-            }
-            FSETableError::TooManySymbols { got } => {
-                write!(
-                    f,
-                    "There are too many symbols in this distribution: {}. Max: 256",
-                    got,
-                )
-            }
-        }
-    }
-}
-
-impl From<GetBitsError> for FSETableError {
-    fn from(val: GetBitsError) -> Self {
-        Self::GetBitsError(val)
-    }
+    #[display(fmt = "There are too many symbols in this distribution: {got}. Max: 256")]
+    TooManySymbols { got: usize },
 }
 
 pub struct FSEDecoder<'table> {
@@ -109,38 +62,15 @@ pub struct FSEDecoder<'table> {
     table: &'table FSETable,
 }
 
-#[derive(Debug)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum FSEDecoderError {
+    #[display(fmt = "{_0:?}")]
+    #[from]
     GetBitsError(GetBitsError),
+    #[display(fmt = "Tried to use an uninitialized table!")]
     TableIsUninitialized,
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for FSEDecoderError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            FSEDecoderError::GetBitsError(source) => Some(source),
-            _ => None,
-        }
-    }
-}
-
-impl core::fmt::Display for FSEDecoderError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            FSEDecoderError::GetBitsError(e) => write!(f, "{:?}", e),
-            FSEDecoderError::TableIsUninitialized => {
-                write!(f, "Tried to use an uninitialized table!")
-            }
-        }
-    }
-}
-
-impl From<GetBitsError> for FSEDecoderError {
-    fn from(val: GetBitsError) -> Self {
-        Self::GetBitsError(val)
-    }
 }
 
 /// A single entry in an FSE table.

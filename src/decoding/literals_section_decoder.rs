@@ -7,105 +7,41 @@ use super::scratch::HuffmanScratch;
 use crate::huff0::{HuffmanDecoder, HuffmanDecoderError, HuffmanTableError};
 use alloc::vec::Vec;
 
-#[derive(Debug)]
+#[derive(Debug, derive_more::Display, derive_more::From)]
+#[cfg_attr(feature = "std", derive(derive_more::Error))]
 #[non_exhaustive]
 pub enum DecompressLiteralsError {
+    #[display(
+        fmt = "compressed size was none even though it must be set to something for compressed literals"
+    )]
     MissingCompressedSize,
+    #[display(
+        fmt = "num_streams was none even though it must be set to something (1 or 4) for compressed literals"
+    )]
     MissingNumStreams,
+    #[display(fmt = "{_0:?}")]
+    #[from]
     GetBitsError(GetBitsError),
+    #[display(fmt = "{_0:?}")]
+    #[from]
     HuffmanTableError(HuffmanTableError),
+    #[display(fmt = "{_0:?}")]
+    #[from]
     HuffmanDecoderError(HuffmanDecoderError),
+    #[display(fmt = "Tried to reuse huffman table but it was never initialized")]
     UninitializedHuffmanTable,
+    #[display(fmt = "Need 6 bytes to decode jump header, got {got} bytes")]
     MissingBytesForJumpHeader { got: usize },
+    #[display(fmt = "Need at least {needed} bytes to decode literals. Have: {got} bytes")]
     MissingBytesForLiterals { got: usize, needed: usize },
+    #[display(
+        fmt = "Padding at the end of the sequence_section was more than a byte long: {skipped_bits} bits. Probably caused by data corruption"
+    )]
     ExtraPadding { skipped_bits: i32 },
+    #[display(fmt = "Bitstream was read till: {read_til}, should have been: {expected}")]
     BitstreamReadMismatch { read_til: isize, expected: isize },
+    #[display(fmt = "Did not decode enough literals: {decoded}, Should have been: {expected}")]
     DecodedLiteralCountMismatch { decoded: usize, expected: usize },
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for DecompressLiteralsError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            DecompressLiteralsError::GetBitsError(source) => Some(source),
-            DecompressLiteralsError::HuffmanTableError(source) => Some(source),
-            DecompressLiteralsError::HuffmanDecoderError(source) => Some(source),
-            _ => None,
-        }
-    }
-}
-impl core::fmt::Display for DecompressLiteralsError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            DecompressLiteralsError::MissingCompressedSize => {
-                write!(f,
-                    "compressed size was none even though it must be set to something for compressed literals",
-                )
-            }
-            DecompressLiteralsError::MissingNumStreams => {
-                write!(f,
-                    "num_streams was none even though it must be set to something (1 or 4) for compressed literals",
-                )
-            }
-            DecompressLiteralsError::GetBitsError(e) => write!(f, "{:?}", e),
-            DecompressLiteralsError::HuffmanTableError(e) => write!(f, "{:?}", e),
-            DecompressLiteralsError::HuffmanDecoderError(e) => write!(f, "{:?}", e),
-            DecompressLiteralsError::UninitializedHuffmanTable => {
-                write!(
-                    f,
-                    "Tried to reuse huffman table but it was never initialized",
-                )
-            }
-            DecompressLiteralsError::MissingBytesForJumpHeader { got } => {
-                write!(f, "Need 6 bytes to decode jump header, got {} bytes", got,)
-            }
-            DecompressLiteralsError::MissingBytesForLiterals { got, needed } => {
-                write!(
-                    f,
-                    "Need at least {} bytes to decode literals. Have: {} bytes",
-                    needed, got,
-                )
-            }
-            DecompressLiteralsError::ExtraPadding { skipped_bits } => {
-                write!(f,
-                    "Padding at the end of the sequence_section was more than a byte long: {} bits. Probably caused by data corruption",
-                    skipped_bits,
-                )
-            }
-            DecompressLiteralsError::BitstreamReadMismatch { read_til, expected } => {
-                write!(
-                    f,
-                    "Bitstream was read till: {}, should have been: {}",
-                    read_til, expected,
-                )
-            }
-            DecompressLiteralsError::DecodedLiteralCountMismatch { decoded, expected } => {
-                write!(
-                    f,
-                    "Did not decode enough literals: {}, Should have been: {}",
-                    decoded, expected,
-                )
-            }
-        }
-    }
-}
-
-impl From<HuffmanDecoderError> for DecompressLiteralsError {
-    fn from(val: HuffmanDecoderError) -> Self {
-        Self::HuffmanDecoderError(val)
-    }
-}
-
-impl From<GetBitsError> for DecompressLiteralsError {
-    fn from(val: GetBitsError) -> Self {
-        Self::GetBitsError(val)
-    }
-}
-
-impl From<HuffmanTableError> for DecompressLiteralsError {
-    fn from(val: HuffmanTableError) -> Self {
-        Self::HuffmanTableError(val)
-    }
 }
 
 /// Decode and decompress the provided literals section into `target`, returning the number of bytes read.
