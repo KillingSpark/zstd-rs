@@ -374,7 +374,7 @@ fn test_streaming() {
 }
 
 #[test]
-fn test_small_read() {
+fn test_incremental_read() {
     use crate::frame_decoder::FrameDecoder;
     use std::fs;
     use std::io::Read;
@@ -435,8 +435,6 @@ fn test_small_read() {
     assert_eq!(output.map(char::from), ['a', 'b', 'c']);
 
     assert!(frame_dec.is_finished());
-    // HANGS HERE - infinite loop in `write_all_bytes` because the loop does not exit until
-    // the entire buffer is dumped, but writing does not progress once `output` is filled.
     let written = frame_dec.collect_to_writer(&mut &mut output[..]).unwrap();
     assert_eq!(written, 3);
     assert_eq!(output.map(char::from), ['d', 'e', 'f']);

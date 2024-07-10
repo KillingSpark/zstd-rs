@@ -255,10 +255,8 @@ impl DecodeBuffer {
     }
 
     pub fn drain_to_writer(&mut self, mut sink: impl Write) -> Result<usize, Error> {
-        let len = self.buffer.len();
-        self.drain_to(len, |buf| write_all_bytes(&mut sink, buf))?;
-
-        Ok(len)
+        let write_limit = self.buffer.len();
+        self.drain_to(write_limit, |buf| write_all_bytes(&mut sink, buf))
     }
 
     pub fn read_all(&mut self, target: &mut [u8]) -> Result<usize, Error> {
@@ -280,9 +278,9 @@ impl DecodeBuffer {
         &mut self,
         amount: usize,
         mut write_bytes: impl FnMut(&[u8]) -> (usize, Result<(), Error>),
-    ) -> Result<(), Error> {
+    ) -> Result<usize, Error> {
         if amount == 0 {
-            return Ok(());
+            return Ok(0);
         }
 
         struct DrainGuard<'a> {
@@ -329,10 +327,11 @@ impl DecodeBuffer {
             }
         }
 
+        let amount_written = drain_guard.amount;
         // Make sure we don't accidentally drop `DrainGuard` earlier.
         drop(drain_guard);
 
-        Ok(())
+        Ok(amount_written)
     }
 }
 
@@ -341,6 +340,7 @@ fn write_all_bytes(mut sink: impl Write, buf: &[u8]) -> (usize, Result<(), Error
     let mut written = 0;
     while written < buf.len() {
         match sink.write(&buf[written..]) {
+            Ok(0) => return (written, Ok(())),
             Ok(w) => written += w,
             Err(e) => return (written, Err(e)),
         }
