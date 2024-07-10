@@ -374,6 +374,75 @@ fn test_streaming() {
 }
 
 #[test]
+fn test_small_read() {
+    use crate::frame_decoder::FrameDecoder;
+    use std::fs;
+    use std::io::Read;
+
+    struct CountingReader<R: Read> {
+        inner: R,
+        bytes_read: usize,
+    }
+
+    impl<R: Read> CountingReader<R> {
+        fn new(inner: R) -> Self {
+            CountingReader {
+                inner,
+                bytes_read: 0,
+            }
+        }
+
+        fn bytes_read(&self) -> usize {
+            self.bytes_read
+        }
+    }
+
+    impl<R: Read> Read for CountingReader<R> {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            let n = self.inner.read(buf)?;
+            self.bytes_read += n;
+            Ok(n)
+        }
+    }
+
+    let expected_header_length = 6;
+    let expected_content_length = 33;
+    let expected_file_length = expected_header_length + expected_content_length;
+
+    let input_path = "./decodecorpus_files/abc.txt.zst";
+    let file_length = fs::metadata(input_path).unwrap().len() as usize;
+    assert_eq!(file_length, expected_file_length);
+
+    let mut input = CountingReader::new(fs::File::open(input_path).unwrap());
+
+    let mut frame_dec = FrameDecoder::new();
+    frame_dec.reset(&mut input).unwrap();
+    assert_eq!(input.bytes_read, expected_header_length);
+
+    let mut unread_compressed_content = vec![];
+    input.read_to_end(&mut unread_compressed_content).unwrap();
+    assert_eq!(unread_compressed_content.len(), expected_content_length);
+    assert_eq!(input.bytes_read, expected_file_length);
+
+    let mut index = 0;
+    let mut output = [0u8; 3];
+    let (read, written) = frame_dec
+        .decode_from_to(&unread_compressed_content[index..], &mut output)
+        .unwrap();
+    index += read;
+    assert_eq!(read, expected_content_length);
+    assert_eq!(written, 3);
+    assert_eq!(output.map(char::from), ['a', 'b', 'c']);
+
+    assert!(frame_dec.is_finished());
+    // HANGS HERE - infinite loop in `write_all_bytes` because the loop does not exit until
+    // the entire buffer is dumped, but writing does not progress once `output` is filled.
+    let written = frame_dec.collect_to_writer(&mut &mut output[..]).unwrap();
+    assert_eq!(written, 3);
+    assert_eq!(output.map(char::from), ['d', 'e', 'f']);
+}
+
+#[test]
 #[cfg(not(feature = "std"))]
 fn test_streaming_no_std() {
     use crate::io::Read;
