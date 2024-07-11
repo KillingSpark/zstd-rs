@@ -232,8 +232,7 @@ impl DecodeBuffer {
         match self.can_drain_to_window_size() {
             None => Ok(0),
             Some(can_drain) => {
-                self.drain_to(can_drain, |buf| write_all_bytes(&mut sink, buf))?;
-                Ok(can_drain)
+                self.drain_to(can_drain, |buf| write_all_bytes(&mut sink, buf))
             }
         }
     }
