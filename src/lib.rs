@@ -20,6 +20,7 @@ macro_rules! vprintln {
 
 pub mod blocks;
 pub mod decoding;
+pub mod encoding;
 pub mod frame;
 pub mod frame_decoder;
 pub mod fse;
