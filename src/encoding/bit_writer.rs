@@ -50,6 +50,9 @@ impl BitWriter {
     /// `num_bits` refers to how many bits starting from the *least significant position*,
     /// but the bits will be written starting from the *most significant position*, continuing
     /// to the least significant position.
+    /// 
+    /// It's up to the caller to ensure that any in the cursor beyond `num_bits` is always zero.
+    /// If it's not, the output buffer will be corrupt.
     ///
     /// TODO: example usage
     pub fn write_bits(&mut self, bits: &[u8], num_bits: usize) -> usize {
@@ -62,8 +65,8 @@ impl BitWriter {
             return num_bits;
         }
 
-        // Find the total size of the buffer in bits, then round up to the nearest multiple of 8
-        // to find how many *bytes* that would occupy.
+        // Make sure there's space for the new bits by finding the total size of the buffer in bits, then round up to the nearest multiple of 8
+        // to find how many *bytes* that would occupy. After that, expand the vec to the new size.
         let new_size_of_output = (self.bit_idx + num_bits + 7) >> 3;
         let size_of_extension = new_size_of_output - self.output.len();
         let new_chunk: Vec<u8> = vec![0; size_of_extension];
@@ -76,8 +79,10 @@ impl BitWriter {
             // byte that the cursor is currently indexed into
             let num_bits_left_in_output_byte = 8 - (self.bit_idx % 8);
             // The number of bits left to write in the currently selected input buffer byte
-            let num_bits_left_in_input_byte = ((num_bits - num_bits_written) % 8);
-            // let num_bits_left_in_input_byte = 8 - ((num_bits - num_bits_written) % 8);
+            let mut num_bits_left_in_input_byte = ((num_bits - num_bits_written) % 8);
+            if num_bits_left_in_input_byte == 0 {
+                num_bits_left_in_input_byte = 8;
+            }
             // The byte that we're currently reading from in the input
             let input_byte_index: usize = num_bits_written / 8;
             let byte_index_to_update = self.bit_idx / 8;
@@ -128,10 +133,12 @@ impl BitWriter {
                 }
                 // Shift the bits left
                 let num_spots_to_move_left = 8 - num_bits_being_added - num_bits_already_in_byte;
-                println!("\t\tShifting input byte left (8 - {num_bits_being_added} - {num_bits_already_in_byte} = {num_spots_to_move_left} spots)");
+                println!("\t\tShifting input byte {:b} left (8 - {num_bits_being_added} - {num_bits_already_in_byte} = {num_spots_to_move_left} spots)", bits[input_byte_index]);
                 // Combine it with the existing data
                 let aligned_byte = bits[input_byte_index] << num_spots_to_move_left;
+                println!("\t\tAligned byte: {aligned_byte:b}");
                 let merged_byte = self.output[byte_index_to_update] | aligned_byte;
+                println!("\t\tMerged byte: {merged_byte:b}");
                 // Write changes to the output buffer
                 self.output[byte_index_to_update] = merged_byte;
 
@@ -139,6 +146,9 @@ impl BitWriter {
                 // the number of bits being added
                 num_bits_written += num_bits_being_added;
                 self.bit_idx += num_bits_being_added;
+                if num_bits_being_added == 0 {
+                    panic!("Everything is broken");
+                }
                 println!("\t\tWrote {num_bits_being_added} bits into buffer (Case 1)");
             } else {
                 println!("\tCase 2: There's not enough free space in the output byte ({num_bits_left_in_output_byte} bits) \
@@ -175,7 +185,7 @@ impl BitWriter {
                 //  of bits already occupied in the buffer.
 
                 // Shift the bits left to zero out any data behind the read cursor
-                println!("\t\t Unadjusted byte is {:b}", bits[input_byte_index]);
+                println!("\t\tUnadjusted byte is {:b}", bits[input_byte_index]);
                 let num_spots_to_move_left = (8 - num_bits_left_in_input_byte) % 8;
                 println!("\t\tMoving input data {num_spots_to_move_left} spots to the left for masking");
                 let masked_byte = bits[input_byte_index] << num_spots_to_move_left;
@@ -204,7 +214,7 @@ impl BitWriter {
     pub fn dump(self) -> Result<Vec<u8>, BitWriterError> {
         let mut display_str = String::new();
         for byte in self.output.iter() {
-            display_str += &format!("{byte:b}");
+            display_str += &format!("_{byte:b}");
         }
         println!("Dumping buffer: {display_str}");
         if self.bit_idx % 8 != 0 {
@@ -306,12 +316,13 @@ mod tests {
         assert_eq!(vec![0b1111_0000, 0b0111_1111], bw.dump().unwrap());
     }
 
+    #[test]
     fn multi_byte_boundary_crossed_1_9_6() {
         // Writing 1 1 and then 9 zeros then 6 1s
         let mut bw = BitWriter::new();
         bw.write_bits(&[0b0000_0001], 1);
         bw.write_bits(&[0, 0b1010_1010], 9);
-        bw.write_bits(&[0b1011_1111], 6);
+        bw.write_bits(&[0b0011_1111], 6);
         assert_eq!(vec![0b1000_0000, 0b0011_1111], bw.dump().unwrap());
     }
 
