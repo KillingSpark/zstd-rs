@@ -44,6 +44,7 @@ impl BitWriter {
         // Special handling for if both the input and output are byte aligned
         if self.bit_idx % 8 == 0 && num_bits / 8 == bits.len().try_into().unwrap() {
             self.output.extend_from_slice(bits);
+            self.bit_idx += num_bits;
             return num_bits;
         }
 
@@ -258,11 +259,12 @@ mod tests {
     }
 
     #[test]
-    fn multi_byte_clean_boundary_16() {
+    fn multi_byte_clean_boundary_16_8() {
         // Writing 16 bits at once
         let mut bw = BitWriter::new();
         bw.write_bits(&[1, 0], 16);
-        assert_eq!(vec![1, 0], bw.dump().unwrap())
+        bw.write_bits(&[69], 8);
+        assert_eq!(vec![1, 0, 69], bw.dump().unwrap())
     }
 
     #[test]
