@@ -1,10 +1,5 @@
 use alloc::vec;
 use alloc::vec::Vec;
-use std::format;
-use std::string::String;
-use std::println;
-#[cfg(feature = "std")]
-use std::error::Error as StdError;
 
 /// An interface for writing an arbitrary number of bits into a buffer
 pub(crate) struct BitWriter {
@@ -56,8 +51,6 @@ impl BitWriter {
     ///
     /// TODO: example usage
     pub fn write_bits(&mut self, bits: &[u8], num_bits: usize) -> usize {
-        println!("Writing {num_bits} bits from buffer {bits:?}");
-
         // Special handling for if both the input and output are byte aligned
         if self.bit_idx % 8 == 0 && num_bits / 8 == bits.len() {
             self.output.extend_from_slice(bits);
@@ -86,11 +79,7 @@ impl BitWriter {
             // The byte that we're currently reading from in the input
             let input_byte_index: usize = num_bits_written / 8;
             let byte_index_to_update = self.bit_idx / 8;
-            println!("\tNum bits left in input byte before boundary or end of data: {} bits", num_bits_left_in_input_byte);
-            println!("\tNum bits left in output byte before boundary:               {} bits", num_bits_left_in_output_byte);
             if num_bits_left_in_output_byte >= num_bits_left_in_input_byte {
-                println!("\tCase 1: There's enough free space left in the output byte ({num_bits_left_in_output_byte} bits) \
-                to read from the input byte ({num_bits_left_in_input_byte} bits)");
                 // Case 1: We read from the input until the next input byte boundary (or end of data), because
                 // there's more free space in the output byte then there are bits to read in the input byte.
 
@@ -133,12 +122,9 @@ impl BitWriter {
                 }
                 // Shift the bits left
                 let num_spots_to_move_left = 8 - num_bits_being_added - num_bits_already_in_byte;
-                println!("\t\tShifting input byte {:b} left (8 - {num_bits_being_added} - {num_bits_already_in_byte} = {num_spots_to_move_left} spots)", bits[input_byte_index]);
                 // Combine it with the existing data
                 let aligned_byte = bits[input_byte_index] << num_spots_to_move_left;
-                println!("\t\tAligned byte: {aligned_byte:b}");
                 let merged_byte = self.output[byte_index_to_update] | aligned_byte;
-                println!("\t\tMerged byte: {merged_byte:b}");
                 // Write changes to the output buffer
                 self.output[byte_index_to_update] = merged_byte;
 
@@ -146,13 +132,7 @@ impl BitWriter {
                 // the number of bits being added
                 num_bits_written += num_bits_being_added;
                 self.bit_idx += num_bits_being_added;
-                if num_bits_being_added == 0 {
-                    panic!("Everything is broken");
-                }
-                println!("\t\tWrote {num_bits_being_added} bits into buffer (Case 1)");
             } else {
-                println!("\tCase 2: There's not enough free space in the output byte ({num_bits_left_in_output_byte} bits) \
-                to read the whole input byte ({num_bits_left_in_input_byte} bits), reading as much as we can");
                 // Case 2: There's not enough free space in the output byte to read till the next input byte boundary, so we
                 // read to the next output byte boundary.
 
@@ -185,14 +165,10 @@ impl BitWriter {
                 //  of bits already occupied in the buffer.
 
                 // Shift the bits left to zero out any data behind the read cursor
-                println!("\t\tUnadjusted byte is {:b}", bits[input_byte_index]);
                 let num_spots_to_move_left = (8 - num_bits_left_in_input_byte) % 8;
-                println!("\t\tMoving input data {num_spots_to_move_left} spots to the left for masking");
                 let masked_byte = bits[input_byte_index] << num_spots_to_move_left;
-                println!("\t\tAfter masking, masked byte is {masked_byte:b}");
                 // Shift the bits right so that the data is inserted into the next free spot
                 let aligned_byte = masked_byte >> (self.bit_idx % 8);
-                println!("\t\tAfter alignment, aligned byte byte is {aligned_byte:b}");
                 // // Combine our newly aligned byte with the output byte
                 let merged_byte = self.output[byte_index_to_update] | aligned_byte;
                 // Write changes to the output buffer
@@ -201,7 +177,6 @@ impl BitWriter {
                 // the number of bits being added
                 num_bits_written += num_bits_left_in_output_byte;
                 self.bit_idx += num_bits_left_in_output_byte;
-                println!("\t\tWrote {num_bits_left_in_output_byte}/{num_bits_left_in_input_byte} bits into buffer (Case 2)");
             }
         }
         num_bits_written
@@ -212,11 +187,6 @@ impl BitWriter {
     /// This function consumes the writer, so it cannot be used after
     /// dumping
     pub fn dump(self) -> Result<Vec<u8>, BitWriterError> {
-        let mut display_str = String::new();
-        for byte in self.output.iter() {
-            display_str += &format!("_{byte:b}");
-        }
-        println!("Dumping buffer: {display_str}");
         if self.bit_idx % 8 != 0 {
             return Err(BitWriterError::NotByteAligned);
         }
