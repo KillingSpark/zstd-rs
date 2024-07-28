@@ -2,7 +2,9 @@ use alloc::vec;
 use alloc::vec::Vec;
 use std::format;
 use std::string::String;
-use std::{convert::TryInto, println};
+use std::println;
+#[cfg(feature = "std")]
+use std::error::Error as StdError;
 
 /// An interface for writing an arbitrary number of bits into a buffer
 pub(crate) struct BitWriter {
@@ -10,18 +12,31 @@ pub(crate) struct BitWriter {
     output: Vec<u8>,
     /// The index pointing to the next unoccupied bit. Effectively just
     /// the number of bits that have been written into the buffer so far.
-    bit_idx: u32,
+    bit_idx: usize,
 }
 
 #[derive(Debug, PartialEq)]
-#[non_exhaustive]
 pub enum BitWriterError {
     NotByteAligned,
+    MoreBitsThanInbuf,
+}
+
+impl core::fmt::Display for BitWriterError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            BitWriterError::NotByteAligned => {
+                write!(f, "The number of bits written into the buffer does not cleanly divide by 8.")
+            },
+            BitWriterError::MoreBitsThanInbuf => {
+                write!(f, "Asked to write more bits into buffer than were provided by the `bits` buffer.")
+            }
+        }
+    }
 }
 
 impl BitWriter {
     /// Initialize a new writer. Write new bits into the buffer with `write_bits`, and
-    /// obtain the output using `dump`
+    /// obtain the output using `dump`.
     pub fn new() -> Self {
         Self {
             output: Vec::new(),
@@ -35,52 +50,42 @@ impl BitWriter {
     /// `num_bits` refers to how many bits starting from the *least significant position*,
     /// but the bits will be written starting from the *most significant position*, continuing
     /// to the least significant position.
-    /// 
-    /// # Panics
-    /// Will panic if conversion fails from num_bits to a usize.
     ///
     /// TODO: example usage
-    pub fn write_bits(&mut self, bits: &[u8], num_bits: u32) -> u32 {
+    pub fn write_bits(&mut self, bits: &[u8], num_bits: usize) -> usize {
+        println!("Writing {num_bits} bits from buffer {bits:?}");
+
         // Special handling for if both the input and output are byte aligned
-        if self.bit_idx % 8 == 0 && num_bits / 8 == bits.len().try_into().unwrap() {
+        if self.bit_idx % 8 == 0 && num_bits / 8 == bits.len() {
             self.output.extend_from_slice(bits);
             self.bit_idx += num_bits;
             return num_bits;
         }
 
-        // Allocate space for the new bits at the end of the array then fill that space
-        // https://users.rust-lang.org/t/solved-rust-round-usize-to-nearest-multiple-of-8/25549
         // Find the total size of the buffer in bits, then round up to the nearest multiple of 8
         // to find how many *bytes* that would occupy.
-        let new_size_of_output = (((self.bit_idx + num_bits) + 7) & !7) / 8;
-        let size_of_extension = new_size_of_output - self.output.len() as u32;
-        let new_chunk: Vec<u8> = vec![0; size_of_extension.try_into().unwrap()];
+        let new_size_of_output = (self.bit_idx + num_bits + 7) >> 3;
+        let size_of_extension = new_size_of_output - self.output.len();
+        let new_chunk: Vec<u8> = vec![0; size_of_extension];
         self.output.extend(new_chunk);
 
-        // The two sides of this control flow:
-        // We won't fill the current byte completely with the data left in the current input byte
-        //  In this case, we need to move that data all the way to the left and insert it
-        //  into the first unused space
-        // We will fill the current byte completely with the input data
-        //  In this case, we need to d
-        // Each loop only progresses either:
-        // - The input data index (num_bits_written) to the next byte boundary (or the end of the data)
-        // - The output data index (self.bit_idx) to the next byte boundary
         // We will never need to operate across a byte boundary in a single iteration of the loop.
-        let mut num_bits_written: u32 = 0;
+        let mut num_bits_written: usize = 0;
         while num_bits_written < num_bits {
             // The number of unoccupied bits in the output buffer
             // byte that the cursor is currently indexed into
-            let free_bits_in_current_byte = 8 - (self.bit_idx % 8);
+            let num_bits_left_in_output_byte = 8 - (self.bit_idx % 8);
             // The number of bits left to write in the currently selected input buffer byte
-            let num_bits_left_in_input_byte = 8 - ((num_bits - num_bits_written) % 8);
+            let num_bits_left_in_input_byte = ((num_bits - num_bits_written) % 8);
+            // let num_bits_left_in_input_byte = 8 - ((num_bits - num_bits_written) % 8);
             // The byte that we're currently reading from in the input
-            let input_byte_index: usize = (num_bits_written / 8).try_into().unwrap();
-            let byte_index_to_update = (self.bit_idx / 8) as usize;
-            println!("Free bits in current byte: {}", free_bits_in_current_byte);
-            println!("Num bits left in input byte: {}", num_bits_left_in_input_byte);
-            if free_bits_in_current_byte >= num_bits_left_in_input_byte {
-                println!("Case 1");
+            let input_byte_index: usize = num_bits_written / 8;
+            let byte_index_to_update = self.bit_idx / 8;
+            println!("\tNum bits left in input byte before boundary or end of data: {} bits", num_bits_left_in_input_byte);
+            println!("\tNum bits left in output byte before boundary:               {} bits", num_bits_left_in_output_byte);
+            if num_bits_left_in_output_byte >= num_bits_left_in_input_byte {
+                println!("\tCase 1: There's enough free space left in the output byte ({num_bits_left_in_output_byte} bits) \
+                to read from the input byte ({num_bits_left_in_input_byte} bits)");
                 // Case 1: We read from the input until the next input byte boundary (or end of data), because
                 // there's more free space in the output byte then there are bits to read in the input byte.
 
@@ -112,10 +117,18 @@ impl BitWriter {
                 //
                 // 111000──  ◄── The final buffer
 
-                let num_bits_already_in_byte = self.bit_idx % 8;
+                let num_bits_already_in_byte = 8 - num_bits_left_in_output_byte;
                 let num_bits_being_added = (num_bits - num_bits_written) % 8;
+                if num_bits_left_in_input_byte == 0 && num_bits_left_in_output_byte == 8 {
+                    // In this case, we're trying to shift all the way over to the next byte, so just update that next byte
+                    self.output[byte_index_to_update] = bits[input_byte_index];
+                    num_bits_written += 8;
+                    self.bit_idx += 8;
+                    continue;
+                }
                 // Shift the bits left
                 let num_spots_to_move_left = 8 - num_bits_being_added - num_bits_already_in_byte;
+                println!("\t\tShifting input byte left (8 - {num_bits_being_added} - {num_bits_already_in_byte} = {num_spots_to_move_left} spots)");
                 // Combine it with the existing data
                 let aligned_byte = bits[input_byte_index] << num_spots_to_move_left;
                 let merged_byte = self.output[byte_index_to_update] | aligned_byte;
@@ -126,8 +139,10 @@ impl BitWriter {
                 // the number of bits being added
                 num_bits_written += num_bits_being_added;
                 self.bit_idx += num_bits_being_added;
+                println!("\t\tWrote {num_bits_being_added} bits into buffer (Case 1)");
             } else {
-                println!("Case 2");
+                println!("\tCase 2: There's not enough free space in the output byte ({num_bits_left_in_output_byte} bits) \
+                to read the whole input byte ({num_bits_left_in_input_byte} bits), reading as much as we can");
                 // Case 2: There's not enough free space in the output byte to read till the next input byte boundary, so we
                 // read to the next output byte boundary.
 
@@ -160,18 +175,23 @@ impl BitWriter {
                 //  of bits already occupied in the buffer.
 
                 // Shift the bits left to zero out any data behind the read cursor
-                let num_spots_to_move_left = num_bits_written % 8;
+                println!("\t\t Unadjusted byte is {:b}", bits[input_byte_index]);
+                let num_spots_to_move_left = (8 - num_bits_left_in_input_byte) % 8;
+                println!("\t\tMoving input data {num_spots_to_move_left} spots to the left for masking");
                 let masked_byte = bits[input_byte_index] << num_spots_to_move_left;
+                println!("\t\tAfter masking, masked byte is {masked_byte:b}");
                 // Shift the bits right so that the data is inserted into the next free spot
                 let aligned_byte = masked_byte >> (self.bit_idx % 8);
+                println!("\t\tAfter alignment, aligned byte byte is {aligned_byte:b}");
                 // // Combine our newly aligned byte with the output byte
                 let merged_byte = self.output[byte_index_to_update] | aligned_byte;
                 // Write changes to the output buffer
                 self.output[byte_index_to_update] = merged_byte;
                 // Advance the bit cursor forwards and update
                 // the number of bits being added
-                num_bits_written += free_bits_in_current_byte;
-                self.bit_idx += free_bits_in_current_byte;
+                num_bits_written += num_bits_left_in_output_byte;
+                self.bit_idx += num_bits_left_in_output_byte;
+                println!("\t\tWrote {num_bits_left_in_output_byte}/{num_bits_left_in_input_byte} bits into buffer (Case 2)");
             }
         }
         num_bits_written
@@ -280,15 +300,20 @@ mod tests {
     fn multi_byte_boundary_crossed_4_5_7() {
         // Writing 4 1s and then 5 zeros then 7 1s
         let mut bw = BitWriter::new();
-        bw.write_bits(&[0b0000_1111], 4);
+        bw.write_bits(&[0b1010_1111], 4);
         bw.write_bits(&[0b1010_0000], 5);
         bw.write_bits(&[0b0111_1111], 7);
         assert_eq!(vec![0b1111_0000, 0b0111_1111], bw.dump().unwrap());
     }
-    // #[test]
-    // fn more_than_one_byte_written() {
-    //     todo!();
-    // }
+
+    fn multi_byte_boundary_crossed_1_9_6() {
+        // Writing 1 1 and then 9 zeros then 6 1s
+        let mut bw = BitWriter::new();
+        bw.write_bits(&[0b0000_0001], 1);
+        bw.write_bits(&[0, 0b1010_1010], 9);
+        bw.write_bits(&[0b1011_1111], 6);
+        assert_eq!(vec![0b1000_0000, 0b0011_1111], bw.dump().unwrap());
+    }
 
     #[test]
     fn catches_unaligned_dump() {
