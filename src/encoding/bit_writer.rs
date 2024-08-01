@@ -1,3 +1,4 @@
+//! Use [BitWriter] to write an arbitrary amount of bits into a buffer.
 use alloc::vec;
 use alloc::vec::Vec;
 
@@ -20,10 +21,16 @@ impl core::fmt::Display for BitWriterError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             BitWriterError::NotByteAligned => {
-                write!(f, "The number of bits written into the buffer does not cleanly divide by 8.")
-            },
+                write!(
+                    f,
+                    "The number of bits written into the buffer does not cleanly divide by 8."
+                )
+            }
             BitWriterError::MoreBitsThanInbuf => {
-                write!(f, "Asked to write more bits into buffer than were provided by the `bits` buffer.")
+                write!(
+                    f,
+                    "Asked to write more bits into buffer than were provided by the `bits` buffer."
+                )
             }
         }
     }
@@ -45,7 +52,7 @@ impl BitWriter {
     /// `num_bits` refers to how many bits starting from the *least significant position*,
     /// but the bits will be written starting from the *most significant position*, continuing
     /// to the least significant position.
-    /// 
+    ///
     /// It's up to the caller to ensure that any in the cursor beyond `num_bits` is always zero.
     /// If it's not, the output buffer will be corrupt.
     ///
@@ -72,7 +79,7 @@ impl BitWriter {
             // byte that the cursor is currently indexed into
             let num_bits_left_in_output_byte = 8 - (self.bit_idx % 8);
             // The number of bits left to write in the currently selected input buffer byte
-            let mut num_bits_left_in_input_byte = ((num_bits - num_bits_written) % 8);
+            let mut num_bits_left_in_input_byte = (num_bits - num_bits_written) % 8;
             if num_bits_left_in_input_byte == 0 {
                 num_bits_left_in_input_byte = 8;
             }
@@ -113,7 +120,7 @@ impl BitWriter {
 
                 let num_bits_already_in_byte = 8 - num_bits_left_in_output_byte;
                 let num_bits_being_added = (num_bits - num_bits_written) % 8;
-                if num_bits_left_in_input_byte == 0 && num_bits_left_in_output_byte == 8 {
+                if num_bits_left_in_input_byte == 8 && num_bits_left_in_output_byte == 8 {
                     // In this case, we're trying to shift all the way over to the next byte, so just update that next byte
                     self.output[byte_index_to_update] = bits[input_byte_index];
                     num_bits_written += 8;
@@ -143,7 +150,7 @@ impl BitWriter {
                 //
                 // 76543210◄─── Bit Index
                 // 111 ◄─────── Data already in buffer
-                //    000000◄── Data we want to add to the buffer (not yet aligned). 
+                //    000000◄── Data we want to add to the buffer (not yet aligned).
                 //
                 // You'll note that we can't do the same thing we did last time, because we have more data
                 // than will fit into the byte, so we need do this in multiple passes, writing data up to the boundary,
