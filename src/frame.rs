@@ -51,7 +51,7 @@ pub struct FrameHeader {
 
 /// The first byte is called the `Frame Header Descriptor`, and it describes what other fields
 /// are present.
-pub struct FrameDescriptor(u8);
+pub struct FrameDescriptor(pub u8);
 
 #[derive(Debug)]
 #[non_exhaustive]
@@ -223,7 +223,8 @@ impl From<FrameDescriptorError> for FrameHeaderError {
 }
 
 impl FrameHeader {
-    /// Read the size of the window from the header, returning the size in bytes.
+    /// Read the size of the window from the header or the total frame content size,
+    /// whichever is defined, returning the size in bytes.
     pub fn window_size(&self) -> Result<u64, FrameHeaderError> {
         if self.descriptor.single_segment_flag() {
             Ok(self.frame_content_size())
