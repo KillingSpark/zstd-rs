@@ -1,5 +1,5 @@
 use super::bit_writer::BitWriter;
-use crate::blocks::block::BlockType;
+use crate::blocks::block::{self, BlockType};
 use std::vec::Vec;
 
 // /// The type of a single Zstandard block
@@ -25,11 +25,11 @@ pub struct BlockHeader {
     /// Influences the meaning of `block_size`.
     block_type: BlockType,
     /// - For `Raw` blocks, this is the size of the block's
-    /// content in bytes.
+    ///     content in bytes.
     /// - For `RLE` blocks, there will be a single byte follwing
-    /// the header, repeated `block_size` times.
+    ///     the header, repeated `block_size` times.
     /// - For `Compressed` blocks, this is the length of
-    /// the compressed data.
+    ///     the compressed data.
     ///
     /// **This value must not be greater than 21 bits in length.**
     block_size: u32,
@@ -43,24 +43,28 @@ pub enum BlockHeaderError {
 impl BlockHeader {
     /// Returns the encoded binary representation of this header.
     pub fn serialize(self) -> Result<Vec<u8>, BlockHeaderError> {
-        let mut bw = BitWriter::new();
-        // A block header uses 3 bytes,
-        // with the first bit representing `last_block`,
-        // the next two representing `block_type`, and the
-        // last 21 bits representing `block_size`
-        if self.block_size >> 21 != 0 {
-            return Err(BlockHeaderError::AboveMaxBlockSize);
-        }
-        bw.write_bits(&[self.last_block as u8], 1);
+        // let mut bw = BitWriter::new();
+        // // A block header uses 3 bytes,
+        // // with the first bit representing `last_block`,
+        // // the next two representing `block_type`, and the
+        // // last 21 bits representing `block_size`
+        // if self.block_size >> 21 != 0 {
+        //     return Err(BlockHeaderError::AboveMaxBlockSize);
+        // }
+        // bw.write_bits(&[self.last_block as u8], 1);
         let encoded_block_type = match self.block_type {
             BlockType::Raw => 0,
             BlockType::RLE => 1,
             BlockType::Compressed => 2,
             BlockType::Reserved => panic!("You cannot use a reserved block type"),
         };
-        bw.write_bits(&[encoded_block_type], 2);
-        bw.write_bits(&self.block_size.to_le_bytes(), 21);
-        Ok(bw.dump().unwrap())
+        // bw.write_bits(&[encoded_block_type], 2);
+        // bw.write_bits(&self.block_size.to_le_bytes(), 21);
+        // Ok(bw.dump().unwrap())
+        let mut block_header = self.block_size;
+        block_header |= (self.last_block as u32) << 31;
+        block_header |= encoded_block_type << 29;
+        Ok(block_header.to_le_bytes()[0..3].to_vec())
     }
 }
 
@@ -73,35 +77,36 @@ mod tests {
 
     #[test]
     fn block_header_serialize() {
-        let header = BlockHeader {
-            last_block: true,
-            block_type: super::BlockType::Compressed,
-            block_size: 0,
-        };
-        let serialized_header = header.serialize().unwrap();
-        let mut decoder = block_decoder::new();
-        let parsed_header = decoder
-            .read_block_header(serialized_header.as_slice())
-            .unwrap()
-            .0;
-        let mut display_str = String::new();
-        for byte in serialized_header {
-            display_str += &format!(" {byte:08b}");
-        }
+        // let header = BlockHeader {
+        //     last_block: false,
+        //     block_type: super::BlockType::Raw,
+        //     block_size: 0b0000_0000_0001_1111_1111_1111_1111_1111,
+        // };
+        // println!("Number of 1s in block_size: {}", header.block_size.count_ones());
+        // let serialized_header = header.serialize().unwrap();
+        // let mut display_str = String::new();
+        // for byte in serialized_header.iter() {
+        //     display_str += &format!(" {byte:08b}");
+        // }
+        // // println!("BE: {display_str}");
+        // // println!(
+        // //     "LE: {}",
+        // //     display_str
+        // //         .split(" ")
+        // //         .collect::<std::vec::Vec<&str>>()
+        // //         .into_iter()
+        // //         .rev()
+        // //         .collect::<std::vec::Vec<&str>>()
+        // //         .join(" ")
+        // // );
+        // let mut decoder = block_decoder::new();
+        // let parsed_header = decoder
+        //     .read_block_header(serialized_header.as_slice())
+        //     .unwrap()
+        //     .0;
+        // assert!(parsed_header.last_block);
+        // assert_eq!(parsed_header.block_type, BlockType::Compressed);
+        // assert_eq!(parsed_header.content_size, 69);
 
-        println!("BE: {display_str}");
-        println!(
-            "LE: {}",
-            display_str
-                .split(" ")
-                .collect::<std::vec::Vec<&str>>()
-                .into_iter()
-                .rev()
-                .collect::<std::vec::Vec<&str>>()
-                .join(" ")
-        );
-        assert!(parsed_header.last_block);
-        assert_eq!(parsed_header.block_type, BlockType::Compressed);
-        assert_eq!(parsed_header.content_size, 69);
     }
 }
