@@ -18,3 +18,4 @@ This document records the changes made between versions, starting with version 0
 * Small improvement by removing the error cases from the reverse bitreader (and making sure invalid requests can't even happen)
 
 # After 0.7.0
+* Fix for drain_to functions into limited targets (https://github.com/michaelkirk)
