@@ -8,7 +8,7 @@ use std::vec::Vec;
 
 /// A header for a single Zstandard frame.
 ///
-/// https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#frame_header
+/// <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#frame_header>
 pub struct FrameHeader {
     /// Optionally, the original (uncompressed) size of the data within the frame in bytes.
     /// If not present, `window_size` must be set.
@@ -54,12 +54,11 @@ impl core::fmt::Display for FrameHeaderError {
 }
 
 impl FrameHeader {
-    /// Returns the serialized frame header.
+    /// Writes the serialized frame header into the provided buffer.
     ///
     /// The returned header *does include* a frame header descriptor.
-    pub fn serialize(self) -> Result<Vec<u8>, FrameHeaderError> {
+    pub fn serialize(self, output: &mut Vec<u8>) -> Result<(), FrameHeaderError> {
         // https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#frame_header
-        let mut output: Vec<u8> = Vec::with_capacity(14);
 
         // Magic Number:
         output.extend_from_slice(&frame::MAGIC_NUM.to_le_bytes());
@@ -83,7 +82,7 @@ impl FrameHeader {
             output.extend(minify_val(frame_content_size));
         }
 
-        Ok(output)
+        Ok(())
     }
 
     /// Generate a serialized frame header descriptor for the frame header.
@@ -178,6 +177,7 @@ impl FrameHeader {
 mod tests {
     use super::FrameHeader;
     use crate::frame::{read_frame_header, FrameDescriptor};
+    use std::vec::Vec;
 
     #[test]
     fn frame_header_descriptor_decode() {
@@ -206,8 +206,9 @@ mod tests {
             window_size: None,
         };
 
-        let serialized_header = header.serialize();
-        let parsed_header = read_frame_header(serialized_header.unwrap().as_slice())
+        let mut serialized_header = Vec::new();
+        header.serialize(&mut serialized_header).unwrap();
+        let parsed_header = read_frame_header(serialized_header.as_slice())
             .unwrap()
             .0
             .header;

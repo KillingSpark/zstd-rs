@@ -19,6 +19,7 @@ twox-hash = { version = "1.6", default-features = false, optional = true }
 [dev-dependencies]
 criterion = "0.5"
 rand = { version = "0.8.5", features = ["small_rng"] }
+zstd = "0.13.2"
 
 [features]
 default = ["hash", "std"]

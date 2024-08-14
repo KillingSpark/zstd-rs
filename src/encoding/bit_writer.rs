@@ -2,7 +2,8 @@
 use alloc::vec;
 use alloc::vec::Vec;
 
-/// An interface for writing an arbitrary number of bits into a buffer
+/// An interface for writing an arbitrary number of bits into a buffer. Write new bits into the buffer with `write_bits`, and
+/// obtain the output using `dump`.
 pub(crate) struct BitWriter {
     /// The buffer that's filled with bits
     output: Vec<u8>,
@@ -37,12 +38,19 @@ impl core::fmt::Display for BitWriterError {
 }
 
 impl BitWriter {
-    /// Initialize a new writer. Write new bits into the buffer with `write_bits`, and
-    /// obtain the output using `dump`.
+    /// Initialize a new writer.
     pub fn new() -> Self {
         Self {
             output: Vec::new(),
             bit_idx: 0,
+        }
+    }
+
+    /// Wrap a writer around an existing vec.
+    pub fn from(buf: Vec<u8>) -> Self {
+        Self {
+            bit_idx: buf.len() * 8,
+            output: buf,
         }
     }
 
@@ -206,6 +214,15 @@ mod tests {
     use super::BitWriter;
     use crate::encoding::bit_writer::BitWriterError;
     use std::vec;
+
+    #[test]
+    fn from_existing() {
+        // Define an existing vec, write some bits into it
+        let existing_vec = vec![255_u8];
+        let mut bw = BitWriter::from(existing_vec);
+        bw.write_bits(&[0], 8);
+        assert_eq!(vec![255, 0], bw.dump().unwrap());
+    }
 
     #[test]
     fn single_byte_written_4_4() {

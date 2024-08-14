@@ -1,4 +1,4 @@
-//! Zstandard compressed data is made of one or more [Frame]s. Each frame is independent and can be
+//! Zstandard compressed data is made of one or more Frames. Each frame is independent and can be
 //! decompressed independently of other frames. This module contains structures
 //! and utilities that can be used to decode a frame.
 

@@ -1,3 +1,14 @@
+//! A pure rust implementation of the [Zstandard compression algorithm](https://facebook.github.io/zstd/).
+//!
+//! This library has a complete implementation of a decompressor.
+//!
+//! # Getting Started
+//! ## Decompression
+//! Most users will probably want to use [`streaming_decoder::StreamingDecoder`].
+//!
+//! # Speed
+//!  The decoder has been measured to be roughly between 3.5 to 1.4 times slower
+//! than the original implementation.
 #![no_std]
 #![deny(trivial_casts, trivial_numeric_casts, rust_2018_idioms)]
 

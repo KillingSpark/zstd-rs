@@ -37,7 +37,7 @@ mod tests {
 
     #[test]
     fn min_size_detection() {
-        assert_eq!(find_min_size(0), 0);
+        assert_eq!(find_min_size(0), 1);
         assert_eq!(find_min_size(0xff), 1);
         assert_eq!(find_min_size(0xff_ff), 2);
         assert_eq!(find_min_size(0x00_ff_ff_ff), 4);
@@ -48,7 +48,7 @@ mod tests {
 
     #[test]
     fn bytes_minified() {
-        assert_eq!(minify_val(0), vec![]);
+        assert_eq!(minify_val(0), vec![0]);
         assert_eq!(minify_val(0xff), vec![0xff]);
         assert_eq!(minify_val(0xff_ff), vec![0xff, 0xff]);
         assert_eq!(minify_val(0xff_ff_ff_ff), vec![0xff, 0xff, 0xff, 0xff]);

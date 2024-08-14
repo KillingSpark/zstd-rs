@@ -484,4 +484,5 @@ fn test_streaming_no_std() {
 pub mod bit_reader;
 pub mod decode_corpus;
 pub mod dict_test;
+pub mod encode_corpus;
 pub mod fuzz_regressions;
