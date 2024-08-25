@@ -13,7 +13,6 @@ keywords = ["zstd", "zstandard", "decompression"]
 categories = ["compression"]
 
 [dependencies]
-byteorder = { version = "1.5", default-features = false }
 twox-hash = { version = "1.6", default-features = false, optional = true }
 
 [dev-dependencies]
