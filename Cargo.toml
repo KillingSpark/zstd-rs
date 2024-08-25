@@ -15,6 +15,12 @@ categories = ["compression"]
 [dependencies]
 twox-hash = { version = "1.6", default-features = false, optional = true }
 
+# Internal feature, only used when building as part of libstd, not part of the
+# stable interface of this crate.
+compiler_builtins = { version = "0.1.2", optional = true }
+core = { version = "1.0.0", optional = true, package = "rustc-std-workspace-core" }
+alloc = { version = "1.0.0", optional = true, package = "rustc-std-workspace-alloc" }
+
 [dev-dependencies]
 criterion = "0.5"
 rand = { version = "0.8.5", features = ["small_rng"] }
@@ -23,6 +29,10 @@ rand = { version = "0.8.5", features = ["small_rng"] }
 default = ["hash", "std"]
 hash = ["dep:twox-hash"]
 std = []
+
+# Internal feature, only used when building as part of libstd, not part of the
+# stable interface of this crate.
+rustc-dep-of-std = ["dep:compiler_builtins", "dep:core", "dep:alloc"]
 
 [[bench]]
 name = "reversedbitreader_bench"

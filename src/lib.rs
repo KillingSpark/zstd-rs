@@ -4,6 +4,7 @@
 #[cfg(feature = "std")]
 extern crate std;
 
+#[cfg(not(feature = "rustc-dep-of-std"))]
 extern crate alloc;
 
 #[cfg(feature = "std")]
