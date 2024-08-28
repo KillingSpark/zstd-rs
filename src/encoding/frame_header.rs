@@ -9,6 +9,7 @@ use std::vec::Vec;
 /// A header for a single Zstandard frame.
 ///
 /// <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#frame_header>
+#[derive(Debug)]
 pub struct FrameHeader {
     /// Optionally, the original (uncompressed) size of the data within the frame in bytes.
     /// If not present, `window_size` must be set.
@@ -58,8 +59,8 @@ impl FrameHeader {
     ///
     /// The returned header *does include* a frame header descriptor.
     pub fn serialize(self, output: &mut Vec<u8>) -> Result<(), FrameHeaderError> {
+        vprintln!("Serializing frame with header: {self:?}");
         // https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#frame_header
-
         // Magic Number:
         output.extend_from_slice(&frame::MAGIC_NUM.to_le_bytes());
 

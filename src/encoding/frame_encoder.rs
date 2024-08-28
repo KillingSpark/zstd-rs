@@ -63,6 +63,18 @@ impl<'input> FrameCompressor<'input> {
         };
         // TODO: real error handling
         header.serialize(output).unwrap();
+        // Special handling is needed for compression of a totally empty file (why you'd want to do that, I don't know)
+        if self.uncompressed_data.is_empty() {
+            let header = BlockHeader {
+                last_block: true,
+                block_type: crate::blocks::block::BlockType::Raw,
+                block_size: 0,
+            };
+            // Write the header, then the block
+            // TODO: remove this unwrap
+            header.serialize(output).unwrap();
+            return;
+        }
         match self.compression_level {
             CompressionLevel::Uncompressed => {
                 // Blocks are compressed by writing a header, then writing

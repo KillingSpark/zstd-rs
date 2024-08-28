@@ -1,5 +1,5 @@
 use crate::blocks::block::BlockType;
-use std::vec::Vec;
+use std::{println, vec::Vec};
 
 // /// The type of a single Zstandard block
 // ///
@@ -16,7 +16,7 @@ use std::vec::Vec;
 //     /// cannot be used in the current version of the spec.
 //     Reserved,
 // }
-
+#[derive(Debug)]
 pub struct BlockHeader {
     /// Signals if this block is the last one.
     /// The frame will end after this block.
@@ -42,6 +42,7 @@ pub enum BlockHeaderError {
 impl BlockHeader {
     /// Write encoded binary representation of this header into the provided buffer.
     pub fn serialize(self, output: &mut Vec<u8>) -> Result<(), BlockHeaderError> {
+        vprintln!("Serializing block with the header: {self:?}");
         let encoded_block_type = match self.block_type {
             BlockType::Raw => 0,
             BlockType::RLE => 1,
