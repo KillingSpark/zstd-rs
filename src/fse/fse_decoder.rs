@@ -166,7 +166,7 @@ fn highest_bit_set(x: u32) -> u32 {
 
 impl<'t> FSEDecoder<'t> {
     /// Initialize a new Finite State Entropy decoder.
-    pub fn new(table: &'t FSETable) -> FSEDecoder<'_> {
+    pub fn new(table: &'t FSETable) -> FSEDecoder<'t> {
         FSEDecoder {
             state: table.decode.first().copied().unwrap_or(Entry {
                 base_line: 0,

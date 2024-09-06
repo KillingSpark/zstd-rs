@@ -1,3 +1,5 @@
+//! Framedecoder is the man struct users interact with to decode zstd frames
+//!
 //! Zstandard compressed data is made of one or more [Frame]s. Each frame is independent and can be
 //! decompressed independently of other frames. This module contains structures
 //! and utilities that can be used to decode a frame.
@@ -13,7 +15,9 @@ use core::convert::TryInto;
 #[cfg(feature = "std")]
 use std::error::Error as StdError;
 
-/// This implements a decoder for zstd frames. This decoder is able to decode frames only partially and gives control
+/// This implements a decoder for zstd frames.
+///
+/// This decoder is able to decode frames only partially and gives control
 /// over how many bytes/blocks will be decoded at a time (so you don't have to decode a 10GB file into memory all at once).
 /// It reads bytes as needed from a provided source and can be read from to collect partial results.
 ///

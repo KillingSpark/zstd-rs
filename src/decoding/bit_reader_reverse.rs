@@ -20,7 +20,7 @@ impl<'s> BitReaderReversed<'s> {
         self.idx + self.bits_in_container as isize
     }
 
-    pub fn new(source: &'s [u8]) -> BitReaderReversed<'_> {
+    pub fn new(source: &'s [u8]) -> BitReaderReversed<'s> {
         BitReaderReversed {
             idx: source.len() as isize * 8,
             source,

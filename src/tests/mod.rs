@@ -385,7 +385,7 @@ fn test_incremental_read() {
 
     let mut output = [0u8; 3];
     let (_, written) = frame_dec
-        .decode_from_to(&unread_compressed_content, &mut output)
+        .decode_from_to(unread_compressed_content, &mut output)
         .unwrap();
 
     assert_eq!(written, 3);

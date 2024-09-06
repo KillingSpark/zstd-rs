@@ -48,7 +48,7 @@ impl core::fmt::Display for GetBitsError {
 }
 
 impl<'s> BitReader<'s> {
-    pub fn new(source: &'s [u8]) -> BitReader<'_> {
+    pub fn new(source: &'s [u8]) -> BitReader<'s> {
         BitReader { idx: 0, source }
     }
 
