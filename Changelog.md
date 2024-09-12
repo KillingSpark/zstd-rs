@@ -24,3 +24,5 @@ This document records the changes made between versions, starting with version 0
 
 * Remove byteorder dependency (https://github.com/workingjubilee)
 * Preparations to become a std dependency (https://github.com/workingjubilee)
+
+# After 0.7.2
