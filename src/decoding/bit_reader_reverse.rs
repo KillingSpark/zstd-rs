@@ -1,3 +1,5 @@
+use core::convert::TryInto;
+
 pub use super::bit_reader::GetBitsError;
 use crate::io::Read;
 
@@ -52,8 +54,7 @@ impl<'s> BitReaderReversed<'s> {
     #[inline(always)]
     fn refill_fast(&mut self, byte_idx: usize, retain_bytes: u8, want_to_read_bits: u8) {
         let load_from_byte_idx = byte_idx - 7 + retain_bytes as usize;
-        let mut tmp_bytes = [0; 8];
-        let _ = (&self.source[load_from_byte_idx..]).read_exact(&mut tmp_bytes);
+        let tmp_bytes: [u8; 8] = (&self.source[load_from_byte_idx..][..8]).try_into().unwrap();
         let refill = u64::from_le_bytes(tmp_bytes);
         self.bit_container = refill;
         self.bits_in_container += want_to_read_bits;
