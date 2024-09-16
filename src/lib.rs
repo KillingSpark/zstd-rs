@@ -39,4 +39,5 @@ pub use io_nostd as io;
 
 pub use frame_decoder::BlockDecodingStrategy;
 pub use frame_decoder::FrameDecoder;
+pub use frame_decoder::{decode_all, decode_all_to_vec};
 pub use streaming_decoder::StreamingDecoder;

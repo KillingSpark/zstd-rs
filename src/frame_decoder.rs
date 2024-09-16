@@ -102,6 +102,7 @@ pub enum FrameDecoderError {
     NotYetInitialized,
     FailedToInitialize(frame::FrameHeaderError),
     FailedToDrainDecodebuffer(Error),
+    FailedToSkipFrame,
     TargetTooSmall,
     DictNotProvided { dict_id: u32 },
 }
@@ -162,6 +163,12 @@ impl core::fmt::Display for FrameDecoderError {
                     f,
                     "Decoder encountered error while draining the decodebuffer: {}",
                     e,
+                )
+            }
+            FrameDecoderError::FailedToSkipFrame => {
+                write!(
+                    f,
+                    "Failed to skip bytes for the length given in the frame header"
                 )
             }
             FrameDecoderError::TargetTooSmall => {
@@ -619,6 +626,76 @@ impl Read for FrameDecoder {
             state.decoder_scratch.buffer.read_all(target)
         } else {
             state.decoder_scratch.buffer.read(target)
+        }
+    }
+}
+
+/// Decode multiple frames into the output slice.
+///
+/// `input` must contain an exact number of frames.
+///
+/// `output` must be large enough to hold the decompressed data. If you don't know
+/// how large the output will be, use [`FrameDecoder`] instead.
+///
+/// Returns the number of bytes written to `output`.
+pub fn decode_all(mut input: &[u8], mut output: &mut [u8]) -> Result<usize, FrameDecoderError> {
+    let mut total_bytes_written = 0;
+    while !input.is_empty() {
+        let mut decoder = FrameDecoder::new();
+        match decoder.init(&mut input) {
+            Ok(_) => {}
+            Err(FrameDecoderError::ReadFrameHeaderError(
+                frame::ReadFrameHeaderError::SkipFrame { length, .. },
+            )) => {
+                input = input
+                    .get(length as usize..)
+                    .ok_or(FrameDecoderError::FailedToSkipFrame)?;
+                continue;
+            }
+            Err(e) => return Err(e),
+        };
+        loop {
+            decoder.decode_blocks(&mut input, BlockDecodingStrategy::UptoBlocks(1))?;
+            let bytes_written = decoder
+                .read(output)
+                .map_err(FrameDecoderError::FailedToDrainDecodebuffer)?;
+            output = &mut output[bytes_written..];
+            total_bytes_written += bytes_written;
+            if decoder.can_collect() != 0 {
+                return Err(FrameDecoderError::TargetTooSmall);
+            }
+            if decoder.is_finished() {
+                break;
+            }
+        }
+    }
+
+    Ok(total_bytes_written)
+}
+
+/// Decode multiple frames into the extra capacity of the output vector.
+///
+/// `input` must contain an exact number of frames.
+///
+/// `output` must have enough extra capacity to hold the decompressed data.
+/// This function will not reallocate or grow the vector.
+/// If you don't know how large the output will be, use [`FrameDecoder`] instead.
+///
+/// The length of the output vector is updated to include the decompressed data.
+/// The length is not changed if an error occurs.
+pub fn decode_all_to_vec(input: &[u8], output: &mut Vec<u8>) -> Result<(), FrameDecoderError> {
+    let len = output.len();
+    let cap = output.capacity();
+    output.resize(cap, 0);
+    match decode_all(input, &mut output[len..]) {
+        Ok(bytes_written) => {
+            let new_len = core::cmp::min(len + bytes_written, cap); // Sanitizes `bytes_written`.
+            output.resize(new_len, 0);
+            Ok(())
+        }
+        Err(e) => {
+            output.resize(len, 0);
+            Err(e)
         }
     }
 }
