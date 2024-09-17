@@ -640,8 +640,8 @@ impl Read for FrameDecoder {
 /// Returns the number of bytes written to `output`.
 pub fn decode_all(mut input: &[u8], mut output: &mut [u8]) -> Result<usize, FrameDecoderError> {
     let mut total_bytes_written = 0;
+    let mut decoder = FrameDecoder::new();
     while !input.is_empty() {
-        let mut decoder = FrameDecoder::new();
         match decoder.init(&mut input) {
             Ok(_) => {}
             Err(FrameDecoderError::ReadFrameHeaderError(
