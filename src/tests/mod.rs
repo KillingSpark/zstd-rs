@@ -483,8 +483,7 @@ fn test_streaming_no_std() {
 
 #[test]
 fn test_decode_all() {
-    use crate::frame_decoder::FrameDecoderError;
-    use crate::frame_decoder::{decode_all, decode_all_to_vec};
+    use crate::frame_decoder::{FrameDecoder, FrameDecoderError};
 
     let skip_frame = |input: &mut Vec<u8>, length: usize| {
         input.extend_from_slice(&0x184D2A50u32.to_le_bytes());
@@ -503,15 +502,17 @@ fn test_decode_all() {
     original.extend_from_slice(include_bytes!("../../decodecorpus_files/z000090"));
     skip_frame(&mut input, 500);
 
+    let mut decoder = FrameDecoder::new();
+
     // decode_all with correct buffers.
     let mut output = vec![0; original.len()];
-    let result = decode_all(&input, &mut output).unwrap();
+    let result = decoder.decode_all(&input, &mut output).unwrap();
     assert_eq!(result, original.len());
     assert_eq!(output, original);
 
     // decode_all with smaller output length.
     let mut output = vec![0; original.len() - 1];
-    let result = decode_all(&input, &mut output);
+    let result = decoder.decode_all(&input, &mut output);
     assert!(
         matches!(result, Err(FrameDecoderError::TargetTooSmall)),
         "{:?}",
@@ -520,13 +521,13 @@ fn test_decode_all() {
 
     // decode_all with larger output length.
     let mut output = vec![0; original.len() + 1];
-    let result = decode_all(&input, &mut output).unwrap();
+    let result = decoder.decode_all(&input, &mut output).unwrap();
     assert_eq!(result, original.len());
     assert_eq!(&output[..result], original);
 
     // decode_all with truncated regular frame.
     let mut output = vec![0; original.len()];
-    let result = decode_all(&input[..input.len() - 600], &mut output);
+    let result = decoder.decode_all(&input[..input.len() - 600], &mut output);
     assert!(
         matches!(result, Err(FrameDecoderError::FailedToReadBlockBody(_))),
         "{:?}",
@@ -535,7 +536,7 @@ fn test_decode_all() {
 
     // decode_all with truncated skip frame.
     let mut output = vec![0; original.len()];
-    let result = decode_all(&input[..input.len() - 1], &mut output);
+    let result = decoder.decode_all(&input[..input.len() - 1], &mut output);
     assert!(
         matches!(result, Err(FrameDecoderError::FailedToSkipFrame)),
         "{:?}",
@@ -545,13 +546,13 @@ fn test_decode_all() {
     // decode_all_to_vec with correct output capacity.
     let mut output = Vec::new();
     output.reserve_exact(original.len());
-    decode_all_to_vec(&input, &mut output).unwrap();
+    decoder.decode_all_to_vec(&input, &mut output).unwrap();
     assert_eq!(output, original);
 
     // decode_all_to_vec with smaller output capacity.
     let mut output = Vec::new();
     output.reserve_exact(original.len() - 1);
-    let result = decode_all_to_vec(&input, &mut output);
+    let result = decoder.decode_all_to_vec(&input, &mut output);
     assert!(
         matches!(result, Err(FrameDecoderError::TargetTooSmall)),
         "{:?}",
@@ -561,7 +562,7 @@ fn test_decode_all() {
     // decode_all_to_vec with larger output capacity.
     let mut output = Vec::new();
     output.reserve_exact(original.len() + 1);
-    decode_all_to_vec(&input, &mut output).unwrap();
+    decoder.decode_all_to_vec(&input, &mut output).unwrap();
     assert_eq!(output, original);
 }
 
