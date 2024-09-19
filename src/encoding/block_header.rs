@@ -1,21 +1,6 @@
 use crate::blocks::block::BlockType;
-use std::{println, vec::Vec};
+use std::vec::Vec;
 
-// /// The type of a single Zstandard block
-// ///
-// /// https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#blocks
-// pub enum BlockType {
-//     /// This is an uncompressed block.
-//     Raw,
-//     /// This is a single byte, repeated `block_size`
-//     /// times.
-//     RLE,
-//     /// This is a Zstandard compressed block.
-//     Compressed,
-//     /// This is not a block, and this value
-//     /// cannot be used in the current version of the spec.
-//     Reserved,
-// }
 #[derive(Debug)]
 pub struct BlockHeader {
     /// Signals if this block is the last one.

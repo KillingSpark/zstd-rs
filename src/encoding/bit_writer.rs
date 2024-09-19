@@ -13,6 +13,7 @@ pub(crate) struct BitWriter {
 }
 
 #[derive(Debug, PartialEq)]
+#[non_exhaustive]
 pub enum BitWriterError {
     NotByteAligned,
     MoreBitsThanInbuf,
