@@ -80,7 +80,7 @@ impl FrameHeader {
         }
 
         if let Some(frame_content_size) = self.frame_content_size {
-            output.extend(minify_val(frame_content_size));
+            output.extend(minify_val_fcs(frame_content_size));
         }
 
         Ok(())
@@ -116,6 +116,12 @@ impl FrameHeader {
                 3 => 8,
                 _ => panic!(),
             };
+
+            // // When FCS_Field_Size is 2, the offset of 256 is added [during decompression].
+            // if flag_value == 2 {
+            //     field_size -= 256;
+            // }
+
             bw.write_bits(&[flag_value], 2);
         } else {
             // `Frame_Content_Size` was not provided
@@ -172,6 +178,20 @@ impl FrameHeader {
             .dump()
             .expect("The frame header descriptor should always be exactly one byte.")[0])
     }
+}
+
+/// Identical to [`minify_val`], but it implements the following edge case:
+/// 
+/// > When FCS_Field_Size is 1, 4 or 8 bytes, the value is read directly. When FCS_Field_Size is 2, the offset of 256 is added. 
+/// 
+/// https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#frame_content_size
+fn minify_val_fcs(val: u64) -> Vec<u8> {
+    let new_size = find_min_size(val);
+    let mut val = val;
+    if new_size == 2 {
+        val -= 256;
+    }
+    val.to_le_bytes()[0..new_size].to_vec()
 }
 
 #[cfg(test)]
