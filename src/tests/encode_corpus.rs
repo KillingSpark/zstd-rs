@@ -1,5 +1,3 @@
-use std::{boxed::Box, error::Error, string::String};
-
 #[test]
 fn test_encode_corpus_files_uncompressed_our_decompressor() {
     extern crate std;
@@ -60,12 +58,13 @@ fn test_encode_corpus_files_uncompressed_original_decompressor() {
     extern crate std;
     use crate::encoding::frame_encoder::FrameCompressor;
     use alloc::borrow::ToOwned;
+    use alloc::format;
     use alloc::vec::Vec;
     use std::ffi::OsStr;
-    use std::format;
     use std::fs;
     use std::path::PathBuf;
     use std::println;
+    use std::string::String;
 
     let mut failures: Vec<(PathBuf, String)> = Vec::new();
     let mut files: Vec<_> = fs::read_dir("./decodecorpus_files").unwrap().collect();
@@ -93,20 +92,20 @@ fn test_encode_corpus_files_uncompressed_original_decompressor() {
         let mut compressed_file: Vec<u8> = Vec::new();
         compressor.compress(&mut compressed_file);
         let mut decompressed_output = Vec::new();
-        zstd::stream::copy_decode(compressed_file.as_slice(), &mut decompressed_output).unwrap();
-        // match zstd::stream::copy_decode(compressed_file.as_slice(), &mut decompressed_output) {
-        //     Ok() => {
-        //         if input != decompressed_output {
-        //             failures.push((path.to_owned(), "Input didn't equal output".to_owned()));
-        //         }
-        //     }
-        //     Err(e) => {
-        //         failures.push((
-        //             path.to_owned(),
-        //             format!("Decompressor threw an error: {e:?}"),
-        //         ));
-        //     }
-        // };
+        // zstd::stream::copy_decode(compressed_file.as_slice(), &mut decompressed_output).unwrap();
+        match zstd::stream::copy_decode(compressed_file.as_slice(), &mut decompressed_output) {
+            Ok(()) => {
+                if input != decompressed_output {
+                    failures.push((path.to_owned(), "Input didn't equal output".to_owned()));
+                }
+            }
+            Err(e) => {
+                failures.push((
+                    path.to_owned(),
+                    format!("Decompressor threw an error: {e:?}"),
+                ));
+            }
+        };
 
         if !failures.is_empty() {
             panic!(

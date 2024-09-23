@@ -48,6 +48,9 @@ impl BitWriter {
     }
 
     /// Wrap a writer around an existing vec.
+    ///
+    /// Currently unused, but will almost certainly be used later upon further optimizing
+    #[allow(unused)]
     pub fn from(buf: Vec<u8>) -> Self {
         Self {
             bit_idx: buf.len() * 8,
@@ -66,12 +69,16 @@ impl BitWriter {
     /// If it's not, the output buffer will be corrupt.
     ///
     /// TODO: example usage
-    pub fn write_bits(&mut self, bits: &[u8], num_bits: usize) -> usize {
+    pub fn write_bits(&mut self, bits: &[u8], num_bits: usize) -> Result<usize, BitWriterError> {
+        if bits.len() < num_bits * 8 {
+            return Err(BitWriterError::MoreBitsThanInbuf);
+        }
+
         // Special handling for if both the input and output are byte aligned
         if self.bit_idx % 8 == 0 && num_bits / 8 == bits.len() {
             self.output.extend_from_slice(bits);
             self.bit_idx += num_bits;
-            return num_bits;
+            return Ok(num_bits);
         }
 
         // Make sure there's space for the new bits by finding the total size of the buffer in bits, then round up to the nearest multiple of 8
@@ -195,7 +202,7 @@ impl BitWriter {
                 self.bit_idx += num_bits_left_in_output_byte;
             }
         }
-        num_bits_written
+        Ok(num_bits_written)
     }
 
     /// Returns the populated buffer that you've been writing bits into.
@@ -221,7 +228,7 @@ mod tests {
         // Define an existing vec, write some bits into it
         let existing_vec = vec![255_u8];
         let mut bw = BitWriter::from(existing_vec);
-        bw.write_bits(&[0], 8);
+        bw.write_bits(&[0], 8).unwrap();
         assert_eq!(vec![255, 0], bw.dump().unwrap());
     }
 
@@ -230,8 +237,8 @@ mod tests {
         // Write the first 4 bits as 1s and the last 4 bits as 0s
         // 1010 is used where values should never be read from.
         let mut bw: BitWriter = BitWriter::new();
-        bw.write_bits(&[0b010_1111], 4);
-        bw.write_bits(&[0b1010_0000], 4);
+        bw.write_bits(&[0b010_1111], 4).unwrap();
+        bw.write_bits(&[0b1010_0000], 4).unwrap();
         let output = bw.dump().unwrap();
         assert!(output.len() == 1, "Single byte written into writer returned a vec that wasn't one byte, vec was {} elements long", output.len());
         assert_eq!(
@@ -244,8 +251,8 @@ mod tests {
     fn single_byte_written_3_5() {
         // Write the first 3 bits as 1s and the last 5 bits as 0s
         let mut bw: BitWriter = BitWriter::new();
-        bw.write_bits(&[0b0101_0111], 3);
-        bw.write_bits(&[0b1010_0000], 5);
+        bw.write_bits(&[0b0101_0111], 3).unwrap();
+        bw.write_bits(&[0b1010_0000], 5).unwrap();
         let output = bw.dump().unwrap();
         assert!(output.len() == 1, "Single byte written into writer return a vec that wasn't one byte, vec was {} elements long", output.len());
         assert_eq!(0b1110_0000, output[0], "3 and 5 bits written into buffer");
@@ -255,8 +262,8 @@ mod tests {
     fn single_byte_written_1_7() {
         // Write the first bit as a 1 and the last 7 bits as 0s
         let mut bw: BitWriter = BitWriter::new();
-        bw.write_bits(&[0b1], 1);
-        bw.write_bits(&[0], 7);
+        bw.write_bits(&[0b1], 1).unwrap();
+        bw.write_bits(&[0], 7).unwrap();
         let output = bw.dump().unwrap();
         assert!(output.len() == 1, "Single byte written into writer return a vec that wasn't one byte, vec was {} elements long", output.len());
         assert_eq!(0b1000_0000, output[0], "1 and 7 bits written into buffer");
@@ -266,7 +273,7 @@ mod tests {
     fn single_byte_written_8() {
         // Write an entire byte
         let mut bw: BitWriter = BitWriter::new();
-        bw.write_bits(&[1], 8);
+        bw.write_bits(&[1], 8).unwrap();
         let output = bw.dump().unwrap();
         assert!(output.len() == 1, "Single byte written into writer return a vec that wasn't one byte, vec was {} elements long", output.len());
         assert_eq!(1, output[0], "1 and 7 bits written into buffer");
@@ -276,10 +283,10 @@ mod tests {
     fn multi_byte_clean_boundary_4_4_4_4() {
         // Writing 4 bits at a time for 2 bytes
         let mut bw = BitWriter::new();
-        bw.write_bits(&[0], 4);
-        bw.write_bits(&[0b1111], 4);
-        bw.write_bits(&[0b1111], 4);
-        bw.write_bits(&[0], 4);
+        bw.write_bits(&[0], 4).unwrap();
+        bw.write_bits(&[0b1111], 4).unwrap();
+        bw.write_bits(&[0b1111], 4).unwrap();
+        bw.write_bits(&[0], 4).unwrap();
         assert_eq!(vec![0b0000_1111, 0b1111_0000], bw.dump().unwrap());
     }
 
@@ -287,8 +294,8 @@ mod tests {
     fn multi_byte_clean_boundary_16_8() {
         // Writing 16 bits at once
         let mut bw = BitWriter::new();
-        bw.write_bits(&[1, 0], 16);
-        bw.write_bits(&[69], 8);
+        bw.write_bits(&[1, 0], 16).unwrap();
+        bw.write_bits(&[69], 8).unwrap();
         assert_eq!(vec![1, 0, 69], bw.dump().unwrap())
     }
 
@@ -296,8 +303,8 @@ mod tests {
     fn multi_byte_boundary_crossed_4_12() {
         // Writing 4 1s and then 12 zeros
         let mut bw = BitWriter::new();
-        bw.write_bits(&[0b0000_1111], 4);
-        bw.write_bits(&[0b0000_0000, 0b1010_0000], 12);
+        bw.write_bits(&[0b0000_1111], 4).unwrap();
+        bw.write_bits(&[0b0000_0000, 0b1010_0000], 12).unwrap();
         assert_eq!(vec![0b1111_0000, 0b0000_0000], bw.dump().unwrap());
     }
 
@@ -305,9 +312,9 @@ mod tests {
     fn multi_byte_boundary_crossed_4_5_7() {
         // Writing 4 1s and then 5 zeros then 7 1s
         let mut bw = BitWriter::new();
-        bw.write_bits(&[0b1010_1111], 4);
-        bw.write_bits(&[0b1010_0000], 5);
-        bw.write_bits(&[0b0111_1111], 7);
+        bw.write_bits(&[0b1010_1111], 4).unwrap();
+        bw.write_bits(&[0b1010_0000], 5).unwrap();
+        bw.write_bits(&[0b0111_1111], 7).unwrap();
         assert_eq!(vec![0b1111_0000, 0b0111_1111], bw.dump().unwrap());
     }
 
@@ -315,9 +322,9 @@ mod tests {
     fn multi_byte_boundary_crossed_1_9_6() {
         // Writing 1 1 and then 9 zeros then 6 1s
         let mut bw = BitWriter::new();
-        bw.write_bits(&[0b0000_0001], 1);
-        bw.write_bits(&[0, 0b1010_1010], 9);
-        bw.write_bits(&[0b0011_1111], 6);
+        bw.write_bits(&[0b0000_0001], 1).unwrap();
+        bw.write_bits(&[0, 0b1010_1010], 9).unwrap();
+        bw.write_bits(&[0b0011_1111], 6).unwrap();
         assert_eq!(vec![0b1000_0000, 0b0011_1111], bw.dump().unwrap());
     }
 
@@ -326,7 +333,7 @@ mod tests {
         // Write a single bit in then dump it, making sure
         // the correct error is returned
         let mut bw = BitWriter::new();
-        bw.write_bits(&[0], 1);
+        bw.write_bits(&[0], 1).unwrap();
         assert_eq!(Err(BitWriterError::NotByteAligned), bw.dump());
     }
 

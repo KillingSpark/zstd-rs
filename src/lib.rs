@@ -32,6 +32,7 @@ macro_rules! vprintln {
 
 pub mod blocks;
 pub mod decoding;
+#[cfg(feature = "std")]
 pub mod encoding;
 pub mod frame;
 pub mod frame_decoder;

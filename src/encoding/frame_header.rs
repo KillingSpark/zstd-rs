@@ -122,10 +122,10 @@ impl FrameHeader {
             //     field_size -= 256;
             // }
 
-            bw.write_bits(&[flag_value], 2);
+            bw.write_bits(&[flag_value], 2).unwrap();
         } else {
             // `Frame_Content_Size` was not provided
-            bw.write_bits(&[0], 2);
+            bw.write_bits(&[0], 2).unwrap();
         }
 
         // `Single_Segment_flag`:
@@ -136,27 +136,27 @@ impl FrameHeader {
             if self.frame_content_size.is_none() {
                 return Err(FrameHeaderError::SingleSegmentMissingContentSize);
             }
-            bw.write_bits(&[1], 1);
+            bw.write_bits(&[1], 1).unwrap();
         } else {
             if self.window_size.is_none() {
                 return Err(FrameHeaderError::NoSingleSegmentMissingWindowSize);
             }
-            bw.write_bits(&[0], 1);
+            bw.write_bits(&[0], 1).unwrap();
         }
 
         // `Unused_bit`:
         // An encoder compliant with this spec must set this bit to zero
-        bw.write_bits(&[0], 1);
+        bw.write_bits(&[0], 1).unwrap();
 
         // `Reserved_bit`:
         // This value must be zero
-        bw.write_bits(&[0], 1);
+        bw.write_bits(&[0], 1).unwrap();
 
         // `Content_Checksum_flag`:
         if self.content_checksum {
-            bw.write_bits(&[1], 1);
+            bw.write_bits(&[1], 1).unwrap();
         } else {
-            bw.write_bits(&[0], 1);
+            bw.write_bits(&[0], 1).unwrap();
         }
 
         // `Dictionary_ID_flag`:
@@ -168,10 +168,10 @@ impl FrameHeader {
                 4 => 3,
                 _ => panic!(),
             };
-            bw.write_bits(&[flag_value], 2);
+            bw.write_bits(&[flag_value], 2).unwrap();
         } else {
             // A `Dictionary_ID` was not provided
-            bw.write_bits(&[0], 2);
+            bw.write_bits(&[0], 2).unwrap();
         }
 
         Ok(bw
@@ -181,9 +181,9 @@ impl FrameHeader {
 }
 
 /// Identical to [`minify_val`], but it implements the following edge case:
-/// 
-/// > When FCS_Field_Size is 1, 4 or 8 bytes, the value is read directly. When FCS_Field_Size is 2, the offset of 256 is added. 
-/// 
+///
+/// > When FCS_Field_Size is 1, 4 or 8 bytes, the value is read directly. When FCS_Field_Size is 2, the offset of 256 is added.
+///
 /// https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#frame_content_size
 fn minify_val_fcs(val: u64) -> Vec<u8> {
     let new_size = find_min_size(val);

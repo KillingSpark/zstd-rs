@@ -45,7 +45,7 @@ impl<'input> FrameCompressor<'input> {
     pub fn new(
         uncompressed_data: &'input [u8],
         compression_level: CompressionLevel,
-    ) -> FrameCompressor<'_> {
+    ) -> FrameCompressor<'input> {
         Self {
             uncompressed_data,
             compression_level,
