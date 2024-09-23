@@ -1,6 +1,7 @@
+use core::convert::TryInto;
+
 pub use super::bit_reader::GetBitsError;
-use byteorder::ByteOrder;
-use byteorder::LittleEndian;
+use crate::io::Read;
 
 /// Zstandard encodes some types of data in a way that the data must be read
 /// back to front to decode it properly. `BitReaderReversed` provides a
@@ -21,7 +22,7 @@ impl<'s> BitReaderReversed<'s> {
         self.idx + self.bits_in_container as isize
     }
 
-    pub fn new(source: &'s [u8]) -> BitReaderReversed<'_> {
+    pub fn new(source: &'s [u8]) -> BitReaderReversed<'s> {
         BitReaderReversed {
             idx: source.len() as isize * 8,
             source,
@@ -53,7 +54,10 @@ impl<'s> BitReaderReversed<'s> {
     #[inline(always)]
     fn refill_fast(&mut self, byte_idx: usize, retain_bytes: u8, want_to_read_bits: u8) {
         let load_from_byte_idx = byte_idx - 7 + retain_bytes as usize;
-        let refill = LittleEndian::read_u64(&self.source[load_from_byte_idx..]);
+        let tmp_bytes: [u8; 8] = (&self.source[load_from_byte_idx..][..8])
+            .try_into()
+            .unwrap();
+        let refill = u64::from_le_bytes(tmp_bytes);
         self.bit_container = refill;
         self.bits_in_container += want_to_read_bits;
         self.idx -= want_to_read_bits as isize;
@@ -63,42 +67,20 @@ impl<'s> BitReaderReversed<'s> {
     fn refill_slow(&mut self, byte_idx: usize, want_to_read_bits: u8) {
         let can_read_bits = isize::min(want_to_read_bits as isize, self.idx);
         let can_read_bytes = can_read_bits / 8;
+        let mut tmp_bytes = [0u8; 8];
+        let offset @ 1..=8 = can_read_bytes as usize else {
+            unreachable!()
+        };
+        let bits_read = offset * 8;
 
-        match can_read_bytes {
-            8 => {
-                self.bit_container = LittleEndian::read_u64(&self.source[byte_idx - 7..]);
-                self.bits_in_container += 64;
-                self.idx -= 64;
-            }
-            6..=7 => {
-                self.bit_container <<= 48;
-                self.bits_in_container += 48;
-                self.bit_container |= LittleEndian::read_u48(&self.source[byte_idx - 5..]);
-                self.idx -= 48;
-            }
-            4..=5 => {
-                self.bit_container <<= 32;
-                self.bits_in_container += 32;
-                self.bit_container |=
-                    u64::from(LittleEndian::read_u32(&self.source[byte_idx - 3..]));
-                self.idx -= 32;
-            }
-            2..=3 => {
-                self.bit_container <<= 16;
-                self.bits_in_container += 16;
-                self.bit_container |=
-                    u64::from(LittleEndian::read_u16(&self.source[byte_idx - 1..]));
-                self.idx -= 16;
-            }
-            1 => {
-                self.bit_container <<= 8;
-                self.bits_in_container += 8;
-                self.bit_container |= u64::from(self.source[byte_idx]);
-                self.idx -= 8;
-            }
-            _ => {
-                panic!("This cannot be reached");
-            }
+        let _ = (&self.source[byte_idx - (offset - 1)..]).read_exact(&mut tmp_bytes[0..offset]);
+        self.bits_in_container += bits_read as u8;
+        self.idx -= bits_read as isize;
+        if offset < 8 {
+            self.bit_container <<= bits_read;
+            self.bit_container |= u64::from_le_bytes(tmp_bytes);
+        } else {
+            self.bit_container = u64::from_le_bytes(tmp_bytes);
         }
     }
 

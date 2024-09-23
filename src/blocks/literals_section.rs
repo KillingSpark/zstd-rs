@@ -3,6 +3,7 @@
 use super::super::decoding::bit_reader::{BitReader, GetBitsError};
 
 /// A compressed block consists of two sections, a literals section, and a sequences section.
+///
 /// This is the first of those two sections. A literal is just any arbitrary data, and it is copied by the sequences section
 pub struct LiteralsSection {
     /// - If this block is of type [LiteralsSectionType::Raw], then the data is `regenerated_bytes`

@@ -16,9 +16,9 @@ jobs:
           uses: taiki-e/install-action@v2
           with:
             tool: cargo-hack
-        - run: cargo hack check --feature-powerset
-        - run: cargo hack clippy --feature-powerset
-        - run: cargo hack test --feature-powerset
+        - run: cargo hack check --feature-powerset --exclude-features rustc-dep-of-std
+        - run: cargo hack clippy --feature-powerset --exclude-features rustc-dep-of-std
+        - run: cargo hack test --feature-powerset --exclude-features rustc-dep-of-std
 
   clippy-nightly:
     name: clippy nightly
