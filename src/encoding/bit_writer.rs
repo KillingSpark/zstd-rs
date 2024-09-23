@@ -70,7 +70,7 @@ impl BitWriter {
     ///
     /// TODO: example usage
     pub fn write_bits(&mut self, bits: &[u8], num_bits: usize) -> Result<usize, BitWriterError> {
-        if bits.len() < num_bits * 8 {
+        if bits.len() * 8 < num_bits {
             return Err(BitWriterError::MoreBitsThanInbuf);
         }
 
