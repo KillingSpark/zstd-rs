@@ -2,10 +2,7 @@
 //! but there is no upper limit on the number of blocks per frame.
 //!
 //! There are a few different kinds of blocks, and implementations for those kinds are
-//! stored here.
+//! in this module.
 mod raw;
 
 pub(super) use raw::*;
-
-// An error produced during block compression.
-pub enum BlockError {}

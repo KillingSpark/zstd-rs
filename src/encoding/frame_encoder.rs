@@ -35,6 +35,24 @@ pub enum CompressionLevel {
     Best,
 }
 
+/// An interface for compressing arbitrary data with the ZStandard compression algorithm.
+///
+/// `FrameCompressor` will generally be used by:
+/// 1. Initializing a compressor by providing a buffer of data using `FrameCompressor::new()`
+/// 2. Starting compression and writing that compression into a vec using `FrameCompressor::begin`
+///
+/// # Examples
+/// ```
+/// use ruzstd::encoding::{FrameCompressor, CompressionLevel};
+/// let mock_data = &[0x1, 0x2, 0x3, 0x4];
+/// // Initialize a compressor.
+/// let compressor = FrameCompressor::new(mock_data, CompressionLevel::Uncompressed);
+///
+/// let mut output = Vec::new();
+/// // `compress` writes the compressed output into the provided buffer.
+/// compressor.compress(&mut output);
+///
+/// ```
 pub struct FrameCompressor<'input> {
     uncompressed_data: &'input [u8],
     compression_level: CompressionLevel,
@@ -71,8 +89,7 @@ impl<'input> FrameCompressor<'input> {
                 block_size: 0,
             };
             // Write the header, then the block
-            // TODO: remove this unwrap
-            header.serialize(output).unwrap();
+            header.serialize(output);
             return;
         }
         match self.compression_level {
@@ -94,8 +111,7 @@ impl<'input> FrameCompressor<'input> {
                         block_size: block_size.try_into().unwrap(),
                     };
                     // Write the header, then the block
-                    // TODO: remove this unwrap
-                    header.serialize(output).unwrap();
+                    header.serialize(output);
                     compress_raw_block(
                         &self.uncompressed_data[index..(index + block_size)],
                         output,

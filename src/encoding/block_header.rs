@@ -19,14 +19,9 @@ pub struct BlockHeader {
     pub block_size: u32,
 }
 
-#[derive(Debug)]
-pub enum BlockHeaderError {
-    AboveMaxBlockSize,
-}
-
 impl BlockHeader {
     /// Write encoded binary representation of this header into the provided buffer.
-    pub fn serialize(self, output: &mut Vec<u8>) -> Result<(), BlockHeaderError> {
+    pub fn serialize(self, output: &mut Vec<u8>) {
         vprintln!("Serializing block with the header: {self:?}");
         let encoded_block_type = match self.block_type {
             BlockType::Raw => 0,
@@ -34,17 +29,10 @@ impl BlockHeader {
             BlockType::Compressed => 2,
             BlockType::Reserved => panic!("You cannot use a reserved block type"),
         };
-        // bw.write_bits(&[encoded_block_type], 2);
-        // bw.write_bits(&self.block_size.to_le_bytes(), 21);
-        // Ok(bw.dump().unwrap())
-        // let mut block_header = self.block_size;
-        // block_header |= (self.last_block as u32) << 31;
-        // block_header |= encoded_block_type << 29;
         let mut block_header = self.block_size << 3;
         block_header |= encoded_block_type << 1;
         block_header |= self.last_block as u32;
         output.extend_from_slice(&block_header.to_le_bytes()[0..3]);
-        Ok(())
     }
 }
 
@@ -62,7 +50,7 @@ mod tests {
             block_size: 69,
         };
         let mut serialized_header = Vec::new();
-        header.serialize(&mut serialized_header).unwrap();
+        header.serialize(&mut serialized_header);
         let mut decoder = block_decoder::new();
         let parsed_header = decoder
             .read_block_header(serialized_header.as_slice())
