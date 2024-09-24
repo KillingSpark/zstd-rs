@@ -51,7 +51,6 @@ pub enum CompressionLevel {
 /// let mut output = Vec::new();
 /// // `compress` writes the compressed output into the provided buffer.
 /// compressor.compress(&mut output);
-///
 /// ```
 pub struct FrameCompressor<'input> {
     uncompressed_data: &'input [u8],
