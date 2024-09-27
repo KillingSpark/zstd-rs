@@ -643,7 +643,7 @@ impl FrameDecoder {
                 Err(e) => return Err(e),
             };
             loop {
-                self.decode_blocks(&mut input, BlockDecodingStrategy::UptoBlocks(1))?;
+                self.decode_blocks(&mut input, BlockDecodingStrategy::UptoBytes(1024 * 1024))?;
                 let bytes_written = self
                     .read(output)
                     .map_err(FrameDecoderError::FailedToDrainDecodebuffer)?;

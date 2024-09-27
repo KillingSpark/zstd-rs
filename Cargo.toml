@@ -38,6 +38,10 @@ rustc-dep-of-std = ["dep:compiler_builtins", "dep:core", "dep:alloc"]
 name = "reversedbitreader_bench"
 harness = false
 
+[[bench]]
+name = "decode_all"
+harness = false
+
 [[bin]]
 name = "zstd"
 required-features = ["std"]
