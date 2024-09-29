@@ -1,6 +1,8 @@
 //! Use [BitWriter] to write an arbitrary amount of bits into a buffer.
 use alloc::vec;
 use alloc::vec::Vec;
+use core::fmt::{Debug, Display};
+use std::error::Error;
 
 /// An interface for writing an arbitrary number of bits into a buffer. Write new bits into the buffer with `write_bits`, and
 /// obtain the output using `dump`.
@@ -12,31 +14,41 @@ pub(crate) struct BitWriter {
     bit_idx: usize,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 #[non_exhaustive]
 pub enum BitWriterError {
-    NotByteAligned,
-    MoreBitsThanInbuf,
+    /// The number of bits in the buffer.
+    NotByteAligned(usize),
+    /// (number of bits provided, number of bits supposed to be written)
+    MoreBitsThanInbuf((usize, usize)),
 }
 
-impl core::fmt::Display for BitWriterError {
+impl Display for BitWriterError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            BitWriterError::NotByteAligned => {
+            BitWriterError::NotByteAligned(num) => {
                 write!(
                     f,
-                    "The number of bits written into the buffer does not cleanly divide by 8."
+                    "cannot dump a buffer unless the number of bits written into the buffer ({num}) is divisible by 8"
                 )
             }
-            BitWriterError::MoreBitsThanInbuf => {
+            BitWriterError::MoreBitsThanInbuf((provided, requested)) => {
                 write!(
                     f,
-                    "Asked to write more bits into buffer than were provided by the `bits` buffer."
+                    "asked to write more bits into buffer ({provided}) than were provided by the `bits` buffer ({requested})"
                 )
             }
         }
     }
 }
+
+impl Debug for BitWriterError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{self}")
+    }
+}
+
+impl Error for BitWriterError {}
 
 impl BitWriter {
     /// Initialize a new writer.
@@ -68,10 +80,15 @@ impl BitWriter {
     /// It's up to the caller to ensure that any in the cursor beyond `num_bits` is always zero.
     /// If it's not, the output buffer will be corrupt.
     ///
-    /// TODO: example usage
+    /// Refer to tests for example usage.
+    // TODO: Because bitwriter isn't directly public, any errors would be caused by internal library bugs,
+    // and so this function should just panic if it encounters issues.
     pub fn write_bits(&mut self, bits: &[u8], num_bits: usize) -> Result<usize, BitWriterError> {
         if bits.len() * 8 < num_bits {
-            return Err(BitWriterError::MoreBitsThanInbuf);
+            return Err(BitWriterError::MoreBitsThanInbuf((
+                bits.len() * 8,
+                num_bits,
+            )));
         }
 
         // Special handling for if both the input and output are byte aligned
@@ -211,7 +228,7 @@ impl BitWriter {
     /// dumping
     pub fn dump(self) -> Result<Vec<u8>, BitWriterError> {
         if self.bit_idx % 8 != 0 {
-            return Err(BitWriterError::NotByteAligned);
+            return Err(BitWriterError::NotByteAligned(self.bit_idx));
         }
         Ok(self.output)
     }
@@ -334,7 +351,7 @@ mod tests {
         // the correct error is returned
         let mut bw = BitWriter::new();
         bw.write_bits(&[0], 1).unwrap();
-        assert_eq!(Err(BitWriterError::NotByteAligned), bw.dump());
+        assert_eq!(Err(BitWriterError::NotByteAligned(1)), bw.dump());
     }
 
     // #[test]

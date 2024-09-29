@@ -32,7 +32,7 @@ fn test_encode_corpus_files_uncompressed_our_decompressor() {
         let compressor =
             FrameCompressor::new(&input, crate::encoding::CompressionLevel::Uncompressed);
         let mut compressed_file: Vec<u8> = Vec::new();
-        compressor.compress(&mut compressed_file);
+        compressor.compress(&mut compressed_file).unwrap();
         let mut decompressed_output = Vec::new();
         let mut decoder =
             crate::streaming_decoder::StreamingDecoder::new(compressed_file.as_slice()).unwrap();
@@ -86,7 +86,7 @@ fn test_encode_corpus_files_uncompressed_original_decompressor() {
         let compressor =
             FrameCompressor::new(&input, crate::encoding::CompressionLevel::Uncompressed);
         let mut compressed_file: Vec<u8> = Vec::new();
-        compressor.compress(&mut compressed_file);
+        compressor.compress(&mut compressed_file).unwrap();
         let mut decompressed_output = Vec::new();
         // zstd::stream::copy_decode(compressed_file.as_slice(), &mut decompressed_output).unwrap();
         match zstd::stream::copy_decode(compressed_file.as_slice(), &mut decompressed_output) {
