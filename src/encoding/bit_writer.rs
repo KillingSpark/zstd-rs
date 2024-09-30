@@ -1,8 +1,6 @@
 //! Use [BitWriter] to write an arbitrary amount of bits into a buffer.
 use alloc::vec;
 use alloc::vec::Vec;
-use core::fmt::{Debug, Display};
-use std::error::Error;
 
 /// An interface for writing an arbitrary number of bits into a buffer. Write new bits into the buffer with `write_bits`, and
 /// obtain the output using `dump`.
@@ -13,42 +11,6 @@ pub(crate) struct BitWriter {
     /// the number of bits that have been written into the buffer so far.
     bit_idx: usize,
 }
-
-#[derive(PartialEq)]
-#[non_exhaustive]
-pub enum BitWriterError {
-    /// The number of bits in the buffer.
-    NotByteAligned(usize),
-    /// (number of bits provided, number of bits supposed to be written)
-    MoreBitsThanInbuf((usize, usize)),
-}
-
-impl Display for BitWriterError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            BitWriterError::NotByteAligned(num) => {
-                write!(
-                    f,
-                    "cannot dump a buffer unless the number of bits written into the buffer ({num}) is divisible by 8"
-                )
-            }
-            BitWriterError::MoreBitsThanInbuf((provided, requested)) => {
-                write!(
-                    f,
-                    "asked to write more bits into buffer ({provided}) than were provided by the `bits` buffer ({requested})"
-                )
-            }
-        }
-    }
-}
-
-impl Debug for BitWriterError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{self}")
-    }
-}
-
-impl Error for BitWriterError {}
 
 impl BitWriter {
     /// Initialize a new writer.
@@ -83,19 +45,16 @@ impl BitWriter {
     /// Refer to tests for example usage.
     // TODO: Because bitwriter isn't directly public, any errors would be caused by internal library bugs,
     // and so this function should just panic if it encounters issues.
-    pub fn write_bits(&mut self, bits: &[u8], num_bits: usize) -> Result<usize, BitWriterError> {
+    pub fn write_bits(&mut self, bits: &[u8], num_bits: usize) -> usize {
         if bits.len() * 8 < num_bits {
-            return Err(BitWriterError::MoreBitsThanInbuf((
-                bits.len() * 8,
-                num_bits,
-            )));
+            panic!("asked to write more bits into buffer ({}) than were provided by the `bits` buffer ({})", num_bits, bits.len() * 8);
         }
 
         // Special handling for if both the input and output are byte aligned
         if self.bit_idx % 8 == 0 && num_bits / 8 == bits.len() {
             self.output.extend_from_slice(bits);
             self.bit_idx += num_bits;
-            return Ok(num_bits);
+            return num_bits;
         }
 
         // Make sure there's space for the new bits by finding the total size of the buffer in bits, then round up to the nearest multiple of 8
@@ -219,25 +178,24 @@ impl BitWriter {
                 self.bit_idx += num_bits_left_in_output_byte;
             }
         }
-        Ok(num_bits_written)
+        num_bits_written
     }
 
     /// Returns the populated buffer that you've been writing bits into.
     ///
     /// This function consumes the writer, so it cannot be used after
     /// dumping
-    pub fn dump(self) -> Result<Vec<u8>, BitWriterError> {
+    pub fn dump(self) -> Vec<u8> {
         if self.bit_idx % 8 != 0 {
-            return Err(BitWriterError::NotByteAligned(self.bit_idx));
+            panic!("`dump` was called on a bit writer but an even number of bytes weren't written into the buffer")
         }
-        Ok(self.output)
+        self.output
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::BitWriter;
-    use crate::encoding::bit_writer::BitWriterError;
     use std::vec;
 
     #[test]
@@ -245,8 +203,8 @@ mod tests {
         // Define an existing vec, write some bits into it
         let existing_vec = vec![255_u8];
         let mut bw = BitWriter::from(existing_vec);
-        bw.write_bits(&[0], 8).unwrap();
-        assert_eq!(vec![255, 0], bw.dump().unwrap());
+        bw.write_bits(&[0], 8);
+        assert_eq!(vec![255, 0], bw.dump());
     }
 
     #[test]
@@ -254,9 +212,9 @@ mod tests {
         // Write the first 4 bits as 1s and the last 4 bits as 0s
         // 1010 is used where values should never be read from.
         let mut bw: BitWriter = BitWriter::new();
-        bw.write_bits(&[0b010_1111], 4).unwrap();
-        bw.write_bits(&[0b1010_0000], 4).unwrap();
-        let output = bw.dump().unwrap();
+        bw.write_bits(&[0b010_1111], 4);
+        bw.write_bits(&[0b1010_0000], 4);
+        let output = bw.dump();
         assert!(output.len() == 1, "Single byte written into writer returned a vec that wasn't one byte, vec was {} elements long", output.len());
         assert_eq!(
             0b1111_0000, output[0],
@@ -268,9 +226,9 @@ mod tests {
     fn single_byte_written_3_5() {
         // Write the first 3 bits as 1s and the last 5 bits as 0s
         let mut bw: BitWriter = BitWriter::new();
-        bw.write_bits(&[0b0101_0111], 3).unwrap();
-        bw.write_bits(&[0b1010_0000], 5).unwrap();
-        let output = bw.dump().unwrap();
+        bw.write_bits(&[0b0101_0111], 3);
+        bw.write_bits(&[0b1010_0000], 5);
+        let output = bw.dump();
         assert!(output.len() == 1, "Single byte written into writer return a vec that wasn't one byte, vec was {} elements long", output.len());
         assert_eq!(0b1110_0000, output[0], "3 and 5 bits written into buffer");
     }
@@ -279,9 +237,9 @@ mod tests {
     fn single_byte_written_1_7() {
         // Write the first bit as a 1 and the last 7 bits as 0s
         let mut bw: BitWriter = BitWriter::new();
-        bw.write_bits(&[0b1], 1).unwrap();
-        bw.write_bits(&[0], 7).unwrap();
-        let output = bw.dump().unwrap();
+        bw.write_bits(&[0b1], 1);
+        bw.write_bits(&[0], 7);
+        let output = bw.dump();
         assert!(output.len() == 1, "Single byte written into writer return a vec that wasn't one byte, vec was {} elements long", output.len());
         assert_eq!(0b1000_0000, output[0], "1 and 7 bits written into buffer");
     }
@@ -290,8 +248,8 @@ mod tests {
     fn single_byte_written_8() {
         // Write an entire byte
         let mut bw: BitWriter = BitWriter::new();
-        bw.write_bits(&[1], 8).unwrap();
-        let output = bw.dump().unwrap();
+        bw.write_bits(&[1], 8);
+        let output = bw.dump();
         assert!(output.len() == 1, "Single byte written into writer return a vec that wasn't one byte, vec was {} elements long", output.len());
         assert_eq!(1, output[0], "1 and 7 bits written into buffer");
     }
@@ -300,58 +258,59 @@ mod tests {
     fn multi_byte_clean_boundary_4_4_4_4() {
         // Writing 4 bits at a time for 2 bytes
         let mut bw = BitWriter::new();
-        bw.write_bits(&[0], 4).unwrap();
-        bw.write_bits(&[0b1111], 4).unwrap();
-        bw.write_bits(&[0b1111], 4).unwrap();
-        bw.write_bits(&[0], 4).unwrap();
-        assert_eq!(vec![0b0000_1111, 0b1111_0000], bw.dump().unwrap());
+        bw.write_bits(&[0], 4);
+        bw.write_bits(&[0b1111], 4);
+        bw.write_bits(&[0b1111], 4);
+        bw.write_bits(&[0], 4);
+        assert_eq!(vec![0b0000_1111, 0b1111_0000], bw.dump());
     }
 
     #[test]
     fn multi_byte_clean_boundary_16_8() {
         // Writing 16 bits at once
         let mut bw = BitWriter::new();
-        bw.write_bits(&[1, 0], 16).unwrap();
-        bw.write_bits(&[69], 8).unwrap();
-        assert_eq!(vec![1, 0, 69], bw.dump().unwrap())
+        bw.write_bits(&[1, 0], 16);
+        bw.write_bits(&[69], 8);
+        assert_eq!(vec![1, 0, 69], bw.dump())
     }
 
     #[test]
     fn multi_byte_boundary_crossed_4_12() {
         // Writing 4 1s and then 12 zeros
         let mut bw = BitWriter::new();
-        bw.write_bits(&[0b0000_1111], 4).unwrap();
-        bw.write_bits(&[0b0000_0000, 0b1010_0000], 12).unwrap();
-        assert_eq!(vec![0b1111_0000, 0b0000_0000], bw.dump().unwrap());
+        bw.write_bits(&[0b0000_1111], 4);
+        bw.write_bits(&[0b0000_0000, 0b1010_0000], 12);
+        assert_eq!(vec![0b1111_0000, 0b0000_0000], bw.dump());
     }
 
     #[test]
     fn multi_byte_boundary_crossed_4_5_7() {
         // Writing 4 1s and then 5 zeros then 7 1s
         let mut bw = BitWriter::new();
-        bw.write_bits(&[0b1010_1111], 4).unwrap();
-        bw.write_bits(&[0b1010_0000], 5).unwrap();
-        bw.write_bits(&[0b0111_1111], 7).unwrap();
-        assert_eq!(vec![0b1111_0000, 0b0111_1111], bw.dump().unwrap());
+        bw.write_bits(&[0b1010_1111], 4);
+        bw.write_bits(&[0b1010_0000], 5);
+        bw.write_bits(&[0b0111_1111], 7);
+        assert_eq!(vec![0b1111_0000, 0b0111_1111], bw.dump());
     }
 
     #[test]
     fn multi_byte_boundary_crossed_1_9_6() {
         // Writing 1 1 and then 9 zeros then 6 1s
         let mut bw = BitWriter::new();
-        bw.write_bits(&[0b0000_0001], 1).unwrap();
-        bw.write_bits(&[0, 0b1010_1010], 9).unwrap();
-        bw.write_bits(&[0b0011_1111], 6).unwrap();
-        assert_eq!(vec![0b1000_0000, 0b0011_1111], bw.dump().unwrap());
+        bw.write_bits(&[0b0000_0001], 1);
+        bw.write_bits(&[0, 0b1010_1010], 9);
+        bw.write_bits(&[0b0011_1111], 6);
+        assert_eq!(vec![0b1000_0000, 0b0011_1111], bw.dump());
     }
 
     #[test]
+    #[should_panic]
     fn catches_unaligned_dump() {
         // Write a single bit in then dump it, making sure
         // the correct error is returned
         let mut bw = BitWriter::new();
-        bw.write_bits(&[0], 1).unwrap();
-        assert_eq!(Err(BitWriterError::NotByteAligned(1)), bw.dump());
+        bw.write_bits(&[0], 1);
+        bw.dump();
     }
 
     // #[test]

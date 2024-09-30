@@ -8,14 +8,11 @@ use std::error::Error;
 use std::fmt::{Debug, Display};
 use std::vec::Vec;
 
-use super::bit_writer::BitWriterError;
-
 /// An error produced when an attempt was made to serialize a [`FrameHeader`]
 #[non_exhaustive]
 pub enum FrameHeaderError {
     SingleSegmentMissingContentSize,
     NoSingleSegmentMissingWindowSize,
-    BitWriterError(BitWriterError),
 }
 
 impl Display for FrameHeaderError {
@@ -33,12 +30,6 @@ impl Display for FrameHeaderError {
                     "if `single_segment` is false, the `window_size` field must be set"
                 )
             }
-            FrameHeaderError::BitWriterError(_) => {
-                write!(
-                    f,
-                    "an error was encountered serializing with the bit writer"
-                )
-            }
         }
     }
 }
@@ -49,20 +40,8 @@ impl Debug for FrameHeaderError {
     }
 }
 
-impl Error for FrameHeaderError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match self {
-            FrameHeaderError::BitWriterError(e) => Some(e),
-            _ => None,
-        }
-    }
-}
+impl Error for FrameHeaderError {}
 
-impl From<BitWriterError> for FrameHeaderError {
-    fn from(value: BitWriterError) -> Self {
-        FrameHeaderError::BitWriterError(value)
-    }
-}
 /// A header for a single Zstandard frame.
 ///
 /// <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#frame_header>
@@ -154,10 +133,10 @@ impl FrameHeader {
             //     field_size -= 256;
             // }
 
-            bw.write_bits(&[flag_value], 2)?;
+            bw.write_bits(&[flag_value], 2);
         } else {
             // `Frame_Content_Size` was not provided
-            bw.write_bits(&[0], 2)?;
+            bw.write_bits(&[0], 2);
         }
 
         // `Single_Segment_flag`:
@@ -168,27 +147,27 @@ impl FrameHeader {
             if self.frame_content_size.is_none() {
                 return Err(FrameHeaderError::SingleSegmentMissingContentSize);
             }
-            bw.write_bits(&[1], 1)?;
+            bw.write_bits(&[1], 1);
         } else {
             if self.window_size.is_none() {
                 return Err(FrameHeaderError::NoSingleSegmentMissingWindowSize);
             }
-            bw.write_bits(&[0], 1)?;
+            bw.write_bits(&[0], 1);
         }
 
         // `Unused_bit`:
         // An encoder compliant with this spec must set this bit to zero
-        bw.write_bits(&[0], 1)?;
+        bw.write_bits(&[0], 1);
 
         // `Reserved_bit`:
         // This value must be zero
-        bw.write_bits(&[0], 1)?;
+        bw.write_bits(&[0], 1);
 
         // `Content_Checksum_flag`:
         if self.content_checksum {
-            bw.write_bits(&[1], 1)?;
+            bw.write_bits(&[1], 1);
         } else {
-            bw.write_bits(&[0], 1)?;
+            bw.write_bits(&[0], 1);
         }
 
         // `Dictionary_ID_flag`:
@@ -200,15 +179,14 @@ impl FrameHeader {
                 4 => 3,
                 _ => panic!(),
             };
-            bw.write_bits(&[flag_value], 2)?;
+            bw.write_bits(&[flag_value], 2);
         } else {
             // A `Dictionary_ID` was not provided
-            bw.write_bits(&[0], 2)?;
+            bw.write_bits(&[0], 2);
         }
 
         Ok(bw
-            .dump()
-            .expect("The frame header descriptor should always be exactly one byte.")[0])
+            .dump()[0])
     }
 }
 
