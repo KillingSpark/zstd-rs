@@ -185,8 +185,7 @@ impl FrameHeader {
             bw.write_bits(&[0], 2);
         }
 
-        Ok(bw
-            .dump()[0])
+        Ok(bw.dump()[0])
     }
 }
 
