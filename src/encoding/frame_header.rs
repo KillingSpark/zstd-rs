@@ -203,7 +203,7 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn catches_single_segment() {
+    fn catches_single_segment_no_fcs() {
         let header = FrameHeader {
             frame_content_size: None,
             single_segment: true,
@@ -214,7 +214,11 @@ mod tests {
 
         let mut serialized_header = Vec::new();
         header.serialize(&mut serialized_header);
+    }
 
+    #[test]
+    #[should_panic]
+    fn catches_single_segment_no_winsize() {
         let header = FrameHeader {
             frame_content_size: Some(7),
             single_segment: false,
