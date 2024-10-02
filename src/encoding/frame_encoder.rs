@@ -1,15 +1,9 @@
 //! Utilities and interfaces for encoding an entire frame.
 
 use core::convert::TryInto;
-use std::error::Error;
-use std::fmt::{Debug, Display};
 use std::vec::Vec;
 
-use super::{
-    block_header::BlockHeader,
-    blocks::compress_raw_block,
-    frame_header::{FrameHeader, FrameHeaderError},
-};
+use super::{block_header::BlockHeader, blocks::compress_raw_block, frame_header::FrameHeader};
 
 /// Blocks cannot be larger than 128KB in size.
 const MAX_BLOCK_SIZE: usize = 128000;
@@ -40,42 +34,6 @@ pub enum CompressionLevel {
     /// UNIMPLEMENTED
     Best,
 }
-
-#[non_exhaustive]
-pub enum FrameCompressorError {
-    HeaderError(FrameHeaderError),
-}
-
-impl Display for FrameCompressorError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            FrameCompressorError::HeaderError(_) => {
-                write!(f, "an error was encountered serializing the frame header")
-            }
-        }
-    }
-}
-
-impl Debug for FrameCompressorError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{self}")
-    }
-}
-
-impl From<FrameHeaderError> for FrameCompressorError {
-    fn from(value: FrameHeaderError) -> Self {
-        FrameCompressorError::HeaderError(value)
-    }
-}
-
-impl Error for FrameCompressorError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match self {
-            FrameCompressorError::HeaderError(e) => Some(e),
-        }
-    }
-}
-
 /// An interface for compressing arbitrary data with the ZStandard compression algorithm.
 ///
 /// `FrameCompressor` will generally be used by:
@@ -111,7 +69,7 @@ impl<'input> FrameCompressor<'input> {
     }
 
     /// Compress the uncompressed data into a valid Zstd frame and write it into the provided buffer
-    pub fn compress(&self, output: &mut Vec<u8>) -> Result<(), FrameCompressorError> {
+    pub fn compress(&self, output: &mut Vec<u8>) {
         let header = FrameHeader {
             frame_content_size: Some(self.uncompressed_data.len().try_into().unwrap()),
             single_segment: true,
@@ -119,7 +77,7 @@ impl<'input> FrameCompressor<'input> {
             dictionary_id: None,
             window_size: None,
         };
-        header.serialize(output)?;
+        header.serialize(output);
         // Special handling is needed for compression of a totally empty file (why you'd want to do that, I don't know)
         if self.uncompressed_data.is_empty() {
             let header = BlockHeader {
@@ -156,7 +114,6 @@ impl<'input> FrameCompressor<'input> {
                     );
                     index += block_size;
                 }
-                Ok(())
             }
             _ => {
                 unimplemented!();
@@ -176,7 +133,7 @@ mod tests {
         let mock_data = &[1_u8, 2, 3];
         let compressor = FrameCompressor::new(mock_data, super::CompressionLevel::Uncompressed);
         let mut output: Vec<u8> = Vec::new();
-        compressor.compress(&mut output).unwrap();
+        compressor.compress(&mut output);
         assert!(output.starts_with(&MAGIC_NUM.to_le_bytes()));
     }
 
@@ -185,6 +142,6 @@ mod tests {
         let mock_data = &[1_u8, 2, 3];
         let compressor = FrameCompressor::new(mock_data, super::CompressionLevel::Uncompressed);
         let mut output: Vec<u8> = Vec::new();
-        compressor.compress(&mut output).unwrap();
+        compressor.compress(&mut output);
     }
 }

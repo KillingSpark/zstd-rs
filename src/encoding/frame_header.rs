@@ -4,43 +4,7 @@ use crate::encoding::{
     util::{find_min_size, minify_val},
 };
 use crate::frame;
-use std::error::Error;
-use std::fmt::{Debug, Display};
 use std::vec::Vec;
-
-/// An error produced when an attempt was made to serialize a [`FrameHeader`]
-#[non_exhaustive]
-pub enum FrameHeaderError {
-    SingleSegmentMissingContentSize,
-    NoSingleSegmentMissingWindowSize,
-}
-
-impl Display for FrameHeaderError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            FrameHeaderError::SingleSegmentMissingContentSize => {
-                write!(
-                    f,
-                    "if `single_segment` is true, the `frame_content_size` field must be set"
-                )
-            }
-            FrameHeaderError::NoSingleSegmentMissingWindowSize => {
-                write!(
-                    f,
-                    "if `single_segment` is false, the `window_size` field must be set"
-                )
-            }
-        }
-    }
-}
-
-impl Debug for FrameHeaderError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{self}")
-    }
-}
-
-impl Error for FrameHeaderError {}
 
 /// A header for a single Zstandard frame.
 ///
@@ -69,14 +33,14 @@ impl FrameHeader {
     /// Writes the serialized frame header into the provided buffer.
     ///
     /// The returned header *does include* a frame header descriptor.
-    pub fn serialize(self, output: &mut Vec<u8>) -> Result<(), FrameHeaderError> {
+    pub fn serialize(self, output: &mut Vec<u8>) {
         vprintln!("Serializing frame with header: {self:?}");
         // https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#frame_header
         // Magic Number:
         output.extend_from_slice(&frame::MAGIC_NUM.to_le_bytes());
 
         // `Frame_Header_Descriptor`:
-        output.push(self.descriptor()?);
+        output.push(self.descriptor());
 
         // `Window_Descriptor
         // TODO: https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#window_descriptor
@@ -93,14 +57,12 @@ impl FrameHeader {
         if let Some(frame_content_size) = self.frame_content_size {
             output.extend(minify_val_fcs(frame_content_size));
         }
-
-        Ok(())
     }
 
     /// Generate a serialized frame header descriptor for the frame header.
     ///
     /// https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#frame_header_descriptor
-    fn descriptor(&self) -> Result<u8, FrameHeaderError> {
+    fn descriptor(&self) -> u8 {
         let mut bw = BitWriter::new();
         // A frame header starts with a frame header descriptor.
         // It describes what other fields are present
@@ -128,11 +90,6 @@ impl FrameHeader {
                 _ => panic!(),
             };
 
-            // // When FCS_Field_Size is 2, the offset of 256 is added [during decompression].
-            // if flag_value == 2 {
-            //     field_size -= 256;
-            // }
-
             bw.write_bits(&[flag_value], 2);
         } else {
             // `Frame_Content_Size` was not provided
@@ -144,14 +101,13 @@ impl FrameHeader {
         // and the `Frame_Content_Size` field must be present in the header.
         // If this flag is not set, the `Window_Descriptor` field must be present in the frame header.
         if self.single_segment {
-            if self.frame_content_size.is_none() {
-                return Err(FrameHeaderError::SingleSegmentMissingContentSize);
-            }
+            assert!(self.frame_content_size.is_some(), "if the `single_segment` flag is set to true, then a frame content size must be provided");
             bw.write_bits(&[1], 1);
         } else {
-            if self.window_size.is_none() {
-                return Err(FrameHeaderError::NoSingleSegmentMissingWindowSize);
-            }
+            assert!(
+                self.window_size.is_some(),
+                "if the `single_segment` flag is set to false, then a window size must be provided"
+            );
             bw.write_bits(&[0], 1);
         }
 
@@ -185,7 +141,7 @@ impl FrameHeader {
             bw.write_bits(&[0], 2);
         }
 
-        Ok(bw.dump()[0])
+        bw.dump()[0]
     }
 }
 
@@ -218,7 +174,7 @@ mod tests {
             dictionary_id: None,
             window_size: None,
         };
-        let descriptor = header.descriptor().unwrap();
+        let descriptor = header.descriptor();
         let decoded_descriptor = FrameDescriptor(descriptor);
         assert_eq!(decoded_descriptor.frame_content_size_bytes().unwrap(), 1);
         assert!(!decoded_descriptor.content_checksum_flag());
@@ -236,12 +192,38 @@ mod tests {
         };
 
         let mut serialized_header = Vec::new();
-        header.serialize(&mut serialized_header).unwrap();
+        header.serialize(&mut serialized_header);
         let parsed_header = read_frame_header(serialized_header.as_slice())
             .unwrap()
             .0
             .header;
         assert!(parsed_header.dictionary_id().is_none());
         assert_eq!(parsed_header.frame_content_size(), 1);
+    }
+
+    #[test]
+    #[should_panic]
+    fn catches_single_segment() {
+        let header = FrameHeader {
+            frame_content_size: None,
+            single_segment: true,
+            content_checksum: false,
+            dictionary_id: None,
+            window_size: Some(1),
+        };
+
+        let mut serialized_header = Vec::new();
+        header.serialize(&mut serialized_header);
+
+        let header = FrameHeader {
+            frame_content_size: Some(7),
+            single_segment: false,
+            content_checksum: false,
+            dictionary_id: None,
+            window_size: None,
+        };
+
+        let mut serialized_header = Vec::new();
+        header.serialize(&mut serialized_header);
     }
 }
