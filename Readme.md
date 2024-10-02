@@ -6,17 +6,22 @@
 
 # What is this
 
-A feature-complete decoder for the zstd compression format as defined in: [This document](https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md).
+A pure Rust implementation of the Zstandard compression algorithm, as defined in [this document](https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md).
 
-It is NOT a compressor. I don't plan on implementing that part either, at least not in the near future. (If someone is motivated enough I will of course accept a pull-request!)
+This crate contains a fully operational implementation of the decompression portion of the standard.
 
-This crate might look like it is not active, this is because there isn't really anything to do anymore, unless a bug is found or a new API feature is requested. I will of course respond to and look into issues!
+*Work has started on a compressor, but it has not reached a point where the compressor provides any real function.* (CONTRIBUTORS WELCOME)
+
+This crate is currently actively maintained.
 
 # Current Status
 
 Feature complete on the decoder side. In terms of speed it is still behind the original C implementation which has a rust binding located [here](https://github.com/gyscos/zstd-rs).
 
-Actively maintained but no new features currently planned. If you have suggestions please open an issue and I'll consider it.
+On the compression side:
+- [x] Support for generating raw, uncompressed frames
+- [ ] Support for generating RLE compressed blocks
+- [ ] Support for generating compressed blocks at any compression level
 
 ## Speed
 
