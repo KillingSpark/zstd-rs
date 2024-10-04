@@ -454,6 +454,8 @@ impl BlockDecoder {
         Ok(())
     }
 
+    /// Reads 3 bytes from the provided reader and returns
+    /// the deserialized header and the number of bytes read.
     pub fn read_block_header(
         &mut self,
         mut r: impl Read,

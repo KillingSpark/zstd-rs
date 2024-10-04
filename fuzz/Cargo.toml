@@ -25,5 +25,9 @@ name = "decode"
 path = "fuzz_targets/decode.rs"
 
 [[bin]]
+name = "encode"
+path = "fuzz_targets/encode.rs"
+
+[[bin]]
 name = "interop"
 path = "fuzz_targets/interop.rs"

@@ -8,7 +8,7 @@
 //! Huffman is used to compress literals,
 //! while FSE is used for all other symbols (literal length code, match length code, offset code).
 //!
-//! https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#fse
+//! <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#fse>
 //!
 //! <https://arxiv.org/pdf/1311.2540>
 

@@ -569,4 +569,6 @@ fn test_decode_all() {
 pub mod bit_reader;
 pub mod decode_corpus;
 pub mod dict_test;
+#[cfg(feature = "std")]
+pub mod encode_corpus;
 pub mod fuzz_regressions;
