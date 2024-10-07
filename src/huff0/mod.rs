@@ -4,3 +4,4 @@
 /// will start with the same sequence of bits.
 mod huff0_decoder;
 pub use huff0_decoder::*;
+mod huff0_encoder;
