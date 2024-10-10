@@ -1,6 +1,5 @@
 use alloc::vec::Vec;
 use core::cmp::Ordering;
-use std::eprintln;
 
 pub struct HuffmanTable {
     /// Index is the symbol, values are the bitstring in the lower bits of the u32 and the amount of bits in the u8
@@ -95,7 +94,7 @@ fn distribute_weights(amount: usize) -> Vec<usize> {
     while weights.len() < amount {
         let mut add_new = 1 << (weight_counter - target_weight);
         let available_space = amount - weights.len();
-        
+
         if add_new > available_space {
             target_weight = weight_counter;
             add_new = 1;
@@ -110,13 +109,54 @@ fn distribute_weights(amount: usize) -> Vec<usize> {
     weights
 }
 
+fn redistribute_weights(weights: &mut [usize], max_weight: usize) {
+    let mut added_weights = 0;
+    for weight in weights.iter_mut() {
+        if *weight < max_weight {
+            for add in *weight..max_weight {
+                added_weights += 1 << add;
+            }
+            *weight += max_weight - *weight;
+        }
+    }
+    while added_weights > 0 {
+        let downgrade = weights
+            .iter_mut()
+            .find(|weight| (1 << **weight) > added_weights);
+        let downgrade = if let Some(dowgrade) = downgrade {
+            dowgrade
+        } else {
+            let max = *weights.last_mut().unwrap();
+            weights.iter_mut().find(|weight| **weight == max).unwrap()
+        };
+        *downgrade -= 1;
+        added_weights -= 1 << *downgrade;
+    }
+    if added_weights < 0 {
+        panic!("Overshot while redistributing, need to compensate {} {weights:?}", added_weights);
+    }
+}
+
 #[test]
 fn weights() {
     // assert_eq!(distribute_weights(5).as_slice(), &[1, 1, 2, 3, 4]);
     for amount in 2..=256 {
-        let weights = distribute_weights(amount);
+        let mut weights = distribute_weights(amount);
         assert_eq!(weights.len(), amount);
-        let sum = weights.iter().copied().map(|weight| 1 << weight).sum::<usize>();
+        let sum = weights
+            .iter()
+            .copied()
+            .map(|weight| 1 << weight)
+            .sum::<usize>();
         assert!(sum.is_power_of_two());
+
+        redistribute_weights(&mut weights, amount.ilog2() as usize + 1);
+        let sum = weights
+            .iter()
+            .copied()
+            .map(|weight| 1 << weight)
+            .sum::<usize>();
+        assert!(sum.is_power_of_two());
+        assert!(weights.last().unwrap() - weights.first().unwrap() <= amount.ilog2() as usize + 1)
     }
 }
