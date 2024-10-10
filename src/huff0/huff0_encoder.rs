@@ -1,5 +1,6 @@
-use core::cmp::Ordering;
 use alloc::vec::Vec;
+use core::cmp::Ordering;
+use std::eprintln;
 
 pub struct HuffmanTable {
     /// Index is the symbol, values are the bitstring in the lower bits of the u32 and the amount of bits in the u8
@@ -79,4 +80,43 @@ fn huffman() {
     assert_eq!(table.codes[3], (0, 0));
     assert_eq!(table.codes[4], (0, 4));
     assert_eq!(table.codes[5], (1, 4));
+}
+
+fn distribute_weights(amount: usize) -> Vec<usize> {
+    assert!(amount >= 2);
+    assert!(amount <= 256);
+    let mut weights = Vec::new();
+    let mut target_weight = 1;
+    let mut weight_counter = 2;
+
+    weights.push(1);
+    weights.push(1);
+
+    while weights.len() < amount {
+        let mut add_new = 1 << (weight_counter - target_weight);
+        let available_space = amount - weights.len();
+        
+        if add_new > available_space {
+            target_weight = weight_counter;
+            add_new = 1;
+        }
+
+        for _ in 0..add_new {
+            weights.push(target_weight);
+        }
+        weight_counter += 1;
+    }
+
+    weights
+}
+
+#[test]
+fn weights() {
+    // assert_eq!(distribute_weights(5).as_slice(), &[1, 1, 2, 3, 4]);
+    for amount in 2..=256 {
+        let weights = distribute_weights(amount);
+        assert_eq!(weights.len(), amount);
+        let sum = weights.iter().copied().map(|weight| 1 << weight).sum::<usize>();
+        assert!(sum.is_power_of_two());
+    }
 }
