@@ -110,6 +110,11 @@ fn distribute_weights(amount: usize) -> Vec<usize> {
 }
 
 fn redistribute_weights(weights: &mut [usize], max_weight: usize) {
+    let max_weight_data = *weights.last().unwrap();
+    if max_weight_data <= max_weight {
+        return;
+    }
+    let max_weight = max_weight_data - max_weight;
     let mut added_weights = 0;
     for weight in weights.iter_mut() {
         if *weight < max_weight {
@@ -119,22 +124,31 @@ fn redistribute_weights(weights: &mut [usize], max_weight: usize) {
             *weight += max_weight - *weight;
         }
     }
+
     while added_weights > 0 {
-        let downgrade = weights
-            .iter_mut()
-            .find(|weight| (1 << **weight) > added_weights);
-        let downgrade = if let Some(dowgrade) = downgrade {
-            dowgrade
-        } else {
-            let max = *weights.last_mut().unwrap();
-            weights.iter_mut().find(|weight| **weight == max).unwrap()
-        };
-        *downgrade -= 1;
-        added_weights -= 1 << *downgrade;
+        let mut current_idx = 0;
+        let mut current_weight = 0;
+        for idx in 0..weights.len() {
+            if 1 << (weights[idx] - 1) > added_weights {
+                break;
+            }
+            if weights[idx] > current_weight {
+                current_weight = weights[idx];
+                current_idx = idx;
+            }
+        }
+
+        added_weights -= 1 << (current_weight - 1);
+        weights[current_idx] -= 1;
     }
-    if added_weights < 0 {
-        panic!("Overshot while redistributing, need to compensate {} {weights:?}", added_weights);
+
+    if weights[0] > 1 {
+        let offset = weights[0] - 1;
+        for weight in weights.iter_mut() {
+            *weight -= offset;
+        }
     }
+
 }
 
 #[test]
@@ -157,6 +171,8 @@ fn weights() {
             .map(|weight| 1 << weight)
             .sum::<usize>();
         assert!(sum.is_power_of_two());
-        assert!(weights.last().unwrap() - weights.first().unwrap() <= amount.ilog2() as usize + 1)
+
+        let max_weight = amount.ilog2() as usize + 3;
+        assert!(*weights.last().unwrap() <= max_weight, "{} {weights:?}", max_weight);
     }
 }
