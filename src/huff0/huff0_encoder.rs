@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 use core::cmp::Ordering;
+use std::eprintln;
 
 use crate::encoding::bit_writer::BitWriter;
 
@@ -13,7 +14,8 @@ impl HuffmanEncoder {
         for symbol in data {
             let (code, mut num_bits) = self.table.codes[*symbol as usize];
             while num_bits > 0 {
-                let read = self.writer
+                let read = self
+                    .writer
                     .write_bits(&code.to_le_bytes(), num_bits as usize);
                 num_bits -= read as u8;
             }
@@ -97,16 +99,12 @@ impl HuffmanTable {
         }
         let max_num_bits = highest_bit_set(weight_sum) - 1; // this is a log_2 of a clean power of two
 
-        let mut start_value = 0;
         let mut current_value = 0;
         let mut current_weight = 0;
         let mut current_num_bits = 0;
         for entry in sorted.iter() {
             if current_weight != entry.weight {
-                let count = sorted.iter().filter(|e| e.weight == entry.weight).count();
-                current_value = start_value;
-                start_value += count;
-                start_value /= 2;
+                current_value = current_value / 2;
                 current_weight = entry.weight;
                 current_num_bits = max_num_bits - entry.weight + 1;
             }
@@ -238,6 +236,19 @@ fn weights() {
             "{} {weights:?}",
             max_weight
         );
+
+        let codes = HuffmanTable::build_from_weights(&weights).codes;
+        for (code, num_bits) in codes.iter().copied() {
+            for (code2, num_bits2) in codes.iter().copied() {
+                if num_bits == 0 || num_bits2 == 0 || (code, num_bits) == (code2, num_bits2) {
+                    continue;
+                }
+                if num_bits <= num_bits2 {
+                    let code2_shifted = code2 >> (num_bits2 - num_bits);
+                    assert_ne!(code, code2_shifted, "{:b},{num_bits:} is prefix of {:b},{num_bits2:}", code, code2);
+                }
+            }
+        }
     }
 }
 
