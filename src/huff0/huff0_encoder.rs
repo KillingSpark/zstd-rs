@@ -16,7 +16,7 @@ impl HuffmanEncoder {
         }
     }
     pub fn encode(&mut self, data: &[u8]) {
-        for symbol in data {
+        for symbol in data.iter().rev() {
             let (code, mut num_bits) = self.table.codes[*symbol as usize];
             while num_bits > 0 {
                 let read = self
