@@ -222,30 +222,36 @@ fn weights() {
             .sum::<usize>();
         assert!(sum.is_power_of_two());
 
-        redistribute_weights(&mut weights, amount.ilog2() as usize + 1);
-        let sum = weights
-            .iter()
-            .copied()
-            .map(|weight| 1 << weight)
-            .sum::<usize>();
-        assert!(sum.is_power_of_two());
+        for num_bit_limit in (amount.ilog2() as usize + 1)..11 {
+            redistribute_weights(&mut weights, num_bit_limit);
+            let sum = weights
+                .iter()
+                .copied()
+                .map(|weight| 1 << weight)
+                .sum::<usize>();
+            assert!(sum.is_power_of_two());
 
-        let max_weight = amount.ilog2() as usize + 3;
-        assert!(
-            *weights.last().unwrap() <= max_weight,
-            "{} {weights:?}",
-            max_weight
-        );
+            let max_weight = amount.ilog2() as usize + 3;
+            assert!(
+                *weights.last().unwrap() <= max_weight,
+                "{} {weights:?}",
+                max_weight
+            );
 
-        let codes = HuffmanTable::build_from_weights(&weights).codes;
-        for (code, num_bits) in codes.iter().copied() {
-            for (code2, num_bits2) in codes.iter().copied() {
-                if num_bits == 0 || num_bits2 == 0 || (code, num_bits) == (code2, num_bits2) {
-                    continue;
-                }
-                if num_bits <= num_bits2 {
-                    let code2_shifted = code2 >> (num_bits2 - num_bits);
-                    assert_ne!(code, code2_shifted, "{:b},{num_bits:} is prefix of {:b},{num_bits2:}", code, code2);
+            let codes = HuffmanTable::build_from_weights(&weights).codes;
+            for (code, num_bits) in codes.iter().copied() {
+                for (code2, num_bits2) in codes.iter().copied() {
+                    if num_bits == 0 || num_bits2 == 0 || (code, num_bits) == (code2, num_bits2) {
+                        continue;
+                    }
+                    if num_bits <= num_bits2 {
+                        let code2_shifted = code2 >> (num_bits2 - num_bits);
+                        assert_ne!(
+                            code, code2_shifted,
+                            "{:b},{num_bits:} is prefix of {:b},{num_bits2:}",
+                            code, code2
+                        );
+                    }
                 }
             }
         }
