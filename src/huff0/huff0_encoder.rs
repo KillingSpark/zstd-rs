@@ -31,15 +31,15 @@ impl HuffmanEncoder {
         std::mem::swap(&mut self.writer, &mut writer);
         let bits_to_fill = writer.misaligned();
         if bits_to_fill == 0 {
-            writer.write_bits(&[(1u8 << 7)], 8);
+            writer.write_bits(&[1], 8);
         } else {
-            writer.write_bits(&[(1u8 << (bits_to_fill - 1))], bits_to_fill);
+            writer.write_bits(&[1], bits_to_fill);
         }
         writer.dump()
     }
     pub(super) fn weights(&self) -> Vec<u8> {
         let max = self.table.codes.iter().map(|(_, nb)| nb).max().unwrap();
-        let mut weights = self
+        let weights = self
             .table
             .codes
             .iter()

@@ -209,7 +209,7 @@ impl From<GetBitsError> for HuffmanDecoderError {
 
 /// A single entry in the table contains the decoded symbol/literal and the
 /// size of the prefix code.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Entry {
     /// The byte that the prefix code replaces during encoding.
     symbol: u8,
@@ -587,7 +587,10 @@ impl HuffmanTable {
         Ok(())
     }
 
-    pub(super) fn from_weights(weights: Vec<u8>) -> Self {
+    /// For internal tests construct directly from weights
+    pub(super) fn from_weights(mut weights: Vec<u8>) -> Self {
+        // Last weight is inferred by build_table_from_weights
+        weights.pop();
         let mut new = Self::new();
         new.weights = weights;
         new.build_table_from_weights().unwrap();
