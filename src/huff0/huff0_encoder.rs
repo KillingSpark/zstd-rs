@@ -104,7 +104,7 @@ impl HuffmanTable {
         let mut current_num_bits = 0;
         for entry in sorted.iter() {
             if current_weight != entry.weight {
-                current_value = current_value / 2;
+                current_value = current_value >> (entry.weight - current_weight);
                 current_weight = entry.weight;
                 current_num_bits = max_num_bits - entry.weight + 1;
             }
