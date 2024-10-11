@@ -7,7 +7,19 @@ pub struct HuffmanTable {
 }
 
 impl HuffmanTable {
+    pub fn build_from_data(data: &[u8]) -> Self {
+        let mut counts = [0; 256];
+        let mut max = 0;
+        for x in data {
+            counts[*x as usize] += 1;
+            max = max.max(*x);
+        }
+
+        Self::build_from_counts(&counts[..=max as usize])
+    }
+
     pub fn build_from_counts(counts: &[usize]) -> Self {
+        assert!(counts.len() <= 256);
         let zeros = counts.iter().filter(|x| **x == 0).count();
         let mut weights = distribute_weights(counts.len() - zeros);
         let limit = weights.len().ilog2() as usize + 2;
@@ -229,4 +241,15 @@ fn counts() {
     assert!(table[0].1 >= table[2].1);
     assert!(table[2].1 >= table[12].1);
     assert!(table[12].1 >= table[4].1);
+}
+
+#[test]
+fn from_data() {
+    let counts = &[3, 0, 4, 1, 5];
+    let table = HuffmanTable::build_from_counts(counts).codes;
+
+    let data = &[0, 2, 4, 4, 0, 3, 2, 2, 0, 2];
+    let table2 = HuffmanTable::build_from_data(data).codes;
+
+    assert_eq!(table, table2);
 }
