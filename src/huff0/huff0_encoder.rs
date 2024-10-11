@@ -1,6 +1,31 @@
 use alloc::vec::Vec;
 use core::cmp::Ordering;
 
+use crate::encoding::bit_writer::BitWriter;
+
+pub struct HuffmanEncoder {
+    table: HuffmanTable,
+    writer: BitWriter,
+}
+
+impl HuffmanEncoder {
+    fn encode(&mut self, data: &[u8]) {
+        for symbol in data {
+            let (code, mut num_bits) = self.table.codes[*symbol as usize];
+            while num_bits > 0 {
+                let read = self.writer
+                    .write_bits(&code.to_le_bytes(), num_bits as usize);
+                num_bits -= read as u8;
+            }
+        }
+    }
+    fn dump(&mut self) -> Vec<u8> {
+        let mut writer = BitWriter::new();
+        std::mem::swap(&mut self.writer, &mut writer);
+        writer.dump()
+    }
+}
+
 pub struct HuffmanTable {
     /// Index is the symbol, values are the bitstring in the lower bits of the u32 and the amount of bits in the u8
     codes: Vec<(u32, u8)>,
