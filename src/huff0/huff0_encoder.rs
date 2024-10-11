@@ -7,7 +7,28 @@ pub struct HuffmanTable {
 }
 
 impl HuffmanTable {
-    pub fn build(weights: &[usize]) -> Self {
+    pub fn build_from_counts(counts: &[usize]) -> Self {
+        let zeros = counts.iter().filter(|x| **x == 0).count();
+        let mut weights = distribute_weights(counts.len() - zeros);
+        let limit = weights.len().ilog2() as usize + 2;
+        redistribute_weights(&mut weights, limit);
+        weights.reverse();
+        let mut counts_sorted = counts.iter().enumerate().collect::<Vec<_>>();
+        counts_sorted.sort_by(|(_, c1), (_, c2)| c1.cmp(c2));
+
+        let mut weights_distributed = Vec::new();
+        weights_distributed.resize(counts.len(), 0);
+        for (idx, count) in counts_sorted {
+            if *count == 0 {
+                weights_distributed[idx] = 0;
+            } else {
+                weights_distributed[idx] = weights.pop().unwrap();
+            }
+        }
+        Self::build_from_weights(&weights_distributed)
+    }
+
+    pub fn build_from_weights(weights: &[usize]) -> Self {
         let mut sorted = Vec::with_capacity(weights.len());
         struct SortEntry {
             symbol: u8,
@@ -68,14 +89,14 @@ fn highest_bit_set(x: usize) -> usize {
 
 #[test]
 fn huffman() {
-    let table = HuffmanTable::build(&[2, 2, 2, 1, 1]);
+    let table = HuffmanTable::build_from_weights(&[2, 2, 2, 1, 1]);
     assert_eq!(table.codes[0], (1, 2));
     assert_eq!(table.codes[1], (2, 2));
     assert_eq!(table.codes[2], (3, 2));
     assert_eq!(table.codes[3], (0, 3));
     assert_eq!(table.codes[4], (1, 3));
 
-    let table = HuffmanTable::build(&[4, 3, 2, 0, 1, 1]);
+    let table = HuffmanTable::build_from_weights(&[4, 3, 2, 0, 1, 1]);
     assert_eq!(table.codes[0], (1, 1));
     assert_eq!(table.codes[1], (1, 2));
     assert_eq!(table.codes[2], (1, 3));
@@ -181,4 +202,31 @@ fn weights() {
             max_weight
         );
     }
+}
+
+#[test]
+fn counts() {
+    let counts = &[3, 0, 4, 1, 5];
+    let table = HuffmanTable::build_from_counts(counts).codes;
+
+    assert_eq!(table[1].1, 0);
+    assert!(table[3].1 >= table[0].1);
+    assert!(table[0].1 >= table[2].1);
+    assert!(table[2].1 >= table[4].1);
+
+    let counts = &[3, 0, 4, 0, 7, 2, 2, 2, 0, 2, 2, 1, 5];
+    let table = HuffmanTable::build_from_counts(counts).codes;
+
+    assert_eq!(table[1].1, 0);
+    assert_eq!(table[3].1, 0);
+    assert_eq!(table[8].1, 0);
+    assert!(table[11].1 >= table[5].1);
+    assert!(table[5].1 >= table[6].1);
+    assert!(table[6].1 >= table[7].1);
+    assert!(table[7].1 >= table[9].1);
+    assert!(table[9].1 >= table[10].1);
+    assert!(table[10].1 >= table[0].1);
+    assert!(table[0].1 >= table[2].1);
+    assert!(table[2].1 >= table[12].1);
+    assert!(table[12].1 >= table[4].1);
 }
