@@ -586,4 +586,11 @@ impl HuffmanTable {
 
         Ok(())
     }
+
+    pub(super) fn from_weights(weights: Vec<u8>) -> Self {
+        let mut new = Self::new();
+        new.weights = weights;
+        new.build_table_from_weights().unwrap();
+        new
+    }
 }

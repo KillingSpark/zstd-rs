@@ -1,6 +1,5 @@
 use alloc::vec::Vec;
 use core::cmp::Ordering;
-use std::eprintln;
 
 use crate::encoding::bit_writer::BitWriter;
 
@@ -10,7 +9,13 @@ pub struct HuffmanEncoder {
 }
 
 impl HuffmanEncoder {
-    fn encode(&mut self, data: &[u8]) {
+    pub fn new(table: HuffmanTable) -> Self {
+        Self {
+            table,
+            writer: BitWriter::new(),
+        }
+    }
+    pub fn encode(&mut self, data: &[u8]) {
         for symbol in data {
             let (code, mut num_bits) = self.table.codes[*symbol as usize];
             while num_bits > 0 {
@@ -21,10 +26,28 @@ impl HuffmanEncoder {
             }
         }
     }
-    fn dump(&mut self) -> Vec<u8> {
+    pub fn dump(&mut self) -> Vec<u8> {
         let mut writer = BitWriter::new();
         std::mem::swap(&mut self.writer, &mut writer);
+        let bits_to_fill = writer.misaligned();
+        if bits_to_fill == 0 {
+            writer.write_bits(&[(1u8 << 7)], 8);
+        } else {
+            writer.write_bits(&[(1u8 << (bits_to_fill - 1))], bits_to_fill);
+        }
         writer.dump()
+    }
+    pub(super) fn weights(&self) -> Vec<u8> {
+        let max = self.table.codes.iter().map(|(_, nb)| nb).max().unwrap();
+        let mut weights = self
+            .table
+            .codes
+            .iter()
+            .copied()
+            .map(|(_, nb)| if nb == 0 { 0 } else { max - nb + 1 })
+            .collect::<Vec<u8>>();
+
+        weights
     }
 }
 
@@ -51,6 +74,7 @@ impl HuffmanTable {
         let mut weights = distribute_weights(counts.len() - zeros);
         let limit = weights.len().ilog2() as usize + 2;
         redistribute_weights(&mut weights, limit);
+
         weights.reverse();
         let mut counts_sorted = counts.iter().enumerate().collect::<Vec<_>>();
         counts_sorted.sort_by(|(_, c1), (_, c2)| c1.cmp(c2));
@@ -64,6 +88,7 @@ impl HuffmanTable {
                 weights_distributed[idx] = weights.pop().unwrap();
             }
         }
+
         Self::build_from_weights(&weights_distributed)
     }
 

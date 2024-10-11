@@ -187,9 +187,14 @@ impl BitWriter {
     /// dumping
     pub fn dump(self) -> Vec<u8> {
         if self.bit_idx % 8 != 0 {
-            panic!("`dump` was called on a bit writer but an even number of bytes weren't written into the buffer")
+            panic!("`dump` was called on a bit writer but an even number of bytes weren't written into the buffer. Was: {}", self.bit_idx)
         }
         self.output
+    }
+
+    /// Returns how many bits are missing for an even byte
+    pub fn misaligned(&self) -> usize {
+        8 - (self.bit_idx % 8)
     }
 }
 
