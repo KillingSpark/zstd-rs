@@ -39,18 +39,21 @@ impl HuffmanTable {
         }
         let max_num_bits = highest_bit_set(weight_sum) - 1; // this is a log_2 of a clean power of two
 
-        let mut current_weight = sorted.last().unwrap().weight;
-        let mut current_num_bits = max_num_bits + 1 - current_weight;
-        let mut code = (1 << current_num_bits) - 1;
-        for idx in (0..sorted.len()).rev() {
-            if current_weight != sorted[idx].weight {
-                current_weight = sorted[idx].weight;
-                let next_num_bits = max_num_bits + 1 - current_weight;
-                code = (1 << (next_num_bits - current_num_bits)) - 1;
-                current_num_bits = next_num_bits;
+        let mut start_value = 0;
+        let mut current_value = 0;
+        let mut current_weight = 0;
+        let mut current_num_bits = 0;
+        for entry in sorted.iter() {
+            if current_weight != entry.weight {
+                let count = sorted.iter().filter(|e| e.weight == entry.weight).count();
+                current_value = start_value;
+                start_value += count;
+                start_value /= 2;
+                current_weight = entry.weight;
+                current_num_bits = max_num_bits - entry.weight + 1;
             }
-            table.codes[sorted[idx].symbol as usize] = (code, current_num_bits as u8);
-            code = code.saturating_sub(1);
+            table.codes[entry.symbol as usize] = (current_value as u32, current_num_bits as u8);
+            current_value += 1;
         }
 
         table
@@ -148,7 +151,6 @@ fn redistribute_weights(weights: &mut [usize], max_weight: usize) {
             *weight -= offset;
         }
     }
-
 }
 
 #[test]
@@ -173,6 +175,10 @@ fn weights() {
         assert!(sum.is_power_of_two());
 
         let max_weight = amount.ilog2() as usize + 3;
-        assert!(*weights.last().unwrap() <= max_weight, "{} {weights:?}", max_weight);
+        assert!(
+            *weights.last().unwrap() <= max_weight,
+            "{} {weights:?}",
+            max_weight
+        );
     }
 }
