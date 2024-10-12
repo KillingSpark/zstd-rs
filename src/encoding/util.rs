@@ -1,4 +1,4 @@
-use std::vec::Vec;
+use alloc::vec::Vec;
 
 /// Returns the minimum number of bytes needed to represent this value, as
 /// either 1, 2, 4, or 8 bytes. A value of 0 will still return one byte.

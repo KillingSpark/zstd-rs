@@ -1,4 +1,4 @@
-use std::vec::Vec;
+use alloc::vec::Vec;
 
 /// Write the data from input into output. The data is not compressed.
 pub(crate) fn compress_raw_block(input: &[u8], output: &mut Vec<u8>) {

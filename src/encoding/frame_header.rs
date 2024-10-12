@@ -4,7 +4,7 @@ use crate::encoding::{
     util::{find_min_size, minify_val},
 };
 use crate::frame;
-use std::vec::Vec;
+use alloc::vec::Vec;
 
 /// A header for a single Zstandard frame.
 ///
@@ -164,7 +164,7 @@ fn minify_val_fcs(val: u64) -> Vec<u8> {
 mod tests {
     use super::FrameHeader;
     use crate::frame::{read_frame_header, FrameDescriptor};
-    use std::vec::Vec;
+    use alloc::vec::Vec;
 
     #[test]
     fn frame_header_descriptor_decode() {
