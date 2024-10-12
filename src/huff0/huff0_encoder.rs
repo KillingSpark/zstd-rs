@@ -242,7 +242,7 @@ fn weights() {
             .sum::<usize>();
         assert!(sum.is_power_of_two());
 
-        for num_bit_limit in (amount.ilog2() as usize + 1)..11 {
+        for num_bit_limit in (amount.ilog2() as usize + 1)..=11 {
             redistribute_weights(&mut weights, num_bit_limit);
             let sum = weights
                 .iter()
@@ -250,6 +250,7 @@ fn weights() {
                 .map(|weight| 1 << weight)
                 .sum::<usize>();
             assert!(sum.is_power_of_two());
+            assert!(sum.ilog2() < 11, "Max bits too big: sum: {} {weights:?}", sum);
 
             let max_weight = amount.ilog2() as usize + 3;
             assert!(
