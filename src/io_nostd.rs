@@ -127,7 +127,7 @@ impl Read for &[u8] {
     }
 }
 
-impl<'a, T> Read for &'a mut T
+impl<T> Read for &mut T
 where
     T: Read,
 {
@@ -141,7 +141,7 @@ pub trait Write {
     fn flush(&mut self) -> Result<(), Error>;
 }
 
-impl<'a, T> Write for &'a mut T
+impl<T> Write for &mut T
 where
     T: Write,
 {

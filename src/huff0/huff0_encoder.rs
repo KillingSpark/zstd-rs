@@ -74,8 +74,7 @@ impl HuffmanTable {
         let mut counts_sorted = counts.iter().enumerate().collect::<Vec<_>>();
         counts_sorted.sort_by(|(_, c1), (_, c2)| c1.cmp(c2));
 
-        let mut weights_distributed = Vec::new();
-        weights_distributed.resize(counts.len(), 0);
+        let mut weights_distributed = alloc::vec![0; counts.len()];
         for (idx, count) in counts_sorted {
             if *count == 0 {
                 weights_distributed[idx] = 0;
@@ -124,7 +123,7 @@ impl HuffmanTable {
         let mut current_num_bits = 0;
         for entry in sorted.iter() {
             if current_weight != entry.weight {
-                current_value = current_value >> (entry.weight - current_weight);
+                current_value >>= entry.weight - current_weight;
                 current_weight = entry.weight;
                 current_num_bits = max_num_bits - entry.weight + 1;
             }
@@ -195,7 +194,7 @@ fn redistribute_weights(weights: &mut [usize], max_num_bits: usize) {
         .map(|x| 1 << x)
         .sum::<usize>()
         .ilog2() as usize;
-    if weight_sum + 1 <= max_num_bits {
+    if weight_sum < max_num_bits {
         return;
     }
     let decrease_weights_by = weight_sum - max_num_bits + 1;
@@ -212,12 +211,12 @@ fn redistribute_weights(weights: &mut [usize], max_num_bits: usize) {
     while added_weights > 0 {
         let mut current_idx = 0;
         let mut current_weight = 0;
-        for idx in 0..weights.len() {
-            if 1 << (weights[idx] - 1) > added_weights {
+        for (idx, weight) in weights.iter().copied().enumerate() {
+            if 1 << (weight - 1) > added_weights {
                 break;
             }
-            if weights[idx] > current_weight {
-                current_weight = weights[idx];
+            if weight > current_weight {
+                current_weight = weight;
                 current_idx = idx;
             }
         }
