@@ -17,13 +17,8 @@ impl HuffmanEncoder {
     }
     pub fn encode(&mut self, data: &[u8]) {
         for symbol in data.iter().rev() {
-            let (code, mut num_bits) = self.table.codes[*symbol as usize];
-            while num_bits > 0 {
-                let read = self
-                    .writer
-                    .write_bits(&code.to_le_bytes(), num_bits as usize);
-                num_bits -= read as u8;
-            }
+            let (code, num_bits) = self.table.codes[*symbol as usize];
+            self.writer.write_bits(code, num_bits as usize);
         }
     }
     pub fn dump(&mut self) -> Vec<u8> {
@@ -31,9 +26,9 @@ impl HuffmanEncoder {
         std::mem::swap(&mut self.writer, &mut writer);
         let bits_to_fill = writer.misaligned();
         if bits_to_fill == 0 {
-            writer.write_bits(&[1], 8);
+            writer.write_bits(1u32, 8);
         } else {
-            writer.write_bits(&[1], bits_to_fill);
+            writer.write_bits(1u32, bits_to_fill);
         }
         writer.dump()
     }

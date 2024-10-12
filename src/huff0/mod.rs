@@ -45,4 +45,5 @@ pub fn round_trip(data: &[u8]) {
 #[test]
 fn roundtrip() {
     round_trip(&[1, 1, 1, 1, 2, 3]);
+    round_trip(&[1, 1, 1, 1, 2, 3, 5, 45, 12, 90]);
 }

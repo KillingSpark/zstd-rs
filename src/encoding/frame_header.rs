@@ -80,51 +80,6 @@ impl FrameHeader {
         // | 1     | 2
         // | 2     | 4
         // | 3     | 8
-        if let Some(frame_content_size) = self.frame_content_size {
-            let field_size = find_min_size(frame_content_size);
-            let flag_value: u8 = match field_size {
-                1 => 0,
-                2 => 1,
-                4 => 2,
-                3 => 8,
-                _ => panic!(),
-            };
-
-            bw.write_bits(&[flag_value], 2);
-        } else {
-            // `Frame_Content_Size` was not provided
-            bw.write_bits(&[0], 2);
-        }
-
-        // `Single_Segment_flag`:
-        // If this flag is set, data must be regenerated within a single continuous memory segment,
-        // and the `Frame_Content_Size` field must be present in the header.
-        // If this flag is not set, the `Window_Descriptor` field must be present in the frame header.
-        if self.single_segment {
-            assert!(self.frame_content_size.is_some(), "if the `single_segment` flag is set to true, then a frame content size must be provided");
-            bw.write_bits(&[1], 1);
-        } else {
-            assert!(
-                self.window_size.is_some(),
-                "if the `single_segment` flag is set to false, then a window size must be provided"
-            );
-            bw.write_bits(&[0], 1);
-        }
-
-        // `Unused_bit`:
-        // An encoder compliant with this spec must set this bit to zero
-        bw.write_bits(&[0], 1);
-
-        // `Reserved_bit`:
-        // This value must be zero
-        bw.write_bits(&[0], 1);
-
-        // `Content_Checksum_flag`:
-        if self.content_checksum {
-            bw.write_bits(&[1], 1);
-        } else {
-            bw.write_bits(&[0], 1);
-        }
 
         // `Dictionary_ID_flag`:
         if let Some(id) = self.dictionary_id {
@@ -135,10 +90,56 @@ impl FrameHeader {
                 4 => 3,
                 _ => panic!(),
             };
-            bw.write_bits(&[flag_value], 2);
+            bw.write_bits(flag_value, 2);
         } else {
             // A `Dictionary_ID` was not provided
-            bw.write_bits(&[0], 2);
+            bw.write_bits(0u8, 2);
+        }
+
+        // `Content_Checksum_flag`:
+        if self.content_checksum {
+            bw.write_bits(1u8, 1);
+        } else {
+            bw.write_bits(0u8, 1);
+        }
+
+        // `Reserved_bit`:
+        // This value must be zero
+        bw.write_bits(0u8, 1);
+
+        // `Unused_bit`:
+        // An encoder compliant with this spec must set this bit to zero
+        bw.write_bits(0u8, 1);
+
+        // `Single_Segment_flag`:
+        // If this flag is set, data must be regenerated within a single continuous memory segment,
+        // and the `Frame_Content_Size` field must be present in the header.
+        // If this flag is not set, the `Window_Descriptor` field must be present in the frame header.
+        if self.single_segment {
+            assert!(self.frame_content_size.is_some(), "if the `single_segment` flag is set to true, then a frame content size must be provided");
+            bw.write_bits(1u8, 1);
+        } else {
+            assert!(
+                self.window_size.is_some(),
+                "if the `single_segment` flag is set to false, then a window size must be provided"
+            );
+            bw.write_bits(0u8, 1);
+        }
+
+        if let Some(frame_content_size) = self.frame_content_size {
+            let field_size = find_min_size(frame_content_size);
+            let flag_value: u8 = match field_size {
+                1 => 0,
+                2 => 1,
+                4 => 2,
+                3 => 8,
+                _ => panic!(),
+            };
+
+            bw.write_bits(flag_value, 2);
+        } else {
+            // `Frame_Content_Size` was not provided
+            bw.write_bits(0u8, 2);
         }
 
         bw.dump()[0]
