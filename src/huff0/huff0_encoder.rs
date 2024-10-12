@@ -23,7 +23,7 @@ impl HuffmanEncoder {
     }
     pub fn dump(&mut self) -> Vec<u8> {
         let mut writer = BitWriter::new();
-        std::mem::swap(&mut self.writer, &mut writer);
+        core::mem::swap(&mut self.writer, &mut writer);
         let bits_to_fill = writer.misaligned();
         if bits_to_fill == 0 {
             writer.write_bits(1u32, 8);
@@ -188,19 +188,19 @@ fn distribute_weights(amount: usize) -> Vec<usize> {
     weights
 }
 
-fn redistribute_weights(weights: &mut [usize], max_weight: usize) {
-    let max_weight_data = *weights.last().unwrap();
-    if max_weight_data <= max_weight {
+fn redistribute_weights(weights: &mut [usize], max_num_bits: usize) {
+    let weight_sum = weights.iter().copied().map(|x| 1 << x).sum::<usize>().ilog2() as usize;
+    if weight_sum + 1 <= max_num_bits {
         return;
     }
-    let max_weight = max_weight_data - max_weight;
+    let decrease_weights_by = weight_sum - max_num_bits + 1; 
     let mut added_weights = 0;
     for weight in weights.iter_mut() {
-        if *weight < max_weight {
-            for add in *weight..max_weight {
+        if *weight < decrease_weights_by {
+            for add in *weight..decrease_weights_by {
                 added_weights += 1 << add;
             }
-            *weight += max_weight - *weight;
+            *weight += decrease_weights_by - *weight;
         }
     }
 
@@ -250,14 +250,7 @@ fn weights() {
                 .map(|weight| 1 << weight)
                 .sum::<usize>();
             assert!(sum.is_power_of_two());
-            assert!(sum.ilog2() < 11, "Max bits too big: sum: {} {weights:?}", sum);
-
-            let max_weight = amount.ilog2() as usize + 3;
-            assert!(
-                *weights.last().unwrap() <= max_weight,
-                "{} {weights:?}",
-                max_weight
-            );
+            assert!(sum.ilog2() <= 11, "Max bits too big: sum: {} {weights:?}", sum);
 
             let codes = HuffmanTable::build_from_weights(&weights).codes;
             for (code, num_bits) in codes.iter().copied() {
