@@ -1,7 +1,7 @@
 //! Utilities and interfaces for encoding an entire frame.
 
+use alloc::vec::Vec;
 use core::convert::TryInto;
-use std::vec::Vec;
 
 use super::{block_header::BlockHeader, blocks::compress_raw_block, frame_header::FrameHeader};
 
@@ -126,7 +126,7 @@ impl<'input> FrameCompressor<'input> {
 mod tests {
     use super::FrameCompressor;
     use crate::frame::MAGIC_NUM;
-    use std::vec::Vec;
+    use alloc::vec::Vec;
 
     #[test]
     fn frame_starts_with_magic_num() {

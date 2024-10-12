@@ -1,5 +1,5 @@
 use crate::blocks::block::BlockType;
-use std::vec::Vec;
+use alloc::vec::Vec;
 
 #[derive(Debug)]
 pub struct BlockHeader {
@@ -40,7 +40,7 @@ impl BlockHeader {
 mod tests {
     use super::BlockHeader;
     use crate::{blocks::block::BlockType, decoding::block_decoder};
-    use std::vec::Vec;
+    use alloc::vec::Vec;
 
     #[test]
     fn block_header_serialize() {
