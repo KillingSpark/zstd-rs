@@ -1,6 +1,4 @@
 //! Use [BitWriter] to write an arbitrary amount of bits into a buffer.
-use std::{dbg, format};
-
 use alloc::vec::Vec;
 
 /// An interface for writing an arbitrary number of bits into a buffer. Write new bits into the buffer with `write_bits`, and

@@ -8,9 +8,15 @@ use alloc::vec::Vec;
 pub use huff0_decoder::*;
 
 use crate::decoding::bit_reader_reverse::BitReaderReversed;
-mod huff0_encoder;
+pub mod huff0_encoder;
 
 pub fn round_trip(data: &[u8]) {
+    if data.len() < 2 {
+        return;
+    }
+    if data.iter().all(|x| *x == data[0]) {
+        return;
+    }
     let encoder_table = huff0_encoder::HuffmanTable::build_from_data(data);
     let mut encoder = huff0_encoder::HuffmanEncoder::new(encoder_table);
 
@@ -46,4 +52,11 @@ pub fn round_trip(data: &[u8]) {
 fn roundtrip() {
     round_trip(&[1, 1, 1, 1, 2, 3]);
     round_trip(&[1, 1, 1, 1, 2, 3, 5, 45, 12, 90]);
+
+    for file in std::fs::read_dir("fuzz/artifacts/huff0").unwrap() {
+        if file.as_ref().unwrap().file_type().unwrap().is_file() {
+            let data = std::fs::read(file.unwrap().path()).unwrap();
+            round_trip(&data);
+        }
+    }
 }
