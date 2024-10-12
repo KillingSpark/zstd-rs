@@ -131,7 +131,7 @@ impl BitWriter {
 #[cfg(test)]
 mod tests {
     use super::BitWriter;
-    use std::vec;
+    use alloc::vec;
 
     #[test]
     fn from_existing() {
