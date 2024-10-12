@@ -33,7 +33,7 @@ pub fn minify_val(val: u64) -> Vec<u8> {
 mod tests {
     use super::find_min_size;
     use super::minify_val;
-    use std::vec;
+    use alloc::vec;
 
     #[test]
     fn min_size_detection() {

@@ -8,7 +8,7 @@ pub(crate) fn compress_raw_block(input: &[u8], output: &mut Vec<u8>) {
 #[cfg(test)]
 mod tests {
     use super::compress_raw_block;
-    use std::{vec, vec::Vec};
+    use alloc::{vec, vec::Vec};
     #[test]
     fn raw_block_compressed() {
         let mut output: Vec<u8> = Vec::new();
