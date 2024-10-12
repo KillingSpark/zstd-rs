@@ -189,11 +189,16 @@ fn distribute_weights(amount: usize) -> Vec<usize> {
 }
 
 fn redistribute_weights(weights: &mut [usize], max_num_bits: usize) {
-    let weight_sum = weights.iter().copied().map(|x| 1 << x).sum::<usize>().ilog2() as usize;
+    let weight_sum = weights
+        .iter()
+        .copied()
+        .map(|x| 1 << x)
+        .sum::<usize>()
+        .ilog2() as usize;
     if weight_sum + 1 <= max_num_bits {
         return;
     }
-    let decrease_weights_by = weight_sum - max_num_bits + 1; 
+    let decrease_weights_by = weight_sum - max_num_bits + 1;
     let mut added_weights = 0;
     for weight in weights.iter_mut() {
         if *weight < decrease_weights_by {
@@ -250,7 +255,11 @@ fn weights() {
                 .map(|weight| 1 << weight)
                 .sum::<usize>();
             assert!(sum.is_power_of_two());
-            assert!(sum.ilog2() <= 11, "Max bits too big: sum: {} {weights:?}", sum);
+            assert!(
+                sum.ilog2() <= 11,
+                "Max bits too big: sum: {} {weights:?}",
+                sum
+            );
 
             let codes = HuffmanTable::build_from_weights(&weights).codes;
             for (code, num_bits) in codes.iter().copied() {
