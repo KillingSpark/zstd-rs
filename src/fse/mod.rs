@@ -46,6 +46,20 @@ fn check_tables(dec_table: &fse_decoder::FSETable, enc_table: &fse_encoder::FSET
 #[test]
 fn roundtrip() {
     round_trip(&(0..64).collect::<alloc::vec::Vec<_>>());
+    let mut data = alloc::vec![];
+    data.extend(0..32);
+    data.extend(0..32);
+    data.extend(0..32);
+    data.extend(0..32);
+    data.extend(0..32);
+    data.extend(20..32);
+    data.extend(20..32);
+    data.extend(0..32);
+    data.extend(20..32);
+    data.extend(100..255);
+    data.extend(20..32);
+    data.extend(20..32);
+    round_trip(&data);
 }
 
 pub fn round_trip(data: &[u8]) {
@@ -80,10 +94,12 @@ pub fn round_trip(data: &[u8]) {
         let w = decoder.decode_symbol();
         assert_eq!(w, *x);
         decoded.push(w);
-        decoder.update_state(&mut br);
+        if decoded.len() < data.len() {
+            decoder.update_state(&mut br);
+        }
     }
 
-    assert!(br.bits_remaining() == 0);
-
     assert_eq!(&decoded, data);
+
+    assert_eq!(br.bits_remaining(), 0);
 }
