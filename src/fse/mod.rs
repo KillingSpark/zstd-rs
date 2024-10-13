@@ -14,8 +14,6 @@
 
 mod fse_decoder;
 
-use std::{dbg, eprintln, vec::Vec};
-
 pub use fse_decoder::*;
 use fse_encoder::FSEEncoder;
 
@@ -35,7 +33,11 @@ fn tables_equal() {
 fn check_tables(dec_table: &fse_decoder::FSETable, enc_table: &fse_encoder::FSETable) {
     for (idx, dec_state) in dec_table.decode.iter().enumerate() {
         let enc_states = &enc_table.states[dec_state.symbol as usize];
-        let enc_state = enc_states.states.iter().find(| state| state.index == idx).unwrap();
+        let enc_state = enc_states
+            .states
+            .iter()
+            .find(|state| state.index == idx)
+            .unwrap();
         assert_eq!(enc_state.baseline, dec_state.base_line as usize);
         assert_eq!(enc_state.num_bits, dec_state.num_bits);
     }
@@ -43,13 +45,15 @@ fn check_tables(dec_table: &fse_decoder::FSETable, enc_table: &fse_encoder::FSET
 
 #[test]
 fn roundtrip() {
-    round_trip(&(0..64).collect::<Vec<_>>());
+    round_trip(&(0..64).collect::<alloc::vec::Vec<_>>());
 }
 
 pub fn round_trip(data: &[u8]) {
     let mut encoder: FSEEncoder = FSEEncoder::new(fse_encoder::build_table_from_data(data));
     let mut dec_table = FSETable::new(255);
-    dec_table.build_from_probabilities(encoder.acc_log(), &encoder.probabilities()).unwrap();
+    dec_table
+        .build_from_probabilities(encoder.acc_log(), &encoder.probabilities())
+        .unwrap();
     let mut decoder = FSEDecoder::new(&dec_table);
 
     check_tables(&dec_table, &encoder.table);
@@ -71,13 +75,15 @@ pub fn round_trip(data: &[u8]) {
     }
     decoder.init_state(&mut br).unwrap();
     let mut decoded = alloc::vec::Vec::new();
-    
+
     for x in data {
         let w = decoder.decode_symbol();
         assert_eq!(w, *x);
         decoded.push(w);
         decoder.update_state(&mut br);
     }
+
+    assert!(br.bits_remaining() == 0);
 
     assert_eq!(&decoded, data);
 }

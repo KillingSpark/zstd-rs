@@ -147,8 +147,7 @@ impl From<GetBitsError> for FSEDecoderError {
 }
 
 /// A single entry in an FSE table.
-#[derive(Copy, Clone)]
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct Entry {
     /// This value is used as an offset value, and it is added
     /// to a value read from the stream to determine the next state value.
@@ -450,7 +449,7 @@ fn calc_baseline_and_numbits(
     state_number: u32,
 ) -> (u32, u8) {
     if num_states_symbol == 0 {
-        return (0,0);
+        return (0, 0);
     }
     let num_state_slices = if 1 << (highest_bit_set(num_states_symbol) - 1) == num_states_symbol {
         num_states_symbol

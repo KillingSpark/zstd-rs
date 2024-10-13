@@ -1,9 +1,6 @@
 use crate::encoding::bit_writer::BitWriter;
-use core::{iter::from_fn, u8};
-use std::{
-    dbg,
-    vec::{self, Vec},
-};
+use core::u8;
+use std::{dbg, vec::Vec};
 
 pub struct FSEEncoder {
     pub(super) table: FSETable,
@@ -26,7 +23,8 @@ impl FSEEncoder {
             self.writer.write_bits(diff as u64, next.num_bits as usize);
             state = next;
         }
-        self.writer.write_bits(state.index as u64, self.acc_log() as usize);
+        self.writer
+            .write_bits(state.index as u64, self.acc_log() as usize);
 
         let mut writer = BitWriter::new();
         core::mem::swap(&mut self.writer, &mut writer);
