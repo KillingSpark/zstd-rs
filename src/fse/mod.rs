@@ -60,9 +60,29 @@ fn roundtrip() {
     data.extend(20..32);
     data.extend(20..32);
     round_trip(&data);
+
+    #[cfg(feature = "std")]
+    if std::fs::exists("fuzz/artifacts/fse").unwrap_or(false) {
+        for file in std::fs::read_dir("fuzz/artifacts/fse").unwrap() {
+            if file.as_ref().unwrap().file_type().unwrap().is_file() {
+                let data = std::fs::read(file.unwrap().path()).unwrap();
+                round_trip(&data);
+            }
+        }
+    }
 }
 
 pub fn round_trip(data: &[u8]) {
+    if data.len() < 2 {
+        return;
+    }
+    if data.iter().all(|x| *x == data[0]) {
+        return;
+    }
+    if data.len() < 64 {
+        return;
+    }
+
     let mut encoder: FSEEncoder = FSEEncoder::new(fse_encoder::build_table_from_data(data));
     let mut dec_table = FSETable::new(255);
     dec_table
