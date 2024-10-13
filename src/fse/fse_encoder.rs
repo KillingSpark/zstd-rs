@@ -1,8 +1,6 @@
 use crate::encoding::bit_writer::BitWriter;
-use core::u8;
-use std::vec::Vec;
-
-use super::FSETable;
+use core::{iter::from_fn, u8};
+use std::vec::{self, Vec};
 
 pub struct FSEEncoder {
     table: FSETable,
@@ -10,16 +8,14 @@ pub struct FSEEncoder {
 }
 
 impl FSEEncoder {
-    pub fn new() -> Self {
+    pub fn new(table: FSETable) -> Self {
         FSEEncoder {
-            table: FSETable::new(u8::MAX),
+            table,
             writer: BitWriter::new(),
         }
     }
 
     pub fn encode(&mut self, data: &[u8]) -> Vec<u8> {
-        build_table_from_data(data, &mut self.table);
-
         // TODO encode
 
         let mut writer = BitWriter::new();
@@ -34,15 +30,57 @@ impl FSEEncoder {
     }
 }
 
-fn build_table_from_data(data: &[u8], table: &mut FSETable) {
+pub struct FSETable {
+    /// Indexed by symbol
+    states: [SymbolStates; 256],
+    table_size: usize,
+}
+
+impl FSETable {
+    fn next_state(&self, symbol: u8, idx: usize) -> &State {
+        let states = &self.states[symbol as usize];
+        states.get(idx)
+    }
+}
+
+struct SymbolStates {
+    /// Sorted by baseline
+    states: Vec<State>,
+}
+
+impl SymbolStates {
+    fn get(&self, idx: usize) -> &State {
+        // TODO we can do better, we can determin the correct state from the index with a bit of math
+        self.states
+            .iter()
+            .find(|state| state.contains(idx))
+            .unwrap()
+    }
+}
+
+struct State {
+    num_bits: u8,
+    baseline: usize,
+    last_index: usize,
+    /// Index of this state in the decoding table
+    index: usize,
+}
+
+impl State {
+    fn contains(&self, idx: usize) -> bool {
+        self.baseline <= idx && self.last_index >= idx
+    }
+}
+
+fn build_table_from_data(data: &[u8]) -> FSETable {
     let mut counts = [0; 256];
     for x in data {
         counts[*x as usize] += 1;
     }
-    build_table_from_counts(&counts, table);
+    build_table_from_counts(&counts)
 }
 
-fn build_table_from_counts(counts: &[usize], table: &mut FSETable) {
+fn build_table_from_counts(counts: &[usize]) -> FSETable {
     let mut probs = [0; 256];
     let mut min_count = 0;
     for (idx, count) in counts.iter().copied().enumerate() {
@@ -73,6 +111,17 @@ fn build_table_from_counts(counts: &[usize], table: &mut FSETable) {
     let max = probs.iter_mut().max().unwrap();
     *max += diff as i32;
 
-    table.reset();
-    table.build_from_probabilities(acc_log, &probs).unwrap();
+    build_table_from_probabilities(&probs, acc_log)
+}
+
+fn build_table_from_probabilities(probs: &[i32], acc_log: u8) -> FSETable {
+    let mut states =
+        core::array::from_fn::<SymbolStates, 256, _>(|_| SymbolStates { states: Vec::new() });
+
+    let mut indexes_used = alloc::vec![false; 1 << acc_log];
+
+    FSETable {
+        table_size: 111,
+        states,
+    }
 }
