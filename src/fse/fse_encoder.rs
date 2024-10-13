@@ -6,7 +6,7 @@ use std::{
 };
 
 pub struct FSEEncoder {
-    table: FSETable,
+    pub(super) table: FSETable,
     writer: BitWriter,
 }
 
@@ -19,7 +19,14 @@ impl FSEEncoder {
     }
 
     pub fn encode(&mut self, data: &[u8]) -> Vec<u8> {
-        // TODO encode
+        let mut state = &self.table.states[data[data.len() - 1] as usize].states[0];
+        for x in data[0..data.len() - 1].iter().rev().copied() {
+            let next = self.table.next_state(x, state.index);
+            let diff = state.index - next.baseline;
+            self.writer.write_bits(diff as u64, next.num_bits as usize);
+            state = next;
+        }
+        self.writer.write_bits(state.index as u64, self.acc_log() as usize);
 
         let mut writer = BitWriter::new();
         core::mem::swap(&mut self.writer, &mut writer);
@@ -30,6 +37,18 @@ impl FSEEncoder {
             writer.write_bits(1u32, bits_to_fill);
         }
         writer.dump()
+    }
+
+    pub(super) fn probabilities(&self) -> Vec<i32> {
+        self.table
+            .states
+            .iter()
+            .map(|state| state.probability)
+            .collect()
+    }
+
+    pub(super) fn acc_log(&self) -> u8 {
+        self.table.table_size.ilog2() as u8
     }
 }
 
@@ -51,6 +70,7 @@ impl FSETable {
 pub(super) struct SymbolStates {
     /// Sorted by baseline
     pub(super) states: Vec<State>,
+    pub(super) probability: i32,
 }
 
 impl SymbolStates {
@@ -78,7 +98,7 @@ impl State {
     }
 }
 
-fn build_table_from_data(data: &[u8]) -> FSETable {
+pub fn build_table_from_data(data: &[u8]) -> FSETable {
     let mut counts = [0; 256];
     for x in data {
         counts[*x as usize] += 1;
@@ -121,13 +141,19 @@ fn build_table_from_counts(counts: &[usize]) -> FSETable {
 }
 
 pub(super) fn build_table_from_probabilities(probs: &[i32], acc_log: u8) -> FSETable {
-    let mut states =
-        core::array::from_fn::<SymbolStates, 256, _>(|_| SymbolStates { states: Vec::new() });
-
+    let mut states = core::array::from_fn::<SymbolStates, 256, _>(|_| SymbolStates {
+        states: Vec::new(),
+        probability: 0,
+    });
 
     // distribute -1 symbols
     let mut negative_idx = (1 << acc_log) - 1;
-    for (symbol, _prob) in probs.iter().copied().enumerate().filter(|prob| prob.1 == -1) {
+    for (symbol, _prob) in probs
+        .iter()
+        .copied()
+        .enumerate()
+        .filter(|prob| prob.1 == -1)
+    {
         dbg!(symbol, negative_idx);
         states[symbol].states.push(State {
             num_bits: acc_log,
@@ -135,6 +161,7 @@ pub(super) fn build_table_from_probabilities(probs: &[i32], acc_log: u8) -> FSET
             last_index: (1 << acc_log) - 1,
             index: negative_idx,
         });
+        states[symbol].probability = -1;
         negative_idx -= 1;
     }
 
@@ -144,6 +171,7 @@ pub(super) fn build_table_from_probabilities(probs: &[i32], acc_log: u8) -> FSET
         if prob <= 0 {
             continue;
         }
+        states[symbol].probability = prob;
         let states = &mut states[symbol].states;
         for _ in 0..prob {
             states.push(State {
@@ -167,35 +195,35 @@ pub(super) fn build_table_from_probabilities(probs: &[i32], acc_log: u8) -> FSET
         }
         let prob = prob as u32;
         let state = &mut states[symbol];
-        state.states.sort_by(|l,r| l.index.cmp(&r.index));
-        
+        state.states.sort_by(|l, r| l.index.cmp(&r.index));
+
         let prob_log = if prob.is_power_of_two() {
             prob.ilog2()
         } else {
-            prob.ilog2() +  1
+            prob.ilog2() + 1
         };
         let rounded_up = 1u32 << prob_log;
         let double_states = rounded_up - prob;
         let single_states = prob - double_states;
         let num_bits = acc_log - prob_log as u8;
-        let mut baseline = (single_states as usize * (1 << (num_bits))) %  (1 << acc_log);
+        let mut baseline = (single_states as usize * (1 << (num_bits))) % (1 << acc_log);
         for (idx, state) in state.states.iter_mut().enumerate() {
             if (idx as u32) < double_states {
                 let num_bits = num_bits + 1;
                 state.baseline = baseline;
                 state.num_bits = num_bits;
-                state.last_index= baseline + ((1 << num_bits) - 1);
-                
+                state.last_index = baseline + ((1 << num_bits) - 1);
+
                 baseline += 1 << num_bits;
-                baseline %=  1 << acc_log;
+                baseline %= 1 << acc_log;
             } else {
                 state.baseline = baseline;
                 state.num_bits = num_bits;
-                state.last_index= baseline + ((1 << num_bits) - 1);
+                state.last_index = baseline + ((1 << num_bits) - 1);
                 baseline += 1 << num_bits;
             }
         }
-        state.states.sort_by(|l,r| l.baseline.cmp(&r.baseline));
+        state.states.sort_by(|l, r| l.baseline.cmp(&r.baseline));
     }
 
     FSETable {
