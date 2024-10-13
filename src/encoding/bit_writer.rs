@@ -125,7 +125,11 @@ impl BitWriter {
 
     /// Returns how many bits are missing for an even byte
     pub fn misaligned(&self) -> usize {
-        8 - (self.bit_idx % 8)
+        if self.bit_idx % 8 == 0 {
+            0
+        } else {
+            8 - (self.bit_idx % 8)
+        }
     }
 }
 
