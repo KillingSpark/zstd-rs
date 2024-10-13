@@ -15,3 +15,12 @@
 mod fse_decoder;
 pub use fse_decoder::*;
 mod fse_encoder;
+
+#[test]
+fn tables() {
+    let probs = &[0,0,-1,3,2,2];
+    let mut dec_table = FSETable::new(255);
+    dec_table.build_from_probabilities(3, probs).unwrap();
+    let enc_table = fse_encoder::build_table_from_probabilities(probs, 3);
+    panic!("{:?}\n{:?}", dec_table, enc_table);
+}
