@@ -85,16 +85,18 @@ pub fn round_trip(data: &[u8]) {
 
     let mut encoder: FSEEncoder = FSEEncoder::new(fse_encoder::build_table_from_data(data));
     let mut dec_table = FSETable::new(255);
-    dec_table
-        .build_from_probabilities(encoder.acc_log(), &encoder.probabilities())
+
+    let encoded = encoder.encode(data);
+
+    let table_bytes = dec_table
+        .build_decoder(&encoded, encoder.acc_log())
         .unwrap();
+    let encoded = &encoded[table_bytes..];
     let mut decoder = FSEDecoder::new(&dec_table);
 
     check_tables(&dec_table, &encoder.table);
 
-    let encoded = encoder.encode(data);
-
-    let mut br = BitReaderReversed::new(&encoded);
+    let mut br = BitReaderReversed::new(encoded);
     let mut skipped_bits = 0;
     loop {
         let val = br.get_bits(1);
