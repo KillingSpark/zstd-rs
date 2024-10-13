@@ -1,5 +1,3 @@
-use std::dbg;
-
 use crate::decoding::bit_reader::BitReader;
 use crate::decoding::bit_reader_reverse::{BitReaderReversed, GetBitsError};
 use alloc::vec::Vec;
@@ -198,7 +196,6 @@ impl<'t> FSEDecoder<'t> {
 
     /// Advance the internal state to decode the next symbol in the bitstream.
     pub fn update_state(&mut self, bits: &mut BitReaderReversed<'_>) {
-        dbg!(self.state);
         let num_bits = self.state.num_bits;
         let add = bits.get_bits(num_bits);
         let base_line = self.state.base_line;
