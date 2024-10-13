@@ -30,6 +30,7 @@ impl FSEEncoder {
     }
 }
 
+#[derive(Debug)]
 pub struct FSETable {
     /// Indexed by symbol
     states: [SymbolStates; 256],
@@ -43,6 +44,7 @@ impl FSETable {
     }
 }
 
+#[derive(Debug)]
 struct SymbolStates {
     /// Sorted by baseline
     states: Vec<State>,
@@ -58,6 +60,7 @@ impl SymbolStates {
     }
 }
 
+#[derive(Debug)]
 struct State {
     num_bits: u8,
     baseline: usize,
@@ -114,7 +117,7 @@ fn build_table_from_counts(counts: &[usize]) -> FSETable {
     build_table_from_probabilities(&probs, acc_log)
 }
 
-fn build_table_from_probabilities(probs: &[i32], acc_log: u8) -> FSETable {
+pub(super) fn build_table_from_probabilities(probs: &[i32], acc_log: u8) -> FSETable {
     let mut states =
         core::array::from_fn::<SymbolStates, 256, _>(|_| SymbolStates { states: Vec::new() });
 
