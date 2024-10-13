@@ -14,3 +14,4 @@
 
 mod fse_decoder;
 pub use fse_decoder::*;
+mod fse_encoder;
