@@ -125,7 +125,7 @@ fn build_table_from_counts(counts: &[usize]) -> FSETable {
     let sum = probs.iter().sum::<i32>();
     assert!(sum > 0);
     let sum = sum as usize;
-    let acc_log = sum.ilog2() as u8 + 1;
+    let acc_log = (sum.ilog2() as u8 + 1).max(5);
     assert!(acc_log < 22); // TODO implement logic to decrease some counts until this fits
 
     // just raise the maximum probability as much as possible
