@@ -120,8 +120,70 @@ fn build_table_from_probabilities(probs: &[i32], acc_log: u8) -> FSETable {
 
     let mut indexes_used = alloc::vec![false; 1 << acc_log];
 
+    // distribute -1 symbols
+    let mut idx = (1 << acc_log) - 1;    
+    for (symbol, prob) in probs.iter().copied().filter(|prob| *prob == -1).enumerate() {
+        states[symbol].states.push(State{
+            num_bits: acc_log,
+            baseline: 0,
+            last_index: (1 << acc_log) - 1,
+            index: idx,
+        });
+        indexes_used[idx] = true;
+        idx -= 1;
+    }
+
+    // distribute other symbols
+    let mut idx = 0;
+    for (symbol, prob) in probs.iter().copied().enumerate() {
+        if prob == 0 {
+            continue;
+        }
+        let states = &mut states[symbol].states;
+        let prob_log = (prob as u32).ilog2();
+        let rounded_up = 1 << (prob_log + 1);
+        let double_states = rounded_up - prob;
+        let num_bits = acc_log - prob_log as u8;
+        let mut baseline = 0;
+        for state_idx in 0..prob {
+            if state_idx < double_states {
+                let num_bits = num_bits + 1;
+                states.push(State{
+                    num_bits: num_bits,
+                    baseline,
+                    last_index: baseline + ((1 << num_bits) - 1),
+                    index: idx,
+                });
+                baseline += 1 << num_bits;
+                indexes_used[idx] = true;
+            } else {
+                states.push(State{
+                    num_bits,
+                    baseline,
+                    last_index: baseline + ((1 << num_bits) - 1),
+                    index: idx,
+                });
+                baseline += 1 << num_bits;
+                indexes_used[idx] = true;
+            }
+            
+            while indexes_used[idx] {
+                idx = next_position(idx, 1 << acc_log);                
+            }
+        }
+    }
+
     FSETable {
-        table_size: 111,
+        table_size: 1 << acc_log,
         states,
     }
+}
+
+//utility functions for building the decoding table from probabilities
+/// Calculate the position of the next entry of the table given the current
+/// position and size of the table.
+fn next_position(mut p: usize, table_size: usize) -> usize {
+    p += (table_size >> 1) + (table_size >> 3) + 3;
+    p &= table_size - 1;
+    p
 }
