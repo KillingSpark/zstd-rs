@@ -1,5 +1,4 @@
 use crate::encoding::bit_writer::BitWriter;
-use core::u8;
 use std::{dbg, vec::Vec};
 
 pub struct FSEEncoder {
