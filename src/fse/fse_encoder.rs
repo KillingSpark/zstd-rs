@@ -1,5 +1,5 @@
 use crate::encoding::bit_writer::BitWriter;
-use std::{dbg, vec::Vec};
+use alloc::vec::Vec;
 
 pub struct FSEEncoder {
     pub(super) table: FSETable,
@@ -15,6 +15,8 @@ impl FSEEncoder {
     }
 
     pub fn encode(&mut self, data: &[u8]) -> Vec<u8> {
+        self.write_table();
+
         let mut state = &self.table.states[data[data.len() - 1] as usize].states[0];
         for x in data[0..data.len() - 1].iter().rev().copied() {
             let next = self.table.next_state(x, state.index);
@@ -36,12 +38,48 @@ impl FSEEncoder {
         writer.dump()
     }
 
-    pub(super) fn probabilities(&self) -> Vec<i32> {
-        self.table
-            .states
-            .iter()
-            .map(|state| state.probability)
-            .collect()
+    fn write_table(&mut self) {
+        self.writer.write_bits(self.acc_log() - 5, 4);
+        let mut probability_counter = 0usize;
+        let probability_sum = 1 << self.acc_log();
+
+        let mut prob_idx = 0;
+        while probability_counter < probability_sum {
+            let max_remaining_value = probability_sum - probability_counter + 1;
+            let bits_to_write = max_remaining_value.ilog2() + 1;
+            let low_threshold = ((1 << bits_to_write) - 1) - (max_remaining_value);
+            let mask = (1 << (bits_to_write - 1)) - 1;
+
+            let prob = self.table.states[prob_idx].probability;
+            prob_idx += 1;
+            let value = (prob + 1) as u32;
+            if value < low_threshold as u32 {
+                self.writer.write_bits(value, bits_to_write as usize - 1);
+            } else if value > mask {
+                self.writer
+                    .write_bits(value + low_threshold as u32, bits_to_write as usize);
+            } else {
+                self.writer.write_bits(value, bits_to_write as usize);
+            }
+
+            if prob == -1 {
+                probability_counter += 1;
+            } else if prob > 0 {
+                probability_counter += prob as usize;
+            } else {
+                let mut zeros = 0u8;
+                while self.table.states[prob_idx].probability == 0 {
+                    zeros += 1;
+                    prob_idx += 1;
+                    if zeros == 3 {
+                        self.writer.write_bits(3u8, 2);
+                        zeros = 0;
+                    }
+                }
+                self.writer.write_bits(zeros, 2);
+            }
+        }
+        self.writer.write_bits(0u8, self.writer.misaligned());
     }
 
     pub(super) fn acc_log(&self) -> u8 {
@@ -151,7 +189,6 @@ pub(super) fn build_table_from_probabilities(probs: &[i32], acc_log: u8) -> FSET
         .enumerate()
         .filter(|prob| prob.1 == -1)
     {
-        dbg!(symbol, negative_idx);
         states[symbol].states.push(State {
             num_bits: acc_log,
             baseline: 0,

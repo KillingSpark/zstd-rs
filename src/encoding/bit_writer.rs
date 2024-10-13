@@ -3,6 +3,7 @@ use alloc::vec::Vec;
 
 /// An interface for writing an arbitrary number of bits into a buffer. Write new bits into the buffer with `write_bits`, and
 /// obtain the output using `dump`.
+#[derive(Debug)]
 pub(crate) struct BitWriter {
     /// The buffer that's filled with bits
     output: Vec<u8>,
