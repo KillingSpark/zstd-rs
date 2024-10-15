@@ -3,7 +3,11 @@
 use alloc::vec::Vec;
 use core::convert::TryInto;
 
-use super::{block_header::BlockHeader, blocks::compress_raw_block, frame_header::FrameHeader};
+use super::{
+    block_header::BlockHeader,
+    blocks::{compress_block, compress_raw_block},
+    frame_header::FrameHeader,
+};
 
 /// Blocks cannot be larger than 128KB in size.
 const MAX_BLOCK_SIZE: usize = 128000;
@@ -112,6 +116,31 @@ impl<'input> FrameCompressor<'input> {
                         &self.uncompressed_data[index..(index + block_size)],
                         output,
                     );
+                    index += block_size;
+                }
+            }
+            CompressionLevel::Fastest => {
+                let mut index = 0;
+                while index < self.uncompressed_data.len() {
+                    let last_block = index + MAX_BLOCK_SIZE > self.uncompressed_data.len();
+                    // We read till the end of the data, or till the max block size, whichever comes sooner
+                    let block_size = if last_block {
+                        self.uncompressed_data.len() - index
+                    } else {
+                        MAX_BLOCK_SIZE
+                    };
+
+                    let uncompressed = &self.uncompressed_data[index..(index + block_size)];
+                    let compressed = compress_block(uncompressed);
+
+                    let header = BlockHeader {
+                        last_block,
+                        block_type: crate::blocks::block::BlockType::Compressed,
+                        block_size: compressed.len().try_into().unwrap(),
+                    };
+                    // Write the header, then the block
+                    header.serialize(output);
+                    output.extend(compressed);
                     index += block_size;
                 }
             }

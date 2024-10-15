@@ -18,24 +18,73 @@ impl HuffmanEncoder {
             writer: BitWriter::new(),
         }
     }
-    pub fn encode(&mut self, data: &[u8]) {
+    pub fn encode(&mut self, data: &[u8]) -> Vec<u8> {
         self.write_table();
         for symbol in data.iter().rev() {
             let (code, num_bits) = self.table.codes[*symbol as usize];
             self.writer.write_bits(code, num_bits as usize);
         }
-    }
-    pub fn dump(&mut self) -> Vec<u8> {
+
+        Self::encode_stream(&self.table, &mut self.writer, data);
+
         let mut writer = BitWriter::new();
         core::mem::swap(&mut self.writer, &mut writer);
+        writer.dump()
+    }
+    pub fn encode4x(&mut self, data: &[u8]) -> Vec<u8> {
+        let split_size = (data.len() + 3) / 4;
+        let src1 = &data[..split_size];
+        let src2 = &data[split_size..split_size * 2];
+        let src3 = &data[split_size * 2..split_size * 3];
+        let src4 = &data[split_size * 3..];
+
+        let mut writer = BitWriter::new();
+        Self::encode_stream(&self.table, &mut writer, src1);
+        let encoded1 = writer.dump();
+        let mut writer = BitWriter::new();
+        Self::encode_stream(&self.table, &mut writer, src2);
+        let encoded2 = writer.dump();
+        let mut writer = BitWriter::new();
+        Self::encode_stream(&self.table, &mut writer, src3);
+        let encoded3 = writer.dump();
+        let mut writer = BitWriter::new();
+        Self::encode_stream(&self.table, &mut writer, src4);
+        let encoded4 = writer.dump();
+
+        assert!(encoded1.len() as u16 <= u16::MAX);
+        assert!(encoded2.len() as u16 <= u16::MAX);
+        assert!(encoded3.len() as u16 <= u16::MAX);
+        assert!(encoded4.len() as u16 <= u16::MAX);
+
+        self.write_table();
+        self.writer.write_bits(encoded1.len() as u16, 16);
+        self.writer.write_bits(encoded2.len() as u16, 16);
+        self.writer.write_bits(encoded3.len() as u16, 16);
+
+        self.writer.append_bytes(&encoded1);
+        self.writer.append_bytes(&encoded2);
+        self.writer.append_bytes(&encoded3);
+        self.writer.append_bytes(&encoded4);
+
+        let mut writer = BitWriter::new();
+        core::mem::swap(&mut self.writer, &mut writer);
+        writer.dump()
+    }
+
+    fn encode_stream(table: &HuffmanTable, writer: &mut BitWriter, data: &[u8]) {
+        for symbol in data.iter().rev() {
+            let (code, num_bits) = table.codes[*symbol as usize];
+            writer.write_bits(code, num_bits as usize);
+        }
+
         let bits_to_fill = writer.misaligned();
         if bits_to_fill == 0 {
             writer.write_bits(1u32, 8);
         } else {
             writer.write_bits(1u32, bits_to_fill);
         }
-        writer.dump()
     }
+
     pub(super) fn weights(&self) -> Vec<u8> {
         let max = self.table.codes.iter().map(|(_, nb)| nb).max().unwrap();
         let weights = self

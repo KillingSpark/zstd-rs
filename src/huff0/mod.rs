@@ -20,8 +20,7 @@ pub fn round_trip(data: &[u8]) {
     let encoder_table = huff0_encoder::HuffmanTable::build_from_data(data);
     let mut encoder = huff0_encoder::HuffmanEncoder::new(encoder_table);
 
-    encoder.encode(data);
-    let encoded = encoder.dump();
+    let encoded = encoder.encode(data);
     let mut decoder_table = HuffmanTable::new();
     let table_bytes = decoder_table.build_decoder(&encoded).unwrap();
     let mut decoder = HuffmanDecoder::new(&decoder_table);
