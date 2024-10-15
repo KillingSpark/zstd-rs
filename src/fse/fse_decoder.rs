@@ -189,7 +189,8 @@ impl<'t> FSEDecoder<'t> {
         if self.table.accuracy_log == 0 {
             return Err(FSEDecoderError::TableIsUninitialized);
         }
-        self.state = self.table.decode[bits.get_bits(self.table.accuracy_log) as usize];
+        let new_state = bits.get_bits(self.table.accuracy_log);
+        self.state = self.table.decode[new_state as usize];
 
         Ok(())
     }

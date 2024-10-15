@@ -36,6 +36,13 @@ impl BitWriter {
         }
     }
 
+    pub fn append_bytes(&mut self, data: &[u8]) {
+        if self.misaligned() != 0 {
+            panic!("Don't append bytes when writer is misaligned")
+        }
+        self.output.extend_from_slice(data);
+    }
+
     pub fn write_bits(&mut self, bits: impl Into<u64>, num_bits: usize) {
         self.write_bits_64(bits.into(), num_bits);
     }
