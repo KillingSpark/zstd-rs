@@ -153,8 +153,10 @@ impl<'input> FrameCompressor<'input> {
 
 #[cfg(test)]
 mod tests {
+    use alloc::vec;
+
     use super::FrameCompressor;
-    use crate::frame::MAGIC_NUM;
+    use crate::{frame::MAGIC_NUM, FrameDecoder};
     use alloc::vec::Vec;
 
     #[test]
@@ -172,5 +174,19 @@ mod tests {
         let compressor = FrameCompressor::new(mock_data, super::CompressionLevel::Uncompressed);
         let mut output: Vec<u8> = Vec::new();
         compressor.compress(&mut output);
+    }
+
+    #[test]
+    fn very_simple_compress() {
+        let mut mock_data = vec![0;1024];
+        mock_data.extend(vec![1;1024]);
+        let compressor = FrameCompressor::new(&mock_data, super::CompressionLevel::Fastest);
+        let mut output: Vec<u8> = Vec::new();
+        compressor.compress(&mut output);
+
+        let mut decoder = FrameDecoder::new();
+        let mut decoded = Vec::with_capacity(mock_data.len());
+        decoder.decode_all_to_vec(&output, &mut decoded).unwrap();
+        assert_eq!(mock_data, decoded);
     }
 }
