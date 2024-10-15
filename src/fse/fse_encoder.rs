@@ -38,6 +38,66 @@ impl FSEEncoder {
         writer.dump()
     }
 
+    pub fn encode_interleaved(&mut self, data: &[u8]) -> Vec<u8> {
+        self.write_table();
+
+        let mut state_1 = &self.table.states[data[data.len() - 1] as usize].states[0];
+        let mut state_2 = &self.table.states[data[data.len() - 2] as usize].states[0];
+
+        let mut idx = data.len() - 4;
+        loop {
+            {
+                let state = state_1;
+                let x = data[idx + 1];
+                let next = self.table.next_state(x, state.index);
+                let diff = state.index - next.baseline;
+                self.writer.write_bits(diff as u64, next.num_bits as usize);
+                state_1 = next;
+            }
+            {
+                let state = state_2;
+                let x = data[idx];
+                let next = self.table.next_state(x, state.index);
+                let diff = state.index - next.baseline;
+                self.writer.write_bits(diff as u64, next.num_bits as usize);
+                state_2 = next;
+            }
+
+            if idx < 2 {
+                break;
+            }
+            idx -= 2;
+        }
+        if idx == 1 {
+            let state = state_1;
+            let x = data[0];
+            let next = self.table.next_state(x, state.index);
+            let diff = state.index - next.baseline;
+            self.writer.write_bits(diff as u64, next.num_bits as usize);
+            state_1 = next;
+
+            self.writer
+                .write_bits(state_2.index as u64, self.acc_log() as usize);
+            self.writer
+                .write_bits(state_1.index as u64, self.acc_log() as usize);
+        } else {
+            self.writer
+                .write_bits(state_1.index as u64, self.acc_log() as usize);
+            self.writer
+                .write_bits(state_2.index as u64, self.acc_log() as usize);
+        }
+
+        let mut writer = BitWriter::new();
+        core::mem::swap(&mut self.writer, &mut writer);
+        let bits_to_fill = writer.misaligned();
+        if bits_to_fill == 0 {
+            writer.write_bits(1u32, 8);
+        } else {
+            writer.write_bits(1u32, bits_to_fill);
+        }
+        writer.dump()
+    }
+
     fn write_table(&mut self) {
         self.writer.write_bits(self.acc_log() - 5, 4);
         let mut probability_counter = 0usize;
@@ -133,15 +193,15 @@ impl State {
     }
 }
 
-pub fn build_table_from_data(data: &[u8]) -> FSETable {
+pub fn build_table_from_data(data: &[u8], avoid_0_numbit: bool) -> FSETable {
     let mut counts = [0; 256];
     for x in data {
         counts[*x as usize] += 1;
     }
-    build_table_from_counts(&counts)
+    build_table_from_counts(&counts, avoid_0_numbit)
 }
 
-fn build_table_from_counts(counts: &[usize]) -> FSETable {
+fn build_table_from_counts(counts: &[usize], avoid_0_numbit: bool) -> FSETable {
     let mut probs = [0; 256];
     let mut min_count = 0;
     for (idx, count) in counts.iter().copied().enumerate() {
@@ -171,6 +231,15 @@ fn build_table_from_counts(counts: &[usize]) -> FSETable {
     let diff = (1 << acc_log) - sum;
     let max = probs.iter_mut().max().unwrap();
     *max += diff as i32;
+
+    if avoid_0_numbit && *max > 1 << (acc_log - 1) {
+        let redistribute = *max - (1 << (acc_log - 1));
+        *max -= redistribute;
+        let max = *max;
+        let second_max = probs.iter_mut().filter(|x| **x != max).max().unwrap();
+        *second_max += redistribute;
+        assert!(*second_max <= max);
+    }
 
     build_table_from_probabilities(&probs, acc_log)
 }

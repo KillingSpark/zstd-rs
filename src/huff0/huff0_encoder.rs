@@ -1,7 +1,10 @@
 use alloc::vec::Vec;
 use core::cmp::Ordering;
 
-use crate::encoding::bit_writer::BitWriter;
+use crate::{
+    encoding::bit_writer::BitWriter,
+    fse::fse_encoder::{self, FSEEncoder},
+};
 
 pub struct HuffmanEncoder {
     table: HuffmanTable,
@@ -16,6 +19,7 @@ impl HuffmanEncoder {
         }
     }
     pub fn encode(&mut self, data: &[u8]) {
+        self.write_table();
         for symbol in data.iter().rev() {
             let (code, num_bits) = self.table.codes[*symbol as usize];
             self.writer.write_bits(code, num_bits as usize);
@@ -43,6 +47,39 @@ impl HuffmanEncoder {
             .collect::<Vec<u8>>();
 
         weights
+    }
+
+    fn write_table(&mut self) {
+        // TODO strategy for determining this?
+        let weights = self.weights();
+        let weights = &weights[..weights.len() - 1]; // dont encode last weight
+
+        if weights.len() > 16 {
+            // TODO share output vec between encoders
+            // TODO assert that no 0 num_bit states are generated here
+            let mut encoder = FSEEncoder::new(fse_encoder::build_table_from_data(&weights, true));
+            let encoded = encoder.encode_interleaved(&weights);
+            assert!(encoded.len() < 128);
+            self.writer.write_bits(encoded.len() as u8, 8);
+            self.writer.append_bytes(&encoded);
+        } else {
+            self.writer.write_bits(weights.len() as u8 + 127, 8);
+            let pairs = weights.chunks_exact(2);
+            let remainder = pairs.remainder();
+            for pair in pairs.into_iter() {
+                let weight1 = pair[0];
+                let weight2 = pair[1];
+                assert!(weight1 < 16);
+                assert!(weight2 < 16);
+                self.writer.write_bits(weight2, 4);
+                self.writer.write_bits(weight1, 4);
+            }
+            if !remainder.is_empty() {
+                let weight = remainder[0];
+                assert!(weight < 16);
+                self.writer.write_bits(weight << 4, 8);
+            }
+        }
     }
 }
 

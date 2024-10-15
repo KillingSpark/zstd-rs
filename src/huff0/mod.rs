@@ -22,10 +22,11 @@ pub fn round_trip(data: &[u8]) {
 
     encoder.encode(data);
     let encoded = encoder.dump();
-    let decoder_table = HuffmanTable::from_weights(encoder.weights());
+    let mut decoder_table = HuffmanTable::new();
+    let table_bytes = decoder_table.build_decoder(&encoded).unwrap();
     let mut decoder = HuffmanDecoder::new(&decoder_table);
 
-    let mut br = BitReaderReversed::new(&encoded);
+    let mut br = BitReaderReversed::new(&encoded[table_bytes as usize..]);
     let mut skipped_bits = 0;
     loop {
         let val = br.get_bits(1);

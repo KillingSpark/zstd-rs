@@ -293,7 +293,7 @@ impl HuffmanTable {
             bits: Vec::with_capacity(256),
             bit_ranks: Vec::with_capacity(11),
             rank_indexes: Vec::with_capacity(11),
-            fse_table: FSETable::new(100),
+            fse_table: FSETable::new(255),
         }
     }
 
@@ -585,15 +585,5 @@ impl HuffmanTable {
         }
 
         Ok(())
-    }
-
-    /// For internal tests construct directly from weights
-    pub(super) fn from_weights(mut weights: Vec<u8>) -> Self {
-        // Last weight is inferred by build_table_from_weights
-        weights.pop();
-        let mut new = Self::new();
-        new.weights = weights;
-        new.build_table_from_weights().unwrap();
-        new
     }
 }
