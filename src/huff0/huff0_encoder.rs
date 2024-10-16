@@ -32,6 +32,7 @@ impl HuffmanEncoder {
         writer.dump()
     }
     pub fn encode4x(&mut self, data: &[u8]) -> Vec<u8> {
+        assert!(data.len() >= 4);
         let split_size = (data.len() + 3) / 4;
         let src1 = &data[..split_size];
         let src2 = &data[split_size..split_size * 2];
