@@ -10,7 +10,7 @@ use super::{
 };
 
 /// Blocks cannot be larger than 128KB in size.
-const MAX_BLOCK_SIZE: usize = 128000;
+const MAX_BLOCK_SIZE: usize = 128 * 1024;
 
 /// The compression mode used impacts the speed of compression,
 /// and resulting compression ratios. Faster compression will result
@@ -122,7 +122,6 @@ impl<'input> FrameCompressor<'input> {
             CompressionLevel::Fastest => {
                 let mut index = 0;
                 while index < self.uncompressed_data.len() {
-                    const MAX_BLOCK_SIZE: usize = (1 << 18) - 1;
                     let last_block = index + MAX_BLOCK_SIZE >= self.uncompressed_data.len();
                     // We read till the end of the data, or till the max block size, whichever comes sooner
                     let block_size = if last_block {
@@ -132,16 +131,28 @@ impl<'input> FrameCompressor<'input> {
                     };
 
                     let uncompressed = &self.uncompressed_data[index..(index + block_size)];
-                    let compressed = compress_block(uncompressed);
 
-                    let header = BlockHeader {
-                        last_block,
-                        block_type: crate::blocks::block::BlockType::Compressed,
-                        block_size: compressed.len().try_into().unwrap(),
-                    };
-                    // Write the header, then the block
-                    header.serialize(output);
-                    output.extend(compressed);
+                    if uncompressed.iter().all(|x| uncompressed[0].eq(x)) {
+                        let header = BlockHeader {
+                            last_block,
+                            block_type: crate::blocks::block::BlockType::RLE,
+                            block_size: uncompressed.len().try_into().unwrap(),
+                        };
+                        // Write the header, then the block
+                        header.serialize(output);
+                        output.push(uncompressed[0]);
+                    } else {
+                        let compressed = compress_block(uncompressed);
+
+                        let header = BlockHeader {
+                            last_block,
+                            block_type: crate::blocks::block::BlockType::Compressed,
+                            block_size: compressed.len().try_into().unwrap(),
+                        };
+                        // Write the header, then the block
+                        header.serialize(output);
+                        output.extend(compressed);
+                    }
                     index += block_size;
                 }
             }
@@ -181,6 +192,7 @@ mod tests {
     fn very_simple_compress() {
         let mut mock_data = vec![0; 1 << 17];
         mock_data.extend(vec![1; (1 << 17) - 1]);
+        mock_data.extend(vec![2; (1 << 18) - 1]);
         mock_data.extend(vec![2; 1 << 17]);
         mock_data.extend(vec![3; (1 << 17) - 1]);
         let compressor = FrameCompressor::new(&mock_data, super::CompressionLevel::Fastest);
