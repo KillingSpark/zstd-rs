@@ -13,15 +13,22 @@ fn compress_literals(literals: &[u8], writer: &mut BitWriter) {
 
     let encoder_table = huff0_encoder::HuffmanTable::build_from_data(literals);
     let mut encoder = huff0_encoder::HuffmanEncoder::new(encoder_table);
-    let encoded = encoder.encode4x(literals);
 
     let (size_format, size_bits) = match literals.len() {
-        0..6 => unimplemented!("should probably just be a raw block"),
-        6..1024 => (0b01u8, 10),
+        0..6 => (0b00u8, 10),
+        6..1024 => (0b01, 10),
         1024..16384 => (0b10, 14),
         16384..262144 => (0b11, 18),
         _ => unimplemented!("too many literals"),
     };
+
+    let encoded;
+    if size_format == 0 {
+        encoded = encoder.encode(literals);
+    } else {
+        encoded = encoder.encode4x(literals);
+    }
+
     writer.write_bits(size_format, 2);
     writer.write_bits(literals.len() as u32, size_bits);
     writer.write_bits(encoded.len() as u32, size_bits);
