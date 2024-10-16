@@ -19,7 +19,7 @@ fn compress_literals(literals: &[u8], writer: &mut BitWriter) {
         0..6 => unimplemented!("should probably just be a raw block"),
         6..1024 => (0b01u8, 10),
         1024..16384 => (0b10, 14),
-        16384..26144 => (0b11, 18),
+        16384..262144 => (0b11, 18),
         _ => unimplemented!("too many literals"),
     };
     writer.write_bits(size_format, 2);

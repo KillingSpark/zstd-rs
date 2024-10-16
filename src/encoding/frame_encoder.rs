@@ -98,7 +98,7 @@ impl<'input> FrameCompressor<'input> {
                 // the block in repetition until the last block is reached.
                 let mut index = 0;
                 while index < self.uncompressed_data.len() {
-                    let last_block = index + MAX_BLOCK_SIZE > self.uncompressed_data.len();
+                    let last_block = index + MAX_BLOCK_SIZE >= self.uncompressed_data.len();
                     // We read till the end of the data, or till the max block size, whichever comes sooner
                     let block_size = if last_block {
                         self.uncompressed_data.len() - index
@@ -122,7 +122,8 @@ impl<'input> FrameCompressor<'input> {
             CompressionLevel::Fastest => {
                 let mut index = 0;
                 while index < self.uncompressed_data.len() {
-                    let last_block = index + MAX_BLOCK_SIZE > self.uncompressed_data.len();
+                    const MAX_BLOCK_SIZE: usize = (1 << 18) - 1;
+                    let last_block = index + MAX_BLOCK_SIZE >= self.uncompressed_data.len();
                     // We read till the end of the data, or till the max block size, whichever comes sooner
                     let block_size = if last_block {
                         self.uncompressed_data.len() - index
@@ -178,8 +179,10 @@ mod tests {
 
     #[test]
     fn very_simple_compress() {
-        let mut mock_data = vec![0;1024];
-        mock_data.extend(vec![1;1024]);
+        let mut mock_data = vec![0; 1 << 17];
+        mock_data.extend(vec![1; (1 << 17) - 1]);
+        mock_data.extend(vec![2; 1 << 17]);
+        mock_data.extend(vec![3; (1 << 17) - 1]);
         let compressor = FrameCompressor::new(&mock_data, super::CompressionLevel::Fastest);
         let mut output: Vec<u8> = Vec::new();
         compressor.compress(&mut output);
