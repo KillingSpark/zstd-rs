@@ -218,6 +218,19 @@ mod tests {
         assert_eq!(mock_data, decoded);
     }
 
+    #[test]
+    fn aaa_compress() {
+        let mock_data = vec![0, 218];
+        let compressor = FrameCompressor::new(&mock_data, super::CompressionLevel::Fastest);
+        let mut output: Vec<u8> = Vec::new();
+        compressor.compress(&mut output);
+
+        let mut decoder = FrameDecoder::new();
+        let mut decoded = Vec::with_capacity(mock_data.len());
+        decoder.decode_all_to_vec(&output, &mut decoded).unwrap();
+        assert_eq!(mock_data, decoded);
+    }
+
     #[cfg(feature = "std")]
     #[test]
     fn fuzz_targets() {
