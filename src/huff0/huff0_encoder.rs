@@ -20,11 +20,6 @@ impl HuffmanEncoder {
     }
     pub fn encode(&mut self, data: &[u8]) -> Vec<u8> {
         self.write_table();
-        for symbol in data.iter().rev() {
-            let (code, num_bits) = self.table.codes[*symbol as usize];
-            self.writer.write_bits(code, num_bits as usize);
-        }
-
         Self::encode_stream(&self.table, &mut self.writer, data);
 
         let mut writer = BitWriter::new();
