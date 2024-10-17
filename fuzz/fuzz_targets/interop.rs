@@ -73,16 +73,17 @@ fuzz_target!(|data: &[u8]| {
     // Uncompressed encoding
     let mut input = data;
     let compressed = encode_ruzstd_uncompressed(&mut input);
-    let mut input = data;
-    let compressed2 = encode_ruzstd_compressed(&mut input);
     let decoded = decode_zstd(&compressed).unwrap();
     assert_eq!(
         decoded, data,
         "Decoded data did not match the original input during compression"
     );
-    let decoded2 = decode_zstd(&compressed2).unwrap();
+    // Compressed encoding
+    let mut input = data;
+    let compressed = encode_ruzstd_compressed(&mut input);
+    let decoded = decode_zstd(&compressed).unwrap();
     assert_eq!(
-        decoded2, data,
+        decoded, data,
         "Decoded data did not match the original input during compression"
     );
 });
