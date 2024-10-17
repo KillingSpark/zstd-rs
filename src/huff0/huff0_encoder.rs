@@ -98,11 +98,10 @@ impl HuffmanEncoder {
         // TODO strategy for determining this?
         let weights = self.weights();
         let weights = &weights[..weights.len() - 1]; // dont encode last weight
-
         if weights.len() > 16 {
             // TODO share output vec between encoders
             // TODO assert that no 0 num_bit states are generated here
-            let mut encoder = FSEEncoder::new(fse_encoder::build_table_from_data(&weights, true));
+            let mut encoder = FSEEncoder::new(fse_encoder::build_table_from_data(&weights, 6, true));
             let encoded = encoder.encode_interleaved(&weights);
             assert!(encoded.len() < 128);
             self.writer.write_bits(encoded.len() as u8, 8);
