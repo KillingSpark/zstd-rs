@@ -193,7 +193,7 @@ impl State {
     }
 }
 
-pub fn build_table_from_data(data: &[u8], max_log: usize, avoid_0_numbit: bool) -> FSETable {
+pub fn build_table_from_data(data: &[u8], max_log: u8, avoid_0_numbit: bool) -> FSETable {
     let mut counts = [0; 256];
     for x in data {
         counts[*x as usize] += 1;
@@ -201,7 +201,7 @@ pub fn build_table_from_data(data: &[u8], max_log: usize, avoid_0_numbit: bool) 
     build_table_from_counts(&counts, max_log, avoid_0_numbit)
 }
 
-fn build_table_from_counts(counts: &[usize], max_log: usize, avoid_0_numbit: bool) -> FSETable {
+fn build_table_from_counts(counts: &[usize], max_log: u8, avoid_0_numbit: bool) -> FSETable {
     let mut probs = [0; 256];
     let mut min_count = 0;
     for (idx, count) in counts.iter().copied().enumerate() {
@@ -224,14 +224,25 @@ fn build_table_from_counts(counts: &[usize], max_log: usize, avoid_0_numbit: boo
     assert!(sum > 0);
     let sum = sum as usize;
     let acc_log = (sum.ilog2() as u8 + 1).max(5);
-    assert!(acc_log < max_log as u8); // TODO implement logic to decrease some counts until this fits
+    let acc_log = u8::min(acc_log, max_log);
 
-    // just raise the maximum probability as much as possible
-    // TODO is this optimal?
-    let diff = (1 << acc_log) - sum;
+    if sum < 1 << acc_log {
+        // just raise the maximum probability as much as possible
+        // TODO is this optimal?
+        let diff = (1 << acc_log) - sum;
+        let max = probs.iter_mut().max().unwrap();
+        *max += diff as i32;
+    } else {
+        // decrease the smallest ones to 1 first
+        let mut diff = sum - (1 << max_log);
+        while diff > 0 {
+            let min = probs.iter_mut().filter(|prob| **prob > 1).min().unwrap();
+            let decrease = usize::min(*min as usize - 1, diff);
+            diff -= decrease;
+            *min -= decrease as i32;
+        }
+    }
     let max = probs.iter_mut().max().unwrap();
-    *max += diff as i32;
-
     if avoid_0_numbit && *max > 1 << (acc_log - 1) {
         let redistribute = *max - (1 << (acc_log - 1));
         *max -= redistribute;
@@ -240,7 +251,6 @@ fn build_table_from_counts(counts: &[usize], max_log: usize, avoid_0_numbit: boo
         *second_max += redistribute;
         assert!(*second_max <= max);
     }
-
     build_table_from_probabilities(&probs, acc_log)
 }
 

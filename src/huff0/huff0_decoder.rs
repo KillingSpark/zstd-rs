@@ -360,9 +360,7 @@ impl HuffmanTable {
                     });
                 }
                 //fse decompress weights
-                let bytes_used_by_fse_header = self
-                    .fse_table
-                    .build_decoder(fse_stream, 6)?;
+                let bytes_used_by_fse_header = self.fse_table.build_decoder(fse_stream, 6)?;
 
                 if bytes_used_by_fse_header > header as usize {
                     return Err(err::FSETableUsedTooManyBytes {
