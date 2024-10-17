@@ -75,11 +75,11 @@ impl<'input> FrameCompressor<'input> {
     /// Compress the uncompressed data into a valid Zstd frame and write it into the provided buffer
     pub fn compress(&self, output: &mut Vec<u8>) {
         let header = FrameHeader {
-            frame_content_size: Some(self.uncompressed_data.len().try_into().unwrap()),
-            single_segment: true,
+            frame_content_size: None,
+            single_segment: false,
             content_checksum: false,
             dictionary_id: None,
-            window_size: None,
+            window_size: Some(256 * 1024),
         };
         header.serialize(output);
         // Special handling is needed for compression of a totally empty file (why you'd want to do that, I don't know)
