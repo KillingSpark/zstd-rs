@@ -4,11 +4,13 @@ use crate::{encoding::bit_writer::BitWriter, huff0::huff0_encoder};
 
 pub fn compress_block(data: &[u8]) -> Vec<u8> {
     let mut writer = BitWriter::new();
-    //compress_literals(data, &mut writer);
-    raw_literals(data, &mut writer);
+    compress_literals(data, &mut writer);
+    //raw_literals(data, &mut writer);
     writer.dump()
 }
 
+// TODO find usecase fot this
+#[allow(dead_code)]
 fn raw_literals(literals: &[u8], writer: &mut BitWriter) {
     writer.write_bits(0u8, 2);
     writer.write_bits(0b11u8, 2);
