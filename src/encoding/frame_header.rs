@@ -44,11 +44,10 @@ impl FrameHeader {
 
         // `Window_Descriptor
         // TODO: https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#window_descriptor
-        // if !self.single_segment {
-        //     unimplemented!(
-        //         "Support for using window size over frame content size is not implemented"
-        //     );
-        // }
+        if !self.single_segment {
+            let exponent = 6;
+            output.push(exponent << 3);
+        }
 
         if let Some(id) = self.dictionary_id {
             output.extend(minify_val(id));
