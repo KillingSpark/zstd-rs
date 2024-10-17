@@ -10,7 +10,7 @@ use super::{
 };
 
 /// Blocks cannot be larger than 128KB in size.
-const MAX_BLOCK_SIZE: usize = 128 * 1024;
+const MAX_BLOCK_SIZE: usize = 128 * 1024 - 20;
 
 /// The compression mode used impacts the speed of compression,
 /// and resulting compression ratios. Faster compression will result
@@ -143,11 +143,10 @@ impl<'input> FrameCompressor<'input> {
                         output.push(uncompressed[0]);
                     } else {
                         let compressed = compress_block(uncompressed);
-
                         let header = BlockHeader {
                             last_block,
                             block_type: crate::blocks::block::BlockType::Compressed,
-                            block_size: compressed.len().try_into().unwrap(),
+                            block_size: (compressed.len()).try_into().unwrap(),
                         };
                         // Write the header, then the block
                         header.serialize(output);
@@ -220,7 +219,7 @@ mod tests {
 
     #[test]
     fn aaa_compress() {
-        let mock_data = vec![0, 218];
+        let mock_data = vec![0, 1, 3, 4, 5];
         let compressor = FrameCompressor::new(&mock_data, super::CompressionLevel::Fastest);
         let mut output: Vec<u8> = Vec::new();
         compressor.compress(&mut output);
@@ -228,6 +227,10 @@ mod tests {
         let mut decoder = FrameDecoder::new();
         let mut decoded = Vec::with_capacity(mock_data.len());
         decoder.decode_all_to_vec(&output, &mut decoded).unwrap();
+        assert_eq!(mock_data, decoded);
+
+        let mut decoded = Vec::new();
+        zstd::stream::copy_decode(output.as_slice(), &mut decoded).unwrap();
         assert_eq!(mock_data, decoded);
     }
 
