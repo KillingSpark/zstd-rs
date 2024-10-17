@@ -193,15 +193,15 @@ impl State {
     }
 }
 
-pub fn build_table_from_data(data: &[u8], avoid_0_numbit: bool) -> FSETable {
+pub fn build_table_from_data(data: &[u8], max_log: usize, avoid_0_numbit: bool) -> FSETable {
     let mut counts = [0; 256];
     for x in data {
         counts[*x as usize] += 1;
     }
-    build_table_from_counts(&counts, avoid_0_numbit)
+    build_table_from_counts(&counts, max_log, avoid_0_numbit)
 }
 
-fn build_table_from_counts(counts: &[usize], avoid_0_numbit: bool) -> FSETable {
+fn build_table_from_counts(counts: &[usize], max_log: usize, avoid_0_numbit: bool) -> FSETable {
     let mut probs = [0; 256];
     let mut min_count = 0;
     for (idx, count) in counts.iter().copied().enumerate() {
@@ -224,7 +224,7 @@ fn build_table_from_counts(counts: &[usize], avoid_0_numbit: bool) -> FSETable {
     assert!(sum > 0);
     let sum = sum as usize;
     let acc_log = (sum.ilog2() as u8 + 1).max(5);
-    assert!(acc_log < 22); // TODO implement logic to decrease some counts until this fits
+    assert!(acc_log < max_log as u8); // TODO implement logic to decrease some counts until this fits
 
     // just raise the maximum probability as much as possible
     // TODO is this optimal?
