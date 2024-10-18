@@ -35,12 +35,11 @@ fn compress_literals(literals: &[u8], writer: &mut BitWriter) {
         _ => unimplemented!("too many literals"),
     };
 
-    let encoded;
-    if size_format == 0 {
-        encoded = encoder.encode(literals);
+    let encoded = if size_format == 0 {
+        encoder.encode(literals)
     } else {
-        encoded = encoder.encode4x(literals);
-    }
+        encoder.encode4x(literals)
+    };
 
     writer.write_bits(size_format, 2);
     writer.write_bits(literals.len() as u32, size_bits);

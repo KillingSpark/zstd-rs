@@ -250,11 +250,7 @@ fn build_table_from_counts(counts: &[usize], max_log: u8, avoid_0_numbit: bool) 
 
         // find first occurence of the second_max to avoid lifting the last zero
         let second_max = *probs.iter_mut().filter(|x| **x != max).max().unwrap();
-        let second_max = probs
-            .iter_mut()
-            .filter(|x| **x == second_max)
-            .next()
-            .unwrap();
+        let second_max = probs.iter_mut().find(|x| **x == second_max).unwrap();
         *second_max += redistribute;
         assert!(*second_max <= max);
     }
