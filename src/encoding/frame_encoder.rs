@@ -202,6 +202,10 @@ mod tests {
         let mut decoded = Vec::with_capacity(mock_data.len());
         decoder.decode_all_to_vec(&output, &mut decoded).unwrap();
         assert_eq!(mock_data, decoded);
+
+        let mut decoded = Vec::new();
+        zstd::stream::copy_decode(output.as_slice(), &mut decoded).unwrap();
+        assert_eq!(mock_data, decoded);
     }
 
     #[test]
