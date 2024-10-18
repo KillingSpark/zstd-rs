@@ -143,14 +143,28 @@ impl<'input> FrameCompressor<'input> {
                         output.push(uncompressed[0]);
                     } else {
                         let compressed = compress_block(uncompressed);
-                        let header = BlockHeader {
-                            last_block,
-                            block_type: crate::blocks::block::BlockType::Compressed,
-                            block_size: (compressed.len()).try_into().unwrap(),
-                        };
-                        // Write the header, then the block
-                        header.serialize(output);
-                        output.extend(compressed);
+                        if compressed.len() >= MAX_BLOCK_SIZE {
+                            let header = BlockHeader {
+                                last_block,
+                                block_type: crate::blocks::block::BlockType::Raw,
+                                block_size: block_size.try_into().unwrap(),
+                            };
+                            // Write the header, then the block
+                            header.serialize(output);
+                            compress_raw_block(
+                                &self.uncompressed_data[index..(index + block_size)],
+                                output,
+                            );
+                        } else {
+                            let header = BlockHeader {
+                                last_block,
+                                block_type: crate::blocks::block::BlockType::Compressed,
+                                block_size: (compressed.len()).try_into().unwrap(),
+                            };
+                            // Write the header, then the block
+                            header.serialize(output);
+                            output.extend(compressed);
+                        }
                     }
                     index += block_size;
                 }
