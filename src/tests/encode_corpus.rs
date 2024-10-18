@@ -143,8 +143,7 @@ fn test_encode_corpus_files_compressed_our_decompressor() {
         println!("Trying file: {:?}", path);
         let input = fs::read(entry.path()).unwrap();
 
-        let compressor =
-            FrameCompressor::new(&input, crate::encoding::CompressionLevel::Fastest);
+        let compressor = FrameCompressor::new(&input, crate::encoding::CompressionLevel::Fastest);
         let mut compressed_file: Vec<u8> = Vec::new();
         compressor.compress(&mut compressed_file);
         let mut decompressed_output = Vec::new();
@@ -197,8 +196,7 @@ fn test_encode_corpus_files_compressed_original_decompressor() {
         println!("Trying file: {:?}", path);
         let input = fs::read(entry.path()).unwrap();
 
-        let compressor =
-            FrameCompressor::new(&input, crate::encoding::CompressionLevel::Fastest);
+        let compressor = FrameCompressor::new(&input, crate::encoding::CompressionLevel::Fastest);
         let mut compressed_file: Vec<u8> = Vec::new();
         compressor.compress(&mut compressed_file);
         let mut decompressed_output = Vec::new();
