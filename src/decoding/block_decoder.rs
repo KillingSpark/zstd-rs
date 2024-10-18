@@ -448,7 +448,11 @@ impl BlockDecoder {
             execute_sequences(workspace)?;
         } else {
             if !raw.is_empty() {
-                return Err(DecompressBlockError::DecodeSequenceError(DecodeSequenceError::ExtraBits { bits_remaining: raw.len() as isize * 8 }));
+                return Err(DecompressBlockError::DecodeSequenceError(
+                    DecodeSequenceError::ExtraBits {
+                        bits_remaining: raw.len() as isize * 8,
+                    },
+                ));
             }
             workspace.buffer.push(&workspace.literals_buffer);
             workspace.sequences.clear();
