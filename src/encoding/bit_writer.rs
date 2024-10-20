@@ -4,9 +4,9 @@ use alloc::vec::Vec;
 /// An interface for writing an arbitrary number of bits into a buffer. Write new bits into the buffer with `write_bits`, and
 /// obtain the output using `dump`.
 #[derive(Debug)]
-pub(crate) struct BitWriter {
+pub(crate) struct BitWriter<V: AsMut<Vec<u8>>> {
     /// The buffer that's filled with bits
-    output: Vec<u8>,
+    output: V,
     /// holds a partially filled byte which gets put in outpu when it's fill with a write_bits call
     partial: u8,
     /// The index pointing to the next unoccupied bit. Effectively just
@@ -14,7 +14,7 @@ pub(crate) struct BitWriter {
     bit_idx: usize,
 }
 
-impl BitWriter {
+impl BitWriter<Vec<u8>> {
     /// Initialize a new writer.
     pub fn new() -> Self {
         Self {
@@ -23,16 +23,54 @@ impl BitWriter {
             bit_idx: 0,
         }
     }
+}
 
-    /// Wrap a writer around an existing vec.
-    ///
-    /// Currently unused, but will almost certainly be used later upon further optimizing
-    #[allow(unused)]
-    pub fn from(buf: Vec<u8>) -> Self {
-        Self {
-            bit_idx: buf.len() * 8,
-            output: buf,
+impl BitWriter<&mut Vec<u8>> {}
+
+impl<V: AsMut<Vec<u8>>> BitWriter<V> {
+    /// Initialize a new writer.
+    pub fn from<'a>(mut output: V) -> BitWriter<V> {
+        BitWriter {
+            bit_idx: output.as_mut().len() * 8,
+            output,
             partial: 0,
+        }
+    }
+
+    pub fn index(&self) -> usize {
+        self.bit_idx
+    }
+
+    pub fn change_bits(&mut self, idx: usize, bits: impl Into<u64>, num_bits: usize) {
+        self.change_bits_64(idx, bits.into(), num_bits);
+    }
+
+    pub fn change_bits_64(&mut self, mut idx: usize, mut bits: u64, mut num_bits: usize) {
+        assert!(idx + num_bits < self.bit_idx);
+
+        if idx % 8 != 0 {
+            let bits_in_first_byte = 8 - (idx % 8);
+            assert!(bits_in_first_byte <= num_bits);
+            self.output.as_mut()[idx / 8] &= 0xFFu8 >> bits_in_first_byte;
+            let new_bits = (bits << (8 - bits_in_first_byte)) as u8;
+            self.output.as_mut()[idx / 8] |= new_bits;
+            num_bits -= bits_in_first_byte;
+            bits >>= bits_in_first_byte;
+            idx += bits_in_first_byte;
+        }
+
+        let mut idx = idx / 8;
+
+        while num_bits >= 8 {
+            self.output.as_mut()[idx] = bits as u8;
+            num_bits -= 8;
+            bits >>= 8;
+            idx += 1;
+        }
+
+        if num_bits > 0 {
+            self.output.as_mut()[idx] &= 0xFFu8 << num_bits;
+            self.output.as_mut()[idx] |= bits as u8;
         }
     }
 
@@ -40,7 +78,8 @@ impl BitWriter {
         if self.misaligned() != 0 {
             panic!("Don't append bytes when writer is misaligned")
         }
-        self.output.extend_from_slice(data);
+        self.output.as_mut().extend_from_slice(data);
+        self.bit_idx += data.len() * 8;
     }
 
     pub fn write_bits(&mut self, bits: impl Into<u64>, num_bits: usize) {
@@ -74,6 +113,7 @@ impl BitWriter {
         // Special handling for if both the input and output are byte aligned
         if self.bit_idx % 8 == 0 && num_bits % 8 == 0 {
             self.output
+                .as_mut()
                 .extend_from_slice(&bits.to_le_bytes()[..num_bits / 8]);
             self.bit_idx += num_bits;
             return;
@@ -87,7 +127,7 @@ impl BitWriter {
                 let part = (bits & mask) << (8 - bits_free_in_partial);
                 debug_assert!(part <= 256);
                 let merged = self.partial | part as u8;
-                self.output.push(merged);
+                self.output.as_mut().push(merged);
                 self.partial = 0;
                 self.bit_idx += bits_free_in_partial;
             } else {
@@ -104,7 +144,7 @@ impl BitWriter {
 
         while num_bits / 8 > 0 {
             let byte = bits as u8;
-            self.output.push(byte);
+            self.output.as_mut().push(byte);
             num_bits -= 8;
             self.bit_idx += 8;
             bits >>= 8;
@@ -122,7 +162,7 @@ impl BitWriter {
     ///
     /// This function consumes the writer, so it cannot be used after
     /// dumping
-    pub fn dump(self) -> Vec<u8> {
+    pub fn dump(self) -> V {
         if self.bit_idx % 8 != 0 {
             panic!("`dump` was called on a bit writer but an even number of bytes weren't written into the buffer. Was: {}", self.bit_idx)
         }
@@ -148,17 +188,30 @@ mod tests {
     #[test]
     fn from_existing() {
         // Define an existing vec, write some bits into it
-        let existing_vec = vec![255_u8];
-        let mut bw = BitWriter::from(existing_vec);
+        let mut existing_vec = vec![255_u8];
+        let mut bw = BitWriter::from(&mut existing_vec);
         bw.write_bits(0u8, 8);
-        assert_eq!(vec![255, 0], bw.dump());
+        assert_eq!(vec![255, 0], existing_vec);
+    }
+
+    #[test]
+    fn change_bits() {
+        let mut writer = BitWriter::new();
+        writer.write_bits(0u32, 24);
+        writer.change_bits(8, 0xFFu8, 8);
+        assert_eq!(vec![0, 0xFF, 0], writer.dump());
+
+        let mut writer = BitWriter::new();
+        writer.write_bits(0u32, 24);
+        writer.change_bits(6, 0x0FFFu16, 12);
+        assert_eq!(vec![0b11000000, 0xFF, 0b00000011], writer.dump());
     }
 
     #[test]
     fn single_byte_written_4_4() {
         // Write the first 4 bits as 1s and the last 4 bits as 0s
         // 1010 is used where values should never be read from.
-        let mut bw: BitWriter = BitWriter::new();
+        let mut bw = BitWriter::new();
         bw.write_bits(0b1111u8, 4);
         bw.write_bits(0b0000u8, 4);
         let output = bw.dump();
@@ -172,7 +225,7 @@ mod tests {
     #[test]
     fn single_byte_written_3_5() {
         // Write the first 3 bits as 1s and the last 5 bits as 0s
-        let mut bw: BitWriter = BitWriter::new();
+        let mut bw = BitWriter::new();
         bw.write_bits(0b111u8, 3);
         bw.write_bits(0b0_0000u8, 5);
         let output = bw.dump();
@@ -183,7 +236,7 @@ mod tests {
     #[test]
     fn single_byte_written_1_7() {
         // Write the first bit as a 1 and the last 7 bits as 0s
-        let mut bw: BitWriter = BitWriter::new();
+        let mut bw = BitWriter::new();
         bw.write_bits(0b1u8, 1);
         bw.write_bits(0u8, 7);
         let output = bw.dump();
@@ -194,7 +247,7 @@ mod tests {
     #[test]
     fn single_byte_written_8() {
         // Write an entire byte
-        let mut bw: BitWriter = BitWriter::new();
+        let mut bw = BitWriter::new();
         bw.write_bits(1u8, 8);
         let output = bw.dump();
         assert!(output.len() == 1, "Single byte written into writer return a vec that wasn't one byte, vec was {} elements long", output.len());

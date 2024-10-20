@@ -7,7 +7,7 @@ use alloc::vec::Vec;
 
 pub use huff0_decoder::*;
 
-use crate::decoding::bit_reader_reverse::BitReaderReversed;
+use crate::{decoding::bit_reader_reverse::BitReaderReversed, encoding::bit_writer::BitWriter};
 pub mod huff0_encoder;
 
 pub fn round_trip(data: &[u8]) {
@@ -17,10 +17,12 @@ pub fn round_trip(data: &[u8]) {
     if data.iter().all(|x| *x == data[0]) {
         return;
     }
+    let mut writer = BitWriter::new();
     let encoder_table = huff0_encoder::HuffmanTable::build_from_data(data);
-    let mut encoder = huff0_encoder::HuffmanEncoder::new(encoder_table);
+    let mut encoder = huff0_encoder::HuffmanEncoder::new(encoder_table, &mut writer);
 
-    let encoded = encoder.encode(data);
+    encoder.encode(data);
+    let encoded = writer.dump();
     let mut decoder_table = HuffmanTable::new();
     let table_bytes = decoder_table.build_decoder(&encoded).unwrap();
     let mut decoder = HuffmanDecoder::new(&decoder_table);

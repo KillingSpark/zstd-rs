@@ -6,27 +6,20 @@ use crate::{
     fse::fse_encoder::{self, FSEEncoder},
 };
 
-pub struct HuffmanEncoder {
+pub(crate) struct HuffmanEncoder<'output, V: AsMut<Vec<u8>>> {
     table: HuffmanTable,
-    writer: BitWriter,
+    writer: &'output mut BitWriter<V>,
 }
 
-impl HuffmanEncoder {
-    pub fn new(table: HuffmanTable) -> Self {
-        Self {
-            table,
-            writer: BitWriter::new(),
-        }
+impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, V> {
+    pub fn new(table: HuffmanTable, writer: &mut BitWriter<V>) -> HuffmanEncoder<'_, V> {
+        HuffmanEncoder { table, writer }
     }
-    pub fn encode(&mut self, data: &[u8]) -> Vec<u8> {
+    pub fn encode(&mut self, data: &[u8]) {
         self.write_table();
         Self::encode_stream(&self.table, &mut self.writer, data);
-
-        let mut writer = BitWriter::new();
-        core::mem::swap(&mut self.writer, &mut writer);
-        writer.dump()
     }
-    pub fn encode4x(&mut self, data: &[u8]) -> Vec<u8> {
+    pub fn encode4x(&mut self, data: &[u8]) {
         assert!(data.len() >= 4);
         let split_size = (data.len() + 3) / 4;
         let src1 = &data[..split_size];
@@ -61,13 +54,13 @@ impl HuffmanEncoder {
         self.writer.append_bytes(&encoded2);
         self.writer.append_bytes(&encoded3);
         self.writer.append_bytes(&encoded4);
-
-        let mut writer = BitWriter::new();
-        core::mem::swap(&mut self.writer, &mut writer);
-        writer.dump()
     }
 
-    fn encode_stream(table: &HuffmanTable, writer: &mut BitWriter, data: &[u8]) {
+    fn encode_stream<VV: AsMut<Vec<u8>>>(
+        table: &HuffmanTable,
+        writer: &mut BitWriter<VV>,
+        data: &[u8],
+    ) {
         for symbol in data.iter().rev() {
             let (code, num_bits) = table.codes[*symbol as usize];
             writer.write_bits(code, num_bits as usize);
@@ -99,13 +92,17 @@ impl HuffmanEncoder {
         let weights = self.weights();
         let weights = &weights[..weights.len() - 1]; // dont encode last weight
         if weights.len() > 16 {
-            // TODO share output vec between encoders
-            // TODO assert that no 0 num_bit states are generated here
-            let mut encoder = FSEEncoder::new(fse_encoder::build_table_from_data(weights, 6, true));
-            let encoded = encoder.encode_interleaved(weights);
-            assert!(encoded.len() < 128);
-            self.writer.write_bits(encoded.len() as u8, 8);
-            self.writer.append_bytes(&encoded);
+            let size_idx = self.writer.index();
+            self.writer.write_bits(0u8, 8);
+            let idx_before = self.writer.index();
+            let mut encoder = FSEEncoder::new(
+                fse_encoder::build_table_from_data(weights, 6, true),
+                self.writer,
+            );
+            encoder.encode_interleaved(weights);
+            let encoded_len = (self.writer.index() - idx_before) / 8;
+            assert!(encoded_len < 128);
+            self.writer.change_bits(size_idx, encoded_len as u8, 8);
         } else {
             self.writer.write_bits(weights.len() as u8 + 127, 8);
             let pairs = weights.chunks_exact(2);

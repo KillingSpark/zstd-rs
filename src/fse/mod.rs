@@ -17,7 +17,7 @@ mod fse_decoder;
 pub use fse_decoder::*;
 use fse_encoder::FSEEncoder;
 
-use crate::decoding::bit_reader_reverse::BitReaderReversed;
+use crate::{decoding::bit_reader_reverse::BitReaderReversed, encoding::bit_writer::BitWriter};
 pub mod fse_encoder;
 
 #[test]
@@ -83,19 +83,22 @@ pub fn round_trip(data: &[u8]) {
         return;
     }
 
-    let mut encoder: FSEEncoder =
-        FSEEncoder::new(fse_encoder::build_table_from_data(data, 22, false));
+    let mut writer = BitWriter::new();
+    let mut encoder = FSEEncoder::new(
+        fse_encoder::build_table_from_data(data, 22, false),
+        &mut writer,
+    );
     let mut dec_table = FSETable::new(255);
+    encoder.encode(data);
+    let acc_log = encoder.acc_log();
+    let enc_table = encoder.into_table();
+    let encoded = writer.dump();
 
-    let encoded = encoder.encode(data);
-
-    let table_bytes = dec_table
-        .build_decoder(&encoded, encoder.acc_log())
-        .unwrap();
+    let table_bytes = dec_table.build_decoder(&encoded, acc_log).unwrap();
     let encoded = &encoded[table_bytes..];
     let mut decoder = FSEDecoder::new(&dec_table);
 
-    check_tables(&dec_table, &encoder.table);
+    check_tables(&dec_table, &enc_table);
 
     let mut br = BitReaderReversed::new(encoded);
     let mut skipped_bits = 0;
