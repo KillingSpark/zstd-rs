@@ -54,7 +54,6 @@ impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, V> {
         self.writer.change_bits(size_idx, size1 as u16, 16);
         self.writer.change_bits(size_idx + 16, size2 as u16, 16);
         self.writer.change_bits(size_idx + 32, size3 as u16, 16);
-
     }
 
     fn encode_stream<VV: AsMut<Vec<u8>>>(
