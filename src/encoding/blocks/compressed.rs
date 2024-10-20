@@ -6,6 +6,7 @@ pub fn compress_block(data: &[u8], output: &mut Vec<u8>) {
     let mut writer = BitWriter::from(output);
     compress_literals(data, &mut writer);
     //raw_literals(data, &mut writer);
+    writer.flush();
 }
 
 // TODO find usecase fot this

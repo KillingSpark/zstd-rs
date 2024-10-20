@@ -8,7 +8,8 @@ pub(crate) struct BitWriter<V: AsMut<Vec<u8>>> {
     /// The buffer that's filled with bits
     output: V,
     /// holds a partially filled byte which gets put in outpu when it's fill with a write_bits call
-    partial: u8,
+    partial: u64,
+    bits_in_partial: usize,
     /// The index pointing to the next unoccupied bit. Effectively just
     /// the number of bits that have been written into the buffer so far.
     bit_idx: usize,
@@ -20,6 +21,7 @@ impl BitWriter<Vec<u8>> {
         Self {
             output: Vec::new(),
             partial: 0,
+            bits_in_partial: 0,
             bit_idx: 0,
         }
     }
@@ -34,6 +36,7 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
             bit_idx: output.as_mut().len() * 8,
             output,
             partial: 0,
+            bits_in_partial: 0,
         }
     }
 
@@ -46,7 +49,9 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
     }
 
     pub fn change_bits_64(&mut self, mut idx: usize, mut bits: u64, mut num_bits: usize) {
+        self.flush();
         assert!(idx + num_bits < self.bit_idx);
+        assert!(self.bit_idx - (idx + num_bits) > self.bits_in_partial);
 
         if idx % 8 != 0 {
             let bits_in_first_byte = 8 - (idx % 8);
@@ -82,63 +87,28 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
         self.bit_idx += data.len() * 8;
     }
 
+    pub fn flush(&mut self) {
+        let full_bytes = self.bits_in_partial / 8;
+        self.output.as_mut().extend_from_slice(&self.partial.to_le_bytes()[..full_bytes]);
+        self.partial >>= full_bytes*8;
+        self.bits_in_partial -= full_bytes*8;
+    }
+
+    /// Write the lower `num_bits` from `bits` into the writer
     pub fn write_bits(&mut self, bits: impl Into<u64>, num_bits: usize) {
         self.write_bits_64(bits.into(), num_bits);
     }
 
-    /// Write `num_bits` from `bits` into the writer, returning the number of bits
-    /// read.
-    ///
-    /// `num_bits` refers to how many bits starting from the *least significant position*,
-    /// but the bits will be written starting from the *most significant position*, continuing
-    /// to the least significant position.
-    ///
-    /// It's up to the caller to ensure that any in the cursor beyond `num_bits` is always zero.
-    /// If it's not, the output buffer will be corrupt.
-    ///
-    /// Refer to tests for example usage.
-    // TODO: Because bitwriter isn't directly public, any errors would be caused by internal library bugs,
-    // and so this function should just panic if it encounters issues.
-    pub fn write_bits_64(&mut self, bits: u64, num_bits: usize) {
-        if num_bits > 64 {
-            panic!(
-                "asked to write more than 64 bits into buffer ({})",
-                num_bits
-            );
-        }
+    #[cold]
+    fn write_bits_64_cold(&mut self, bits: u64, num_bits: usize) {
+        let bits_free_in_partial = 64 - self.bits_in_partial;
+        let part = bits << (64 - bits_free_in_partial);
+        let merged = self.partial | part;
+        self.output.as_mut().extend_from_slice(&merged.to_le_bytes());
+        self.partial = 0;
+        self.bits_in_partial = 0;
+        self.bit_idx += bits_free_in_partial;
 
-        if bits > 0 {
-            assert!(bits.ilog2() <= num_bits as u32);
-        }
-        // Special handling for if both the input and output are byte aligned
-        if self.bit_idx % 8 == 0 && num_bits % 8 == 0 {
-            self.output
-                .as_mut()
-                .extend_from_slice(&bits.to_le_bytes()[..num_bits / 8]);
-            self.bit_idx += num_bits;
-            return;
-        }
-
-        // fill partial byte first
-        let bits_free_in_partial = self.misaligned();
-        if bits_free_in_partial > 0 {
-            if num_bits >= bits_free_in_partial {
-                let mask = (1 << bits_free_in_partial) - 1;
-                let part = (bits & mask) << (8 - bits_free_in_partial);
-                debug_assert!(part <= 256);
-                let merged = self.partial | part as u8;
-                self.output.as_mut().push(merged);
-                self.partial = 0;
-                self.bit_idx += bits_free_in_partial;
-            } else {
-                let part = bits << (8 - bits_free_in_partial);
-                debug_assert!(part <= 256);
-                let merged = self.partial | part as u8;
-                self.partial = merged;
-                self.bit_idx += num_bits;
-                return;
-            }
-        }
         let mut num_bits = num_bits - bits_free_in_partial;
         let mut bits = bits >> bits_free_in_partial;
 
@@ -153,19 +123,49 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
         debug_assert!(num_bits < 8);
         if num_bits > 0 {
             let mask = (1 << num_bits) - 1;
-            self.partial = (bits & mask) as u8;
+            self.partial = bits & mask;
+            self.bits_in_partial = num_bits;
         }
         self.bit_idx += num_bits;
+    }
+
+    pub fn write_bits_64(&mut self, bits: u64, num_bits: usize) {
+        if num_bits == 0 {
+            return;
+        }
+        if num_bits > 64 {
+            panic!(
+                "asked to write more than 64 bits into buffer ({})",
+                num_bits
+            );
+        }
+
+        if bits > 0 {
+            assert!(bits.ilog2() <= num_bits as u32);
+        }
+
+        // fill partial byte first
+        let bits_free_in_partial = 64 - self.bits_in_partial;
+        if num_bits < bits_free_in_partial {
+            let part = bits << (64 - bits_free_in_partial);
+            let merged = self.partial | part;
+            self.partial = merged;
+            self.bit_idx += num_bits;
+            self.bits_in_partial += num_bits;
+        } else {
+            self.write_bits_64_cold(bits, num_bits);
+        }
     }
 
     /// Returns the populated buffer that you've been writing bits into.
     ///
     /// This function consumes the writer, so it cannot be used after
     /// dumping
-    pub fn dump(self) -> V {
+    pub fn dump(mut self) -> V {
         if self.bit_idx % 8 != 0 {
             panic!("`dump` was called on a bit writer but an even number of bytes weren't written into the buffer. Was: {}", self.bit_idx)
         }
+        self.flush();
         debug_assert_eq!(self.partial, 0);
         self.output
     }
@@ -191,6 +191,7 @@ mod tests {
         let mut existing_vec = vec![255_u8];
         let mut bw = BitWriter::from(&mut existing_vec);
         bw.write_bits(0u8, 8);
+        bw.flush();
         assert_eq!(vec![255, 0], existing_vec);
     }
 
