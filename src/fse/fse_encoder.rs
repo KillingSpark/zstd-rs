@@ -1,20 +1,21 @@
 use crate::encoding::bit_writer::BitWriter;
 use alloc::vec::Vec;
 
-pub struct FSEEncoder {
+pub(crate) struct FSEEncoder<'output, V: AsMut<Vec<u8>>> {
     pub(super) table: FSETable,
-    writer: BitWriter,
+    writer: &'output mut BitWriter<V>,
 }
 
-impl FSEEncoder {
-    pub fn new(table: FSETable) -> Self {
-        FSEEncoder {
-            table,
-            writer: BitWriter::new(),
-        }
+impl<V: AsMut<Vec<u8>>> FSEEncoder<'_, V> {
+    pub fn new(table: FSETable, writer: &mut BitWriter<V>) -> FSEEncoder<'_, V> {
+        FSEEncoder { table, writer }
     }
 
-    pub fn encode(&mut self, data: &[u8]) -> Vec<u8> {
+    pub fn into_table(self) -> FSETable {
+        self.table
+    }
+
+    pub fn encode(&mut self, data: &[u8]) {
         self.write_table();
 
         let mut state = &self.table.states[data[data.len() - 1] as usize].states[0];
@@ -27,18 +28,15 @@ impl FSEEncoder {
         self.writer
             .write_bits(state.index as u64, self.acc_log() as usize);
 
-        let mut writer = BitWriter::new();
-        core::mem::swap(&mut self.writer, &mut writer);
-        let bits_to_fill = writer.misaligned();
+        let bits_to_fill = self.writer.misaligned();
         if bits_to_fill == 0 {
-            writer.write_bits(1u32, 8);
+            self.writer.write_bits(1u32, 8);
         } else {
-            writer.write_bits(1u32, bits_to_fill);
+            self.writer.write_bits(1u32, bits_to_fill);
         }
-        writer.dump()
     }
 
-    pub fn encode_interleaved(&mut self, data: &[u8]) -> Vec<u8> {
+    pub fn encode_interleaved(&mut self, data: &[u8]) {
         self.write_table();
 
         let mut state_1 = &self.table.states[data[data.len() - 1] as usize].states[0];
@@ -87,15 +85,12 @@ impl FSEEncoder {
                 .write_bits(state_2.index as u64, self.acc_log() as usize);
         }
 
-        let mut writer = BitWriter::new();
-        core::mem::swap(&mut self.writer, &mut writer);
-        let bits_to_fill = writer.misaligned();
+        let bits_to_fill = self.writer.misaligned();
         if bits_to_fill == 0 {
-            writer.write_bits(1u32, 8);
+            self.writer.write_bits(1u32, 8);
         } else {
-            writer.write_bits(1u32, bits_to_fill);
+            self.writer.write_bits(1u32, bits_to_fill);
         }
-        writer.dump()
     }
 
     fn write_table(&mut self) {

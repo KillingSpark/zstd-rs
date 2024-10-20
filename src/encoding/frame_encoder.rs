@@ -142,7 +142,8 @@ impl<'input> FrameCompressor<'input> {
                         header.serialize(output);
                         output.push(uncompressed[0]);
                     } else {
-                        let compressed = compress_block(uncompressed);
+                        let mut compressed = Vec::new();
+                        compress_block(uncompressed, &mut compressed);
                         if compressed.len() >= MAX_BLOCK_SIZE {
                             let header = BlockHeader {
                                 last_block,

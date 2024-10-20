@@ -2,16 +2,15 @@ use alloc::vec::Vec;
 
 use crate::{encoding::bit_writer::BitWriter, huff0::huff0_encoder};
 
-pub fn compress_block(data: &[u8]) -> Vec<u8> {
-    let mut writer = BitWriter::new();
+pub fn compress_block(data: &[u8], output: &mut Vec<u8>) {
+    let mut writer = BitWriter::from(output);
     compress_literals(data, &mut writer);
     //raw_literals(data, &mut writer);
-    writer.dump()
 }
 
 // TODO find usecase fot this
 #[allow(dead_code)]
-fn raw_literals(literals: &[u8], writer: &mut BitWriter) {
+fn raw_literals(literals: &[u8], writer: &mut BitWriter<&mut Vec<u8>>) {
     writer.write_bits(0u8, 2);
     writer.write_bits(0b11u8, 2);
     writer.write_bits(literals.len() as u32, 20);
@@ -21,11 +20,10 @@ fn raw_literals(literals: &[u8], writer: &mut BitWriter) {
     writer.write_bits(0u8, 8);
 }
 
-fn compress_literals(literals: &[u8], writer: &mut BitWriter) {
-    writer.write_bits(2u8, 2); // compressed bock type
+fn compress_literals(literals: &[u8], writer: &mut BitWriter<&mut Vec<u8>>) {
+    writer.write_bits(2u8, 2); // compressed literals type
 
     let encoder_table = huff0_encoder::HuffmanTable::build_from_data(literals);
-    let mut encoder = huff0_encoder::HuffmanEncoder::new(encoder_table);
 
     let (size_format, size_bits) = match literals.len() {
         0..6 => (0b00u8, 10),
@@ -35,16 +33,19 @@ fn compress_literals(literals: &[u8], writer: &mut BitWriter) {
         _ => unimplemented!("too many literals"),
     };
 
-    let encoded = if size_format == 0 {
+    writer.write_bits(size_format, 2);
+    writer.write_bits(literals.len() as u32, size_bits);
+    let size_index = writer.index();
+    writer.write_bits(0u32, size_bits);
+    let index_before = writer.index();
+    let mut encoder = huff0_encoder::HuffmanEncoder::new(encoder_table, writer);
+    if size_format == 0 {
         encoder.encode(literals)
     } else {
         encoder.encode4x(literals)
     };
-
-    writer.write_bits(size_format, 2);
-    writer.write_bits(literals.len() as u32, size_bits);
-    writer.write_bits(encoded.len() as u32, size_bits);
-    writer.append_bytes(&encoded);
+    let encoded_len = (writer.index() - index_before) / 8;
+    writer.change_bits(size_index, encoded_len as u64, size_bits);
 
     //sequences
     writer.write_bits(0u8, 8);
