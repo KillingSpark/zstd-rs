@@ -90,6 +90,7 @@ impl<R: Read, W: Write> FrameCompressor<R, W> {
         };
         header.serialize(output);
 
+        // TODO dont read input completely into memory here, work on a window of input
         let mut uncompressed_data = Vec::new();
         self.uncompressed_data
             .read_to_end(&mut uncompressed_data)
