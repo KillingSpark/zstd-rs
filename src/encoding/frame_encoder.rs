@@ -9,6 +9,8 @@ use super::{
     frame_header::FrameHeader,
 };
 
+use crate::io::Read;
+
 /// Blocks cannot be larger than 128KB in size.
 const MAX_BLOCK_SIZE: usize = 128 * 1024 - 20;
 
@@ -55,17 +57,17 @@ pub enum CompressionLevel {
 /// // `compress` writes the compressed output into the provided buffer.
 /// compressor.compress(&mut output);
 /// ```
-pub struct FrameCompressor<'input> {
-    uncompressed_data: &'input [u8],
+pub struct FrameCompressor<R: Read> {
+    uncompressed_data: R,
     compression_level: CompressionLevel,
 }
 
-impl<'input> FrameCompressor<'input> {
+impl<R: Read> FrameCompressor<R> {
     /// Create a new `FrameCompressor` from the provided slice, but don't start compression yet.
     pub fn new(
-        uncompressed_data: &'input [u8],
+        uncompressed_data: R,
         compression_level: CompressionLevel,
-    ) -> FrameCompressor<'input> {
+    ) -> FrameCompressor<R> {
         Self {
             uncompressed_data,
             compression_level,
@@ -73,7 +75,7 @@ impl<'input> FrameCompressor<'input> {
     }
 
     /// Compress the uncompressed data into a valid Zstd frame and write it into the provided buffer
-    pub fn compress(&self, output: &mut Vec<u8>) {
+    pub fn compress(&mut self, output: &mut Vec<u8>) {
         let header = FrameHeader {
             frame_content_size: None,
             single_segment: false,
@@ -82,8 +84,13 @@ impl<'input> FrameCompressor<'input> {
             window_size: Some(256 * 1024),
         };
         header.serialize(output);
+
+        let mut uncompressed_data = Vec::new();
+        self.uncompressed_data.read_to_end(&mut uncompressed_data).unwrap();
+        let uncompressed_data = uncompressed_data;
+
         // Special handling is needed for compression of a totally empty file (why you'd want to do that, I don't know)
-        if self.uncompressed_data.is_empty() {
+        if uncompressed_data.is_empty() {
             let header = BlockHeader {
                 last_block: true,
                 block_type: crate::blocks::block::BlockType::Raw,
@@ -92,16 +99,17 @@ impl<'input> FrameCompressor<'input> {
             // Write the header, then the block
             header.serialize(output);
         }
+        
         match self.compression_level {
             CompressionLevel::Uncompressed => {
                 // Blocks are compressed by writing a header, then writing
                 // the block in repetition until the last block is reached.
                 let mut index = 0;
-                while index < self.uncompressed_data.len() {
-                    let last_block = index + MAX_BLOCK_SIZE >= self.uncompressed_data.len();
+                while index < uncompressed_data.len() {
+                    let last_block = index + MAX_BLOCK_SIZE >= uncompressed_data.len();
                     // We read till the end of the data, or till the max block size, whichever comes sooner
                     let block_size = if last_block {
-                        self.uncompressed_data.len() - index
+                        uncompressed_data.len() - index
                     } else {
                         MAX_BLOCK_SIZE
                     };
@@ -113,7 +121,7 @@ impl<'input> FrameCompressor<'input> {
                     // Write the header, then the block
                     header.serialize(output);
                     compress_raw_block(
-                        &self.uncompressed_data[index..(index + block_size)],
+                        &uncompressed_data[index..(index + block_size)],
                         output,
                     );
                     index += block_size;
@@ -121,16 +129,16 @@ impl<'input> FrameCompressor<'input> {
             }
             CompressionLevel::Fastest => {
                 let mut index = 0;
-                while index < self.uncompressed_data.len() {
-                    let last_block = index + MAX_BLOCK_SIZE >= self.uncompressed_data.len();
+                while index < uncompressed_data.len() {
+                    let last_block = index + MAX_BLOCK_SIZE >= uncompressed_data.len();
                     // We read till the end of the data, or till the max block size, whichever comes sooner
                     let block_size = if last_block {
-                        self.uncompressed_data.len() - index
+                        uncompressed_data.len() - index
                     } else {
                         MAX_BLOCK_SIZE
                     };
 
-                    let uncompressed = &self.uncompressed_data[index..(index + block_size)];
+                    let uncompressed = &uncompressed_data[index..(index + block_size)];
 
                     if uncompressed.iter().all(|x| uncompressed[0].eq(x)) {
                         let header = BlockHeader {
@@ -153,7 +161,7 @@ impl<'input> FrameCompressor<'input> {
                             // Write the header, then the block
                             header.serialize(output);
                             compress_raw_block(
-                                &self.uncompressed_data[index..(index + block_size)],
+                                &uncompressed_data[index..(index + block_size)],
                                 output,
                             );
                         } else {
@@ -187,8 +195,8 @@ mod tests {
 
     #[test]
     fn frame_starts_with_magic_num() {
-        let mock_data = &[1_u8, 2, 3];
-        let compressor = FrameCompressor::new(mock_data, super::CompressionLevel::Uncompressed);
+        let mock_data = [1_u8, 2, 3].as_slice();
+        let mut compressor = FrameCompressor::new(mock_data, super::CompressionLevel::Uncompressed);
         let mut output: Vec<u8> = Vec::new();
         compressor.compress(&mut output);
         assert!(output.starts_with(&MAGIC_NUM.to_le_bytes()));
@@ -196,8 +204,8 @@ mod tests {
 
     #[test]
     fn very_simple_raw_compress() {
-        let mock_data = &[1_u8, 2, 3];
-        let compressor = FrameCompressor::new(mock_data, super::CompressionLevel::Uncompressed);
+        let mock_data = [1_u8, 2, 3].as_slice();
+        let mut compressor = FrameCompressor::new(mock_data, super::CompressionLevel::Uncompressed);
         let mut output: Vec<u8> = Vec::new();
         compressor.compress(&mut output);
     }
@@ -209,7 +217,7 @@ mod tests {
         mock_data.extend(vec![2; (1 << 18) - 1]);
         mock_data.extend(vec![2; 1 << 17]);
         mock_data.extend(vec![3; (1 << 17) - 1]);
-        let compressor = FrameCompressor::new(&mock_data, super::CompressionLevel::Fastest);
+        let mut compressor = FrameCompressor::new(mock_data.as_slice(), super::CompressionLevel::Fastest);
         let mut output: Vec<u8> = Vec::new();
         compressor.compress(&mut output);
 
@@ -226,7 +234,7 @@ mod tests {
     #[test]
     fn rle_compress() {
         let mock_data = vec![0; 1 << 19];
-        let compressor = FrameCompressor::new(&mock_data, super::CompressionLevel::Fastest);
+        let mut compressor = FrameCompressor::new(mock_data.as_slice(), super::CompressionLevel::Fastest);
         let mut output: Vec<u8> = Vec::new();
         compressor.compress(&mut output);
 
@@ -239,7 +247,7 @@ mod tests {
     #[test]
     fn aaa_compress() {
         let mock_data = vec![0, 1, 3, 4, 5];
-        let compressor = FrameCompressor::new(&mock_data, super::CompressionLevel::Fastest);
+        let mut compressor = FrameCompressor::new(mock_data.as_slice(), super::CompressionLevel::Fastest);
         let mut output: Vec<u8> = Vec::new();
         compressor.compress(&mut output);
 
@@ -287,8 +295,8 @@ mod tests {
         fn encode_ruzstd_uncompressed(data: &mut dyn std::io::Read) -> Vec<u8> {
             let mut input = Vec::new();
             data.read_to_end(&mut input).unwrap();
-            let compressor = crate::encoding::FrameCompressor::new(
-                &input,
+            let mut compressor = crate::encoding::FrameCompressor::new(
+                input.as_slice(),
                 crate::encoding::CompressionLevel::Uncompressed,
             );
             let mut output = Vec::new();
@@ -299,8 +307,8 @@ mod tests {
         fn encode_ruzstd_compressed(data: &mut dyn std::io::Read) -> Vec<u8> {
             let mut input = Vec::new();
             data.read_to_end(&mut input).unwrap();
-            let compressor = crate::encoding::FrameCompressor::new(
-                &input,
+            let mut compressor = crate::encoding::FrameCompressor::new(
+                input.as_slice(),
                 crate::encoding::CompressionLevel::Fastest,
             );
             let mut output = Vec::new();
