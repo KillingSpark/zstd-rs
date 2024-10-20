@@ -5,6 +5,8 @@ use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
 
+use ruzstd::encoding::CompressionLevel;
+use ruzstd::encoding::FrameCompressor;
 use ruzstd::frame::ReadFrameHeaderError;
 use ruzstd::frame_decoder::FrameDecoderError;
 
@@ -18,11 +20,7 @@ struct StateTracker {
     old_percentage: i8,
 }
 
-fn main() {
-    let mut file_paths: Vec<_> = std::env::args().filter(|f| !f.starts_with('-')).collect();
-    let flags: Vec<_> = std::env::args().filter(|f| f.starts_with('-')).collect();
-    file_paths.remove(0);
-
+fn decompress(flags: &[String], file_paths: &[String]) {
     if !flags.contains(&"-d".to_owned()) {
         eprintln!("This zstd implementation only supports decompression. Please add a \"-d\" flag");
         return;
@@ -125,6 +123,24 @@ fn main() {
                 tracker.valid_checksums + tracker.invalid_checksums,
             );
         }
+    }
+}
+
+fn main() {
+    let mut file_paths: Vec<_> = std::env::args().filter(|f| !f.starts_with('-')).collect();
+    let flags: Vec<_> = std::env::args().filter(|f| f.starts_with('-')).collect();
+    file_paths.remove(0);
+
+    if flags.is_empty() {
+        for file in file_paths {
+            let input = std::fs::read(&file).unwrap();
+            let encoder = FrameCompressor::new(&input, CompressionLevel::Fastest);
+            let mut output = Vec::new();
+            encoder.compress(&mut output);
+            println!("Compressed {file:} from {} to {} ({}%)", input.len(), output.len(), output.len() * 100 / input.len());
+        }
+    } else {
+        decompress(&flags, &file_paths);
     }
 }
 
