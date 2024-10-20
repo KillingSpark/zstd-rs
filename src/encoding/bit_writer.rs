@@ -89,9 +89,11 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
 
     pub fn flush(&mut self) {
         let full_bytes = self.bits_in_partial / 8;
-        self.output.as_mut().extend_from_slice(&self.partial.to_le_bytes()[..full_bytes]);
-        self.partial >>= full_bytes*8;
-        self.bits_in_partial -= full_bytes*8;
+        self.output
+            .as_mut()
+            .extend_from_slice(&self.partial.to_le_bytes()[..full_bytes]);
+        self.partial >>= full_bytes * 8;
+        self.bits_in_partial -= full_bytes * 8;
     }
 
     /// Write the lower `num_bits` from `bits` into the writer
@@ -104,7 +106,9 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
         let bits_free_in_partial = 64 - self.bits_in_partial;
         let part = bits << (64 - bits_free_in_partial);
         let merged = self.partial | part;
-        self.output.as_mut().extend_from_slice(&merged.to_le_bytes());
+        self.output
+            .as_mut()
+            .extend_from_slice(&merged.to_le_bytes());
         self.partial = 0;
         self.bits_in_partial = 0;
         self.bit_idx += bits_free_in_partial;

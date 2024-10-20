@@ -29,10 +29,13 @@ fn test_encode_corpus_files_uncompressed_our_decompressor() {
         println!("Trying file: {:?}", path);
         let input = fs::read(entry.path()).unwrap();
 
-        let mut compressor =
-            FrameCompressor::new(input.as_slice(), crate::encoding::CompressionLevel::Uncompressed);
         let mut compressed_file: Vec<u8> = Vec::new();
-        compressor.compress(&mut compressed_file);
+        let mut compressor = FrameCompressor::new(
+            input.as_slice(),
+            &mut compressed_file,
+            crate::encoding::CompressionLevel::Fastest,
+        );
+        compressor.compress();
         let mut decompressed_output = Vec::new();
         let mut decoder =
             crate::streaming_decoder::StreamingDecoder::new(compressed_file.as_slice()).unwrap();
@@ -83,10 +86,13 @@ fn test_encode_corpus_files_uncompressed_original_decompressor() {
         println!("Trying file: {:?}", path);
         let input = fs::read(entry.path()).unwrap();
 
-        let mut compressor =
-            FrameCompressor::new(input.as_slice(), crate::encoding::CompressionLevel::Uncompressed);
         let mut compressed_file: Vec<u8> = Vec::new();
-        compressor.compress(&mut compressed_file);
+        let mut compressor = FrameCompressor::new(
+            input.as_slice(),
+            &mut compressed_file,
+            crate::encoding::CompressionLevel::Fastest,
+        );
+        compressor.compress();
         let mut decompressed_output = Vec::new();
         // zstd::stream::copy_decode(compressed_file.as_slice(), &mut decompressed_output).unwrap();
         match zstd::stream::copy_decode(compressed_file.as_slice(), &mut decompressed_output) {
@@ -143,9 +149,13 @@ fn test_encode_corpus_files_compressed_our_decompressor() {
         println!("Trying file: {:?}", path);
         let input = fs::read(entry.path()).unwrap();
 
-        let mut compressor = FrameCompressor::new(input.as_slice(), crate::encoding::CompressionLevel::Fastest);
         let mut compressed_file: Vec<u8> = Vec::new();
-        compressor.compress(&mut compressed_file);
+        let mut compressor = FrameCompressor::new(
+            input.as_slice(),
+            &mut compressed_file,
+            crate::encoding::CompressionLevel::Fastest,
+        );
+        compressor.compress();
         let mut decompressed_output = Vec::new();
         let mut decoder =
             crate::streaming_decoder::StreamingDecoder::new(compressed_file.as_slice()).unwrap();
@@ -196,9 +206,13 @@ fn test_encode_corpus_files_compressed_original_decompressor() {
         println!("Trying file: {:?}", path);
         let input = fs::read(entry.path()).unwrap();
 
-        let mut compressor = FrameCompressor::new(input.as_slice(), crate::encoding::CompressionLevel::Fastest);
         let mut compressed_file: Vec<u8> = Vec::new();
-        compressor.compress(&mut compressed_file);
+        let mut compressor = FrameCompressor::new(
+            input.as_slice(),
+            &mut compressed_file,
+            crate::encoding::CompressionLevel::Fastest,
+        );
+        compressor.compress();
         let mut decompressed_output = Vec::new();
         // zstd::stream::copy_decode(compressed_file.as_slice(), &mut decompressed_output).unwrap();
         match zstd::stream::copy_decode(compressed_file.as_slice(), &mut decompressed_output) {

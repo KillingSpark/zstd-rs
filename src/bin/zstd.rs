@@ -134,11 +134,17 @@ fn main() {
     if flags.is_empty() {
         for path in file_paths {
             let mut file = std::fs::File::open(&path).unwrap();
-            let mut encoder = FrameCompressor::new(&mut file, CompressionLevel::Fastest);
             let mut output = Vec::new();
-            encoder.compress(&mut output);
+            let mut encoder =
+                FrameCompressor::new(&mut file, &mut output, CompressionLevel::Fastest);
+            encoder.compress();
             let input_len = file.metadata().unwrap().len() as usize;
-            println!("Compressed {path:} from {} to {} ({}%)", input_len, output.len(), output.len() * 100 / input_len);
+            println!(
+                "Compressed {path:} from {} to {} ({}%)",
+                input_len,
+                output.len(),
+                output.len() * 100 / input_len
+            );
         }
     } else {
         decompress(&flags, &file_paths);
