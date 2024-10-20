@@ -27,33 +27,34 @@ impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, V> {
         let src3 = &data[split_size * 2..split_size * 3];
         let src4 = &data[split_size * 3..];
 
-        let mut writer = BitWriter::new();
-        Self::encode_stream(&self.table, &mut writer, src1);
-        let encoded1 = writer.dump();
-        let mut writer = BitWriter::new();
-        Self::encode_stream(&self.table, &mut writer, src2);
-        let encoded2 = writer.dump();
-        let mut writer = BitWriter::new();
-        Self::encode_stream(&self.table, &mut writer, src3);
-        let encoded3 = writer.dump();
-        let mut writer = BitWriter::new();
-        Self::encode_stream(&self.table, &mut writer, src4);
-        let encoded4 = writer.dump();
-
-        assert!(encoded1.len() as u16 <= u16::MAX);
-        assert!(encoded2.len() as u16 <= u16::MAX);
-        assert!(encoded3.len() as u16 <= u16::MAX);
-        assert!(encoded4.len() as u16 <= u16::MAX);
-
         self.write_table();
-        self.writer.write_bits(encoded1.len() as u16, 16);
-        self.writer.write_bits(encoded2.len() as u16, 16);
-        self.writer.write_bits(encoded3.len() as u16, 16);
+        let size_idx = self.writer.index();
+        self.writer.write_bits(0u16, 16);
+        self.writer.write_bits(0u16, 16);
+        self.writer.write_bits(0u16, 16);
 
-        self.writer.append_bytes(&encoded1);
-        self.writer.append_bytes(&encoded2);
-        self.writer.append_bytes(&encoded3);
-        self.writer.append_bytes(&encoded4);
+        let index_before = self.writer.index();
+        Self::encode_stream(&self.table, self.writer, src1);
+        let size1 = (self.writer.index() - index_before) / 8;
+
+        let index_before = self.writer.index();
+        Self::encode_stream(&self.table, self.writer, src2);
+        let size2 = (self.writer.index() - index_before) / 8;
+
+        let index_before = self.writer.index();
+        Self::encode_stream(&self.table, self.writer, src3);
+        let size3 = (self.writer.index() - index_before) / 8;
+
+        Self::encode_stream(&self.table, self.writer, src4);
+
+        assert!(size1 as u16 <= u16::MAX);
+        assert!(size2 as u16 <= u16::MAX);
+        assert!(size3 as u16 <= u16::MAX);
+
+        self.writer.change_bits(size_idx, size1 as u16, 16);
+        self.writer.change_bits(size_idx + 16, size2 as u16, 16);
+        self.writer.change_bits(size_idx + 32, size3 as u16, 16);
+
     }
 
     fn encode_stream<VV: AsMut<Vec<u8>>>(
