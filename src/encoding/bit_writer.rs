@@ -137,21 +137,15 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
         if num_bits == 0 {
             return;
         }
-        if num_bits > 64 {
-            panic!(
-                "asked to write more than 64 bits into buffer ({})",
-                num_bits
-            );
-        }
 
         if bits > 0 {
-            assert!(bits.ilog2() <= num_bits as u32);
+            debug_assert!(bits.ilog2() <= num_bits as u32);
         }
 
         // fill partial byte first
         let bits_free_in_partial = 64 - self.bits_in_partial;
         if num_bits < bits_free_in_partial {
-            let part = bits << (64 - bits_free_in_partial);
+            let part = bits << self.bits_in_partial;
             let merged = self.partial | part;
             self.partial = merged;
             self.bit_idx += num_bits;
