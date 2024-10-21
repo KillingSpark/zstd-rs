@@ -41,7 +41,7 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
     }
 
     pub fn index(&self) -> usize {
-        self.bit_idx
+        self.bit_idx + self.bits_in_partial
     }
 
     pub fn change_bits(&mut self, idx: usize, bits: impl Into<u64>, num_bits: usize) {
@@ -50,8 +50,8 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
 
     pub fn change_bits_64(&mut self, mut idx: usize, mut bits: u64, mut num_bits: usize) {
         self.flush();
-        assert!(idx + num_bits < self.bit_idx);
-        assert!(self.bit_idx - (idx + num_bits) > self.bits_in_partial);
+        assert!(idx + num_bits < self.index());
+        assert!(self.index() - (idx + num_bits) > self.bits_in_partial);
 
         if idx % 8 != 0 {
             let bits_in_first_byte = 8 - (idx % 8);
@@ -83,6 +83,7 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
         if self.misaligned() != 0 {
             panic!("Don't append bytes when writer is misaligned")
         }
+        self.flush();
         self.output.as_mut().extend_from_slice(data);
         self.bit_idx += data.len() * 8;
     }
@@ -94,6 +95,7 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
             .extend_from_slice(&self.partial.to_le_bytes()[..full_bytes]);
         self.partial >>= full_bytes * 8;
         self.bits_in_partial -= full_bytes * 8;
+        self.bit_idx += full_bytes * 8;
     }
 
     /// Write the lower `num_bits` from `bits` into the writer
@@ -109,9 +111,9 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
         self.output
             .as_mut()
             .extend_from_slice(&merged.to_le_bytes());
+        self.bit_idx += 64;
         self.partial = 0;
         self.bits_in_partial = 0;
-        self.bit_idx += bits_free_in_partial;
 
         let mut num_bits = num_bits - bits_free_in_partial;
         let mut bits = bits >> bits_free_in_partial;
@@ -130,7 +132,6 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
             self.partial = bits & mask;
             self.bits_in_partial = num_bits;
         }
-        self.bit_idx += num_bits;
     }
 
     pub fn write_bits_64(&mut self, bits: u64, num_bits: usize) {
@@ -148,7 +149,6 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
             let part = bits << self.bits_in_partial;
             let merged = self.partial | part;
             self.partial = merged;
-            self.bit_idx += num_bits;
             self.bits_in_partial += num_bits;
         } else {
             self.write_bits_64_cold(bits, num_bits);
@@ -160,8 +160,8 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
     /// This function consumes the writer, so it cannot be used after
     /// dumping
     pub fn dump(mut self) -> V {
-        if self.bit_idx % 8 != 0 {
-            panic!("`dump` was called on a bit writer but an even number of bytes weren't written into the buffer. Was: {}", self.bit_idx)
+        if self.misaligned() != 0 {
+            panic!("`dump` was called on a bit writer but an even number of bytes weren't written into the buffer. Was: {}", self.index())
         }
         self.flush();
         debug_assert_eq!(self.partial, 0);
@@ -170,10 +170,11 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
 
     /// Returns how many bits are missing for an even byte
     pub fn misaligned(&self) -> usize {
-        if self.bit_idx % 8 == 0 {
+        let idx = self.index();
+        if idx % 8 == 0 {
             0
         } else {
-            8 - (self.bit_idx % 8)
+            8 - (idx % 8)
         }
     }
 }
