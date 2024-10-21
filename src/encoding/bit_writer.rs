@@ -144,8 +144,7 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
         }
 
         // fill partial byte first
-        let bits_free_in_partial = 64 - self.bits_in_partial;
-        if num_bits < bits_free_in_partial {
+        if num_bits + self.bits_in_partial < 64 {
             let part = bits << self.bits_in_partial;
             let merged = self.partial | part;
             self.partial = merged;
