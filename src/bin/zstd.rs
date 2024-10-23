@@ -1,5 +1,6 @@
 extern crate ruzstd;
 use std::fs::File;
+use std::io::BufReader;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
@@ -133,12 +134,13 @@ fn main() {
 
     if flags.is_empty() {
         for path in file_paths {
-            let mut file = std::fs::File::open(&path).unwrap();
+            let file = std::fs::File::open(&path).unwrap();
+            let input_len = file.metadata().unwrap().len() as usize;
+            let file = BufReader::new(file);
             let mut output = Vec::new();
             let mut encoder =
-                FrameCompressor::new(&mut file, &mut output, CompressionLevel::Fastest);
+                FrameCompressor::new(file, &mut output, CompressionLevel::Fastest);
             encoder.compress();
-            let input_len = file.metadata().unwrap().len() as usize;
             println!(
                 "Compressed {path:} from {} to {} ({}%)",
                 input_len,
