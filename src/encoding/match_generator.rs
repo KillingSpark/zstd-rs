@@ -119,7 +119,7 @@ impl<'data> MatchGenerator<'data> {
     fn add_suffixes_till(&mut self, idx: usize) {
         let last_entry = self.window.last_mut().unwrap();
         let last_idx = usize::min(idx, last_entry.data.len() - MIN_MATCH_LEN);
-        for idx in self.suffix_idx..last_idx {
+        for idx in self.suffix_idx..=last_idx {
             let mut key = [0u8; MIN_MATCH_LEN];
             key.copy_from_slice(&last_entry.data[idx..idx + MIN_MATCH_LEN]);
             if !last_entry.suffixes.contains_key(&key) {
@@ -128,6 +128,11 @@ impl<'data> MatchGenerator<'data> {
         }
     }
 
+    pub(crate) fn add_data_no_matching(&mut self, data: &'data [u8]) {
+        self.add_data(data);
+        self.add_suffixes_till(data.len());
+        self.suffix_idx = data.len();
+    }
     pub(crate) fn add_data(&mut self, data: &'data [u8]) {
         assert!(
             self.window.is_empty() || self.suffix_idx == self.window.last().unwrap().data.len()
@@ -246,6 +251,20 @@ fn matches() {
         Sequence::Triple {
             literals: &[],
             offset: 15,
+            match_len: 5
+        }
+    );
+    assert!(matcher.next_sequence().is_none());
+
+    matcher.add_data_no_matching(&[1, 3, 5, 7, 9]);
+    assert!(matcher.next_sequence().is_none());
+
+    matcher.add_data(&[1, 3, 5, 7, 9]);
+    assert_eq!(
+        matcher.next_sequence().unwrap(),
+        Sequence::Triple {
+            literals: &[],
+            offset: 5,
             match_len: 5
         }
     );
