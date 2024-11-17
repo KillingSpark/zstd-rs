@@ -6,7 +6,7 @@ use core::convert::TryInto;
 use super::{
     block_header::BlockHeader,
     blocks::{compress_block, compress_raw_block},
-    frame_header::FrameHeader,
+    frame_header::FrameHeader, match_generator::MatchGenerator,
 };
 
 use crate::io::{Read, Write};
@@ -96,6 +96,7 @@ impl<R: Read, W: Write> FrameCompressor<R, W> {
             .read_to_end(&mut uncompressed_data)
             .unwrap();
         let uncompressed_data = uncompressed_data;
+        let mut matcher = MatchGenerator::new(1024 * 128);
 
         // Special handling is needed for compression of a totally empty file (why you'd want to do that, I don't know)
         if uncompressed_data.is_empty() {
@@ -146,6 +147,7 @@ impl<R: Read, W: Write> FrameCompressor<R, W> {
                     let uncompressed = &uncompressed_data[index..(index + block_size)];
 
                     if uncompressed.iter().all(|x| uncompressed[0].eq(x)) {
+                        matcher.add_data_no_matching(uncompressed);
                         let header = BlockHeader {
                             last_block,
                             block_type: crate::blocks::block::BlockType::RLE,
@@ -156,7 +158,7 @@ impl<R: Read, W: Write> FrameCompressor<R, W> {
                         output.push(uncompressed[0]);
                     } else {
                         let mut compressed = Vec::new();
-                        compress_block(uncompressed, &mut compressed);
+                        compress_block(&mut matcher, uncompressed, &mut compressed);
                         if compressed.len() >= MAX_BLOCK_SIZE {
                             let header = BlockHeader {
                                 last_block,
@@ -166,7 +168,7 @@ impl<R: Read, W: Write> FrameCompressor<R, W> {
                             // Write the header, then the block
                             header.serialize(output);
                             compress_raw_block(
-                                &uncompressed_data[index..(index + block_size)],
+                                uncompressed,
                                 output,
                             );
                         } else {
