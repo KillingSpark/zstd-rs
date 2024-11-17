@@ -58,24 +58,89 @@ pub fn compress_block<'a>(matcher: &mut MatchGenerator<'a>, data: &'a [u8], outp
 
 fn encode_seqnum(seqnum: usize, writer: &mut BitWriter<impl AsMut<Vec<u8>>>) {
     const UPPER_LIMIT: usize = 0xFFFF + 0x7F00;
-        match seqnum {
-            1..=127 => writer.write_bits(seqnum as u32, 8),
-            128..=0x7FFF => {
-                let upper = ((seqnum >> 8) & 0x80) as u8;
-                let lower = seqnum as u8;
-                writer.write_bits(upper, 8);
-                writer.write_bits(lower, 8);
-            }
-            0x8000..=UPPER_LIMIT => {
-                let encode = seqnum - 0x7F00;
-                let upper = (encode >> 8) as u8;
-                let lower = encode as u8;
-                writer.write_bits(255u8, 8);
-                writer.write_bits(upper, 8);
-                writer.write_bits(lower, 8);
-            }
-            _ => unreachable!()
+    match seqnum {
+        1..=127 => writer.write_bits(seqnum as u32, 8),
+        128..=0x7FFF => {
+            let upper = ((seqnum >> 8) & 0x80) as u8;
+            let lower = seqnum as u8;
+            writer.write_bits(upper, 8);
+            writer.write_bits(lower, 8);
         }
+        0x8000..=UPPER_LIMIT => {
+            let encode = seqnum - 0x7F00;
+            let upper = (encode >> 8) as u8;
+            let lower = encode as u8;
+            writer.write_bits(255u8, 8);
+            writer.write_bits(upper, 8);
+            writer.write_bits(lower, 8);
+        }
+        _ => unreachable!(),
+    }
+}
+
+fn encode_literal_length(len: usize) -> (u32, u32, u8) {
+    let len = len as u32;
+    match len {
+        0..=15 => (len, 0, 0),
+        16..=17 => (16, len - 16, 1),
+        18..=19 => (17, len - 18, 1),
+        20..=21 => (18, len - 20, 1),
+        22..=23 => (19, len - 22, 1),
+        24..=27 => (20, len - 24, 2),
+        28..=31 => (21, len - 28, 2),
+        32..=39 => (22, len - 32, 3),
+        40..=47 => (23, len - 40, 3),
+        48..=63 => (24, len - 48, 4),
+        64..=127 => (25, len - 64, 6),
+        128..=255 => (26, len - 128, 7),
+        256..=511 => (27, len - 256, 8),
+        512..=1023 => (28, len - 512, 9),
+        1024..=2047 => (29, len - 1024, 10),
+        2048..=4095 => (30, len - 2048, 11),
+        4096..=8191 => (31, len - 4096, 12),
+        8192..=16383 => (31, len - 8192, 13),
+        16384..=32767 => (32, len - 16384, 14),
+        32768..=65535 => (34, len - 32768, 15),
+        65536..=131071 => (35, len - 65536, 16),
+        131072.. => unreachable!(),
+    }
+}
+
+fn encode_match_len(len: usize) -> (u32, u32, u8) {
+    let len = len as u32;
+    match len {
+        0..=2 => unreachable!(),
+        3..=34 => (len - 3, 0, 0),
+        35..=36 => (32, len - 35, 1),
+        37..=38 => (33, len - 37, 1),
+        39..=40 => (34, len - 39, 1),
+        41..=42 => (35, len - 41, 1),
+        43..=46 => (36, len - 43, 2),
+        47..=50 => (37, len - 47, 2),
+        51..=58 => (38, len - 51, 3),
+        59..=66 => (39, len - 59, 3),
+        67..=82 => (40, len - 67, 4),
+        83..=98 => (41, len - 83, 4),
+        99..=130 => (42, len - 99, 5),
+        131..=258 => (43, len - 131, 7),
+        259..=514 => (44, len - 259, 8),
+        515..=1026 => (45, len - 515, 9),
+        1027..=2050 => (46, len - 1027, 10),
+        2051..=4098 => (47, len - 2051, 11),
+        4099..=8194 => (48, len - 4099, 12),
+        8195..=16386 => (49, len - 8195, 13),
+        16387..=32770 => (50, len - 16387, 14),
+        32771..=65538 => (51, len - 32771, 15),
+        65539..=131074 => (52, len - 32771, 16),
+        131075.. => unreachable!(),
+    }
+}
+
+fn encode_offset(len: usize) -> (u32, u32, u8) {
+    let len = len as u32;
+    let log = len.ilog2();
+    let lower = len & ((1 << log) - 1);
+    (log, lower, log as u8)
 }
 
 // TODO find usecase fot this
