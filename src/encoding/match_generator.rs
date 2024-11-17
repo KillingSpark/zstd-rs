@@ -46,69 +46,71 @@ impl<'data> MatchGenerator<'data> {
     }
 
     pub(crate) fn next_sequence(&mut self) -> Option<Sequence<'data>> {
-        let last_entry = self.window.last().unwrap();
-        let data_slice = last_entry.data;
-        if self.suffix_idx >= data_slice.len() {
-            return None;
-        }
-        let data_slice = &data_slice[self.suffix_idx..];
-
-        if data_slice.len() < MIN_MATCH_LEN {
-            let last_idx_in_sequence = self.last_idx_in_sequence;
-            self.last_idx_in_sequence = last_entry.data.len();
-            self.suffix_idx = last_entry.data.len();
-            return Some(Sequence::Literals {
-                literals: &last_entry.data[last_idx_in_sequence..],
-            });
-        }
-
-        let mut key = [0u8; MIN_MATCH_LEN];
-        key.copy_from_slice(&data_slice[..MIN_MATCH_LEN]);
-
         let mut sequence = None;
 
-        for (match_entry_idx, match_entry) in self.window.iter().enumerate() {
-            let is_last = match_entry_idx == self.window.len() - 1;
-            if let Some(match_index) = match_entry.suffixes.get(&key).copied() {
-                let match_slice = if is_last {
-                    &match_entry.data[match_index..self.suffix_idx]
-                } else {
-                    &match_entry.data[match_index..]
-                };
-                let min_len = usize::min(match_slice.len(), data_slice.len());
+        while sequence.is_none() {
+            let last_entry = self.window.last().unwrap();
+            let data_slice = last_entry.data;
+            if self.suffix_idx >= data_slice.len() {
+                return None;
+            }
+            let data_slice = &data_slice[self.suffix_idx..];
 
-                let mut match_len = 0;
-                for idx in 0..min_len {
-                    if match_slice[idx] != data_slice[idx] {
+            if data_slice.len() < MIN_MATCH_LEN {
+                let last_idx_in_sequence = self.last_idx_in_sequence;
+                self.last_idx_in_sequence = last_entry.data.len();
+                self.suffix_idx = last_entry.data.len();
+                return Some(Sequence::Literals {
+                    literals: &last_entry.data[last_idx_in_sequence..],
+                });
+            }
+
+            let mut key = [0u8; MIN_MATCH_LEN];
+            key.copy_from_slice(&data_slice[..MIN_MATCH_LEN]);
+
+            for (match_entry_idx, match_entry) in self.window.iter().enumerate() {
+                let is_last = match_entry_idx == self.window.len() - 1;
+                if let Some(match_index) = match_entry.suffixes.get(&key).copied() {
+                    let match_slice = if is_last {
+                        &match_entry.data[match_index..self.suffix_idx]
+                    } else {
+                        &match_entry.data[match_index..]
+                    };
+                    let min_len = usize::min(match_slice.len(), data_slice.len());
+
+                    let mut match_len = 0;
+                    for idx in 0..min_len {
+                        if match_slice[idx] != data_slice[idx] {
+                            break;
+                        }
+                        match_len = idx + 1;
+                    }
+
+                    if match_len >= MIN_MATCH_LEN {
+                        let literals = &last_entry.data[self.last_idx_in_sequence..self.suffix_idx];
+                        let offset = match_entry.base_offset - match_index + self.suffix_idx;
+                        sequence = Some(Sequence::Triple {
+                            literals,
+                            offset,
+                            match_len,
+                        });
+
                         break;
                     }
-                    match_len = idx + 1;
-                }
-
-                if match_len >= MIN_MATCH_LEN {
-                    let literals = &last_entry.data[self.last_idx_in_sequence..self.suffix_idx];
-                    let offset = match_entry.base_offset - match_index + self.suffix_idx;
-                    sequence = Some(Sequence::Triple {
-                        literals,
-                        offset,
-                        match_len,
-                    });
-
-                    break;
                 }
             }
-        }
 
-        if let Some(Sequence::Triple { match_len, .. }) = sequence {
-            self.add_suffixes_till(self.suffix_idx + match_len);
-            self.suffix_idx += match_len;
-            self.last_idx_in_sequence = self.suffix_idx;
-        } else {
-            let last_entry = self.window.last_mut().unwrap();
-            if !last_entry.suffixes.contains_key(&key) {
-                last_entry.suffixes.insert(key, self.suffix_idx);
+            if let Some(Sequence::Triple { match_len, .. }) = sequence {
+                self.add_suffixes_till(self.suffix_idx + match_len);
+                self.suffix_idx += match_len;
+                self.last_idx_in_sequence = self.suffix_idx;
+            } else {
+                let last_entry = self.window.last_mut().unwrap();
+                if !last_entry.suffixes.contains_key(&key) {
+                    last_entry.suffixes.insert(key, self.suffix_idx);
+                }
+                self.suffix_idx += 1;
             }
-            self.suffix_idx += 1;
         }
 
         sequence
@@ -167,10 +169,6 @@ fn matches() {
     let mut matcher = MatchGenerator::new(1000);
     matcher.add_data(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
-    for _ in 0..5 {
-        assert!(matcher.next_sequence().is_none());
-    }
-
     assert_eq!(
         matcher.next_sequence().unwrap(),
         Sequence::Triple {
@@ -185,9 +183,6 @@ fn matches() {
         1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 0, 0, 0, 0, 0,
     ]);
 
-    for _ in 0..6 {
-        assert!(matcher.next_sequence().is_none());
-    }
     assert_eq!(
         matcher.next_sequence().unwrap(),
         Sequence::Triple {
@@ -208,15 +203,13 @@ fn matches() {
         matcher.next_sequence().unwrap(),
         Sequence::Triple {
             literals: &[],
-            offset: 28  ,
+            offset: 28,
             match_len: 5
         }
     );
     assert!(matcher.next_sequence().is_none());
 
-    matcher.add_data(&[
-        1, 2, 3, 4, 5, 6, 7, 0, 0, 0, 0, 0,
-    ]);
+    matcher.add_data(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0, 0, 0, 0, 0]);
 
     assert_eq!(
         matcher.next_sequence().unwrap(),
@@ -226,12 +219,33 @@ fn matches() {
             match_len: 6
         }
     );
-    assert!(matcher.next_sequence().is_none());
     assert_eq!(
         matcher.next_sequence().unwrap(),
         Sequence::Triple {
-            literals: &[7],
-            offset: 40,
+            literals: &[7, 8, 9, 10, 11],
+            offset: 44,
+            match_len: 5
+        }
+    );
+    assert!(matcher.next_sequence().is_none());
+
+    matcher.add_data(&[0, 0, 0, 0, 0]);
+    assert_eq!(
+        matcher.next_sequence().unwrap(),
+        Sequence::Triple {
+            literals: &[],
+            offset: 49,
+            match_len: 5
+        }
+    );
+    assert!(matcher.next_sequence().is_none());
+
+    matcher.add_data(&[7, 8, 9, 10, 11]);
+    assert_eq!(
+        matcher.next_sequence().unwrap(),
+        Sequence::Triple {
+            literals: &[],
+            offset: 15,
             match_len: 5
         }
     );
