@@ -1,5 +1,3 @@
-use std::dbg;
-
 use alloc::vec::Vec;
 
 use crate::{
@@ -7,6 +5,7 @@ use crate::{
         bit_writer::BitWriter,
         match_generator::{MatchGenerator, Sequence},
     },
+    fse::fse_encoder::{FSETable, State},
     huff0::huff0_encoder,
 };
 
@@ -36,13 +35,16 @@ pub fn compress_block<'a>(matcher: &mut MatchGenerator<'a>, data: &'a [u8], outp
         }
     }
 
+    // literals section
+
     let mut writer = BitWriter::from(output);
     if literals_vec.len() > 1024 {
         compress_literals(&literals_vec, &mut writer);
     } else {
         raw_literals(&literals_vec, &mut writer);
     }
-    //sequences
+
+    // sequences section
 
     if sequences.is_empty() {
         writer.write_bits(0u8, 8);
@@ -51,6 +53,63 @@ pub fn compress_block<'a>(matcher: &mut MatchGenerator<'a>, data: &'a [u8], outp
 
         // use standard FSE tables
         writer.write_bits(0u8, 8);
+
+        let ll_table: FSETable = todo!("construct default tables");
+        let ml_table: FSETable = todo!("construct default tables");
+        let of_table: FSETable = todo!("construct default tables");
+
+        let sequence = sequences[sequences.len() - 1];
+        let (ll_code, ll_add_bits, ll_num_bits) = encode_literal_length(sequence.ll);
+        let (of_code, of_add_bits, of_num_bits) = encode_offset(sequence.of);
+        let (ml_code, ml_add_bits, ml_num_bits) = encode_match_len(sequence.ml);
+        let mut ll_state: &State = ll_table.start_state(ll_code);
+        let mut ml_state: &State = ml_table.start_state(ml_code);
+        let mut of_state: &State = of_table.start_state(of_code);
+
+        writer.write_bits(ll_add_bits, ll_num_bits);
+        writer.write_bits(ml_add_bits, ml_num_bits);
+        writer.write_bits(of_add_bits, of_num_bits);
+
+        // encode backwards so the decoder reads the first sequence first
+        for sequence in (0..=sequences.len() - 2).rev() {
+            let sequence = sequences[sequence];
+            let (ll_code, ll_add_bits, ll_num_bits) = encode_literal_length(sequence.ll);
+            let (of_code, of_add_bits, of_num_bits) = encode_offset(sequence.of);
+            let (ml_code, ml_add_bits, ml_num_bits) = encode_match_len(sequence.ml);
+
+            {
+                let next = of_table.next_state(of_code, of_state.index);
+                let diff = of_state.index - next.baseline;
+                writer.write_bits(diff as u64, next.num_bits as usize);
+                of_state = next;
+            }
+            {
+                let next = ml_table.next_state(ml_code, ml_state.index);
+                let diff = ml_state.index - next.baseline;
+                writer.write_bits(diff as u64, next.num_bits as usize);
+                ml_state = next;
+            }
+            {
+                let next = ll_table.next_state(ll_code, ll_state.index);
+                let diff = ll_state.index - next.baseline;
+                writer.write_bits(diff as u64, next.num_bits as usize);
+                ll_state = next;
+            }
+
+            writer.write_bits(ll_add_bits, ll_num_bits);
+            writer.write_bits(ml_add_bits, ml_num_bits);
+            writer.write_bits(of_add_bits, of_num_bits);
+        }
+        writer.write_bits(ml_state.index as u64, ml_table.table_size.ilog2() as usize);
+        writer.write_bits(of_state.index as u64, of_table.table_size.ilog2() as usize);
+        writer.write_bits(ll_state.index as u64, ll_table.table_size.ilog2() as usize);
+
+        let bits_to_fill = writer.misaligned();
+        if bits_to_fill == 0 {
+            writer.write_bits(1u32, 8);
+        } else {
+            writer.write_bits(1u32, bits_to_fill);
+        }
 
         writer.flush();
     }
@@ -78,10 +137,9 @@ fn encode_seqnum(seqnum: usize, writer: &mut BitWriter<impl AsMut<Vec<u8>>>) {
     }
 }
 
-fn encode_literal_length(len: usize) -> (u32, u32, u8) {
-    let len = len as u32;
+fn encode_literal_length(len: u32) -> (u8, u32, usize) {
     match len {
-        0..=15 => (len, 0, 0),
+        0..=15 => (len as u8, 0, 0),
         16..=17 => (16, len - 16, 1),
         18..=19 => (17, len - 18, 1),
         20..=21 => (18, len - 20, 1),
@@ -106,11 +164,10 @@ fn encode_literal_length(len: usize) -> (u32, u32, u8) {
     }
 }
 
-fn encode_match_len(len: usize) -> (u32, u32, u8) {
-    let len = len as u32;
+fn encode_match_len(len: u32) -> (u8, u32, usize) {
     match len {
         0..=2 => unreachable!(),
-        3..=34 => (len - 3, 0, 0),
+        3..=34 => (len as u8 - 3, 0, 0),
         35..=36 => (32, len - 35, 1),
         37..=38 => (33, len - 37, 1),
         39..=40 => (34, len - 39, 1),
@@ -136,11 +193,10 @@ fn encode_match_len(len: usize) -> (u32, u32, u8) {
     }
 }
 
-fn encode_offset(len: usize) -> (u32, u32, u8) {
-    let len = len as u32;
+fn encode_offset(len: u32) -> (u8, u32, usize) {
     let log = len.ilog2();
     let lower = len & ((1 << log) - 1);
-    (log, lower, log as u8)
+    (log as u8, lower, log as usize)
 }
 
 // TODO find usecase fot this

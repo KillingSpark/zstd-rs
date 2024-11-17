@@ -18,7 +18,7 @@ impl<V: AsMut<Vec<u8>>> FSEEncoder<'_, V> {
     pub fn encode(&mut self, data: &[u8]) {
         self.write_table();
 
-        let mut state = &self.table.states[data[data.len() - 1] as usize].states[0];
+        let mut state = self.table.start_state(data[data.len() - 1]);
         for x in data[0..data.len() - 1].iter().rev().copied() {
             let next = self.table.next_state(x, state.index);
             let diff = state.index - next.baseline;
@@ -39,8 +39,8 @@ impl<V: AsMut<Vec<u8>>> FSEEncoder<'_, V> {
     pub fn encode_interleaved(&mut self, data: &[u8]) {
         self.write_table();
 
-        let mut state_1 = &self.table.states[data[data.len() - 1] as usize].states[0];
-        let mut state_2 = &self.table.states[data[data.len() - 2] as usize].states[0];
+        let mut state_1 = self.table.start_state(data[data.len() - 1]);
+        let mut state_2 = self.table.start_state(data[data.len() - 2]);
 
         let mut idx = data.len() - 4;
         loop {
@@ -146,13 +146,18 @@ impl<V: AsMut<Vec<u8>>> FSEEncoder<'_, V> {
 pub struct FSETable {
     /// Indexed by symbol
     pub(super) states: [SymbolStates; 256],
-    table_size: usize,
+    pub(crate) table_size: usize,
 }
 
 impl FSETable {
-    fn next_state(&self, symbol: u8, idx: usize) -> &State {
+    pub(crate) fn next_state(&self, symbol: u8, idx: usize) -> &State {
         let states = &self.states[symbol as usize];
         states.get(idx)
+    }
+
+    pub(crate) fn start_state(&self, symbol: u8) -> &State {
+        let states = &self.states[symbol as usize];
+        &states.states[0]
     }
 }
 
@@ -174,12 +179,12 @@ impl SymbolStates {
 }
 
 #[derive(Debug)]
-pub(super) struct State {
-    pub(super) num_bits: u8,
-    pub(super) baseline: usize,
-    pub(super) last_index: usize,
+pub(crate) struct State {
+    pub(crate) num_bits: u8,
+    pub(crate) baseline: usize,
+    pub(crate) last_index: usize,
     /// Index of this state in the decoding table
-    pub(super) index: usize,
+    pub(crate) index: usize,
 }
 
 impl State {
