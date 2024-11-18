@@ -6,7 +6,8 @@ use core::convert::TryInto;
 use super::{
     block_header::BlockHeader,
     blocks::{compress_block, compress_raw_block},
-    frame_header::FrameHeader, match_generator::MatchGenerator,
+    frame_header::FrameHeader,
+    match_generator::MatchGenerator,
 };
 
 use crate::io::{Read, Write};
@@ -167,10 +168,7 @@ impl<R: Read, W: Write> FrameCompressor<R, W> {
                             };
                             // Write the header, then the block
                             header.serialize(output);
-                            compress_raw_block(
-                                uncompressed,
-                                output,
-                            );
+                            compress_raw_block(uncompressed, output);
                         } else {
                             let header = BlockHeader {
                                 last_block,

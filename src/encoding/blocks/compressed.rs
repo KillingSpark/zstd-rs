@@ -36,7 +36,7 @@ pub fn compress_block<'a>(matcher: &mut MatchGenerator<'a>, data: &'a [u8], outp
     }
 
     // literals section
-    
+
     let mut writer = BitWriter::from(output);
     if literals_vec.len() > 1024 {
         compress_literals(&literals_vec, &mut writer);
