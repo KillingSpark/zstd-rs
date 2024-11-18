@@ -355,3 +355,29 @@ fn next_position(mut p: usize, table_size: usize) -> usize {
     p &= table_size - 1;
     p
 }
+
+const ML_DIST: &'static [i32] = &[
+    1, 4, 3, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1, -1, -1,
+];
+
+const LL_DIST: &'static [i32] = &[
+    4, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 1, 1, 1, 1, 1,
+    -1, -1, -1, -1,
+];
+
+const OF_DIST: &'static [i32] = &[
+    1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1,
+];
+
+pub(crate) fn default_ml_table() -> FSETable {
+    build_table_from_probabilities(&ML_DIST, 6)
+}
+
+pub(crate) fn default_ll_table() -> FSETable {
+    build_table_from_probabilities(&LL_DIST, 6)
+}
+
+pub(crate) fn default_of_table() -> FSETable {
+    build_table_from_probabilities(&OF_DIST, 5)
+}
