@@ -119,7 +119,7 @@ fn encode_seqnum(seqnum: usize, writer: &mut BitWriter<impl AsMut<Vec<u8>>>) {
     match seqnum {
         1..=127 => writer.write_bits(seqnum as u32, 8),
         128..=0x7FFF => {
-            let upper = ((seqnum >> 8) & 0x80) as u8;
+            let upper = ((seqnum >> 8) | 0x80) as u8;
             let lower = seqnum as u8;
             writer.write_bits(upper, 8);
             writer.write_bits(lower, 8);
