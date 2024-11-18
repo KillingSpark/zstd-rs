@@ -5,7 +5,7 @@ use crate::{
         bit_writer::BitWriter,
         match_generator::{MatchGenerator, Sequence},
     },
-    fse::fse_encoder::{FSETable, State},
+    fse::fse_encoder::{default_ll_table, default_ml_table, default_of_table, FSETable, State},
     huff0::huff0_encoder,
 };
 
@@ -36,7 +36,7 @@ pub fn compress_block<'a>(matcher: &mut MatchGenerator<'a>, data: &'a [u8], outp
     }
 
     // literals section
-
+    
     let mut writer = BitWriter::from(output);
     if literals_vec.len() > 1024 {
         compress_literals(&literals_vec, &mut writer);
@@ -54,9 +54,9 @@ pub fn compress_block<'a>(matcher: &mut MatchGenerator<'a>, data: &'a [u8], outp
         // use standard FSE tables
         writer.write_bits(0u8, 8);
 
-        let ll_table: FSETable = todo!("construct default tables");
-        let ml_table: FSETable = todo!("construct default tables");
-        let of_table: FSETable = todo!("construct default tables");
+        let ll_table: FSETable = default_ll_table();
+        let ml_table: FSETable = default_ml_table();
+        let of_table: FSETable = default_of_table();
 
         let sequence = sequences[sequences.len() - 1];
         let (ll_code, ll_add_bits, ll_num_bits) = encode_literal_length(sequence.ll);
@@ -110,9 +110,8 @@ pub fn compress_block<'a>(matcher: &mut MatchGenerator<'a>, data: &'a [u8], outp
         } else {
             writer.write_bits(1u32, bits_to_fill);
         }
-
-        writer.flush();
     }
+    writer.flush();
 }
 
 fn encode_seqnum(seqnum: usize, writer: &mut BitWriter<impl AsMut<Vec<u8>>>) {
