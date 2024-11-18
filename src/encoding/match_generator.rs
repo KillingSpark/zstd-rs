@@ -88,7 +88,11 @@ impl<'data> MatchGenerator<'data> {
 
                     if match_len >= MIN_MATCH_LEN {
                         let literals = &last_entry.data[self.last_idx_in_sequence..self.suffix_idx];
-                        let offset = match_entry.base_offset - match_index + self.suffix_idx;
+                        let offset = if is_last {
+                            self.suffix_idx - match_index
+                        } else {
+                            match_entry.base_offset - match_index + self.suffix_idx
+                        };
                         sequence = Some(Sequence::Triple {
                             literals,
                             offset,
@@ -264,6 +268,16 @@ fn matches() {
         matcher.next_sequence().unwrap(),
         Sequence::Triple {
             literals: &[],
+            offset: 5,
+            match_len: 5
+        }
+    );
+    assert!(matcher.next_sequence().is_none());
+    matcher.add_data(&[0, 0, 11, 13, 15, 17, 19, 11, 13, 15, 17, 19]);
+    assert_eq!(
+        matcher.next_sequence().unwrap(),
+        Sequence::Triple {
+            literals: &[0, 0, 11, 13, 15, 17, 19,],
             offset: 5,
             match_len: 5
         }
