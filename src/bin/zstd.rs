@@ -138,8 +138,7 @@ fn main() {
             let input_len = file.metadata().unwrap().len() as usize;
             let file = BufReader::new(file);
             let mut output = Vec::new();
-            let mut encoder =
-                FrameCompressor::new(file, &mut output, CompressionLevel::Fastest);
+            let mut encoder = FrameCompressor::new(file, &mut output, CompressionLevel::Fastest);
             encoder.compress();
             println!(
                 "Compressed {path:} from {} to {} ({}%)",
