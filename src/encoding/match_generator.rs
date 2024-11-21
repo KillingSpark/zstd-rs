@@ -16,6 +16,8 @@ pub(crate) struct MatchGenerator<'data> {
     /// The data we want to find matches for is in the last slice
     window: Vec<WindowEntry<'data>>,
     window_size: usize,
+    #[cfg(debug_assertions)]
+    concat_window: Vec<u8>,
     /// Index in the last slice that we already processed
     suffix_idx: usize,
     /// Gets updated when a new sequence is returned to point right behind that sequence
@@ -40,6 +42,8 @@ impl<'data> MatchGenerator<'data> {
             max_window_size: max_size,
             window: Vec::new(),
             window_size: 0,
+            #[cfg(debug_assertions)]
+            concat_window: Vec::new(),
             suffix_idx: 0,
             last_idx_in_sequence: 0,
         }
@@ -99,6 +103,16 @@ impl<'data> MatchGenerator<'data> {
                         } else {
                             match_entry.base_offset - match_index + self.suffix_idx
                         };
+
+                        #[cfg(debug_assertions)]
+                        {
+                            let unprocessed = last_entry.data.len() - self.suffix_idx;
+                            let start = self.concat_window.len() - unprocessed - offset;
+                            let end = start + match_len;
+                            let check_slice = &self.concat_window[start..end];
+                            debug_assert_eq!(check_slice, &match_slice[..match_len]);
+                        }
+
                         sequence = Some(Sequence::Triple {
                             literals,
                             offset,
@@ -149,6 +163,8 @@ impl<'data> MatchGenerator<'data> {
             self.window.is_empty() || self.suffix_idx == self.window.last().unwrap().data.len()
         );
         self.reserve(data.len());
+        #[cfg(debug_assertions)]
+        self.concat_window.extend_from_slice(data);
 
         if let Some(last_len) = self.window.last().map(|last| last.data.len()) {
             for entry in self.window.iter_mut() {
@@ -172,6 +188,8 @@ impl<'data> MatchGenerator<'data> {
         while self.window_size + amount > self.max_window_size {
             let removed = self.window.remove(0);
             self.window_size -= removed.data.len();
+            #[cfg(debug_assertions)]
+            self.concat_window.drain(0..removed.data.len());
             removed_slices += 1;
         }
         if removed_slices == 0 {
