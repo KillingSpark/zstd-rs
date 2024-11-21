@@ -98,11 +98,8 @@ impl<'data> MatchGenerator<'data> {
 
                     if match_len >= MIN_MATCH_LEN {
                         let literals = &last_entry.data[self.last_idx_in_sequence..self.suffix_idx];
-                        let offset = if is_last {
-                            self.suffix_idx - match_index
-                        } else {
-                            match_entry.base_offset - match_index + self.suffix_idx
-                        };
+                        let offset = match_entry.base_offset + self.suffix_idx - match_index;
+
 
                         #[cfg(debug_assertions)]
                         {
