@@ -100,7 +100,6 @@ impl<'data> MatchGenerator<'data> {
                         let literals = &last_entry.data[self.last_idx_in_sequence..self.suffix_idx];
                         let offset = match_entry.base_offset + self.suffix_idx - match_index;
 
-
                         #[cfg(debug_assertions)]
                         {
                             let unprocessed = last_entry.data.len() - self.suffix_idx;
@@ -139,6 +138,9 @@ impl<'data> MatchGenerator<'data> {
 
     fn add_suffixes_till(&mut self, idx: usize) {
         let last_entry = self.window.last_mut().unwrap();
+        if last_entry.data.len() < MIN_MATCH_LEN {
+            return;
+        }
         let last_idx = usize::min(idx, last_entry.data.len() - MIN_MATCH_LEN);
         for idx in self.suffix_idx..=last_idx {
             let mut key = [0u8; MIN_MATCH_LEN];

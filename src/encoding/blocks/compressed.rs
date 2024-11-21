@@ -71,34 +71,36 @@ pub fn compress_block<'a>(matcher: &mut MatchGenerator<'a>, data: &'a [u8], outp
         writer.write_bits(of_add_bits, of_num_bits);
 
         // encode backwards so the decoder reads the first sequence first
-        for sequence in (0..=sequences.len() - 2).rev() {
-            let sequence = sequences[sequence];
-            let (ll_code, ll_add_bits, ll_num_bits) = encode_literal_length(sequence.ll);
-            let (of_code, of_add_bits, of_num_bits) = encode_offset(sequence.of);
-            let (ml_code, ml_add_bits, ml_num_bits) = encode_match_len(sequence.ml);
+        if sequences.len() > 1 {
+            for sequence in (0..=sequences.len() - 2).rev() {
+                let sequence = sequences[sequence];
+                let (ll_code, ll_add_bits, ll_num_bits) = encode_literal_length(sequence.ll);
+                let (of_code, of_add_bits, of_num_bits) = encode_offset(sequence.of);
+                let (ml_code, ml_add_bits, ml_num_bits) = encode_match_len(sequence.ml);
 
-            {
-                let next = of_table.next_state(of_code, of_state.index);
-                let diff = of_state.index - next.baseline;
-                writer.write_bits(diff as u64, next.num_bits as usize);
-                of_state = next;
-            }
-            {
-                let next = ml_table.next_state(ml_code, ml_state.index);
-                let diff = ml_state.index - next.baseline;
-                writer.write_bits(diff as u64, next.num_bits as usize);
-                ml_state = next;
-            }
-            {
-                let next = ll_table.next_state(ll_code, ll_state.index);
-                let diff = ll_state.index - next.baseline;
-                writer.write_bits(diff as u64, next.num_bits as usize);
-                ll_state = next;
-            }
+                {
+                    let next = of_table.next_state(of_code, of_state.index);
+                    let diff = of_state.index - next.baseline;
+                    writer.write_bits(diff as u64, next.num_bits as usize);
+                    of_state = next;
+                }
+                {
+                    let next = ml_table.next_state(ml_code, ml_state.index);
+                    let diff = ml_state.index - next.baseline;
+                    writer.write_bits(diff as u64, next.num_bits as usize);
+                    ml_state = next;
+                }
+                {
+                    let next = ll_table.next_state(ll_code, ll_state.index);
+                    let diff = ll_state.index - next.baseline;
+                    writer.write_bits(diff as u64, next.num_bits as usize);
+                    ll_state = next;
+                }
 
-            writer.write_bits(ll_add_bits, ll_num_bits);
-            writer.write_bits(ml_add_bits, ml_num_bits);
-            writer.write_bits(of_add_bits, of_num_bits);
+                writer.write_bits(ll_add_bits, ll_num_bits);
+                writer.write_bits(ml_add_bits, ml_num_bits);
+                writer.write_bits(of_add_bits, of_num_bits);
+            }
         }
         writer.write_bits(ml_state.index as u64, ml_table.table_size.ilog2() as usize);
         writer.write_bits(of_state.index as u64, of_table.table_size.ilog2() as usize);
