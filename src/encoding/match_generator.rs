@@ -52,7 +52,13 @@ impl<'data> MatchGenerator<'data> {
             let last_entry = self.window.last().unwrap();
             let data_slice = last_entry.data;
             if self.suffix_idx >= data_slice.len() {
-                return None;
+                if self.last_idx_in_sequence != self.suffix_idx {
+                    let literals = &data_slice[self.last_idx_in_sequence..];
+                    self.last_idx_in_sequence = self.suffix_idx;
+                    return Some(Sequence::Literals { literals });
+                } else {
+                    return None;
+                }
             }
             let data_slice = &data_slice[self.suffix_idx..];
 
@@ -136,6 +142,7 @@ impl<'data> MatchGenerator<'data> {
         self.add_data(data);
         self.add_suffixes_till(data.len());
         self.suffix_idx = data.len();
+        self.last_idx_in_sequence = data.len();
     }
     pub(crate) fn add_data(&mut self, data: &'data [u8]) {
         assert!(
@@ -176,111 +183,167 @@ impl<'data> MatchGenerator<'data> {
 #[test]
 fn matches() {
     let mut matcher = MatchGenerator::new(1000);
-    matcher.add_data(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    let mut original_data = Vec::new();
+    let mut reconstructed = Vec::new();
 
-    assert_eq!(
+    let mut assert_seq_equal = |seq1, seq2, reconstructed: &mut Vec<u8>| {
+        assert_eq!(seq1, seq2);
+        match seq2 {
+            Sequence::Literals { literals } => reconstructed.extend_from_slice(literals),
+            Sequence::Triple {
+                literals,
+                offset,
+                match_len,
+            } => {
+                reconstructed.extend_from_slice(literals);
+                let start = reconstructed.len() - offset;
+                let end = start + match_len;
+                reconstructed.extend_from_within(start..end);
+            }
+        }
+    };
+
+    matcher.add_data(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    original_data.extend_from_slice(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+
+    assert_seq_equal(
         matcher.next_sequence().unwrap(),
         Sequence::Triple {
             literals: &[0, 0, 0, 0, 0],
             offset: 5,
-            match_len: 5
-        }
+            match_len: 5,
+        },
+        &mut reconstructed,
     );
+
     assert!(matcher.next_sequence().is_none());
 
     matcher.add_data(&[
         1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 0, 0, 0, 0, 0,
     ]);
+    original_data.extend_from_slice(&[
+        1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 0, 0, 0, 0, 0,
+    ]);
 
-    assert_eq!(
+    assert_seq_equal(
         matcher.next_sequence().unwrap(),
         Sequence::Triple {
             literals: &[1, 2, 3, 4, 5, 6],
             offset: 6,
-            match_len: 6
-        }
+            match_len: 6,
+        },
+        &mut reconstructed,
     );
-    assert_eq!(
+    assert_seq_equal(
         matcher.next_sequence().unwrap(),
         Sequence::Triple {
             literals: &[],
             offset: 12,
-            match_len: 6
-        }
+            match_len: 6,
+        },
+        &mut reconstructed,
     );
-    assert_eq!(
+    assert_seq_equal(
         matcher.next_sequence().unwrap(),
         Sequence::Triple {
             literals: &[],
             offset: 28,
-            match_len: 5
-        }
+            match_len: 5,
+        },
+        &mut reconstructed,
     );
     assert!(matcher.next_sequence().is_none());
 
     matcher.add_data(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0, 0, 0, 0, 0]);
+    original_data.extend_from_slice(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0, 0, 0, 0, 0]);
 
-    assert_eq!(
+    assert_seq_equal(
         matcher.next_sequence().unwrap(),
         Sequence::Triple {
             literals: &[],
             offset: 23,
-            match_len: 6
-        }
+            match_len: 6,
+        },
+        &mut reconstructed,
     );
-    assert_eq!(
+    assert_seq_equal(
         matcher.next_sequence().unwrap(),
         Sequence::Triple {
             literals: &[7, 8, 9, 10, 11],
             offset: 44,
-            match_len: 5
-        }
+            match_len: 5,
+        },
+        &mut reconstructed,
     );
     assert!(matcher.next_sequence().is_none());
 
     matcher.add_data(&[0, 0, 0, 0, 0]);
-    assert_eq!(
+    original_data.extend_from_slice(&[0, 0, 0, 0, 0]);
+
+    assert_seq_equal(
         matcher.next_sequence().unwrap(),
         Sequence::Triple {
             literals: &[],
             offset: 49,
-            match_len: 5
-        }
+            match_len: 5,
+        },
+        &mut reconstructed,
     );
     assert!(matcher.next_sequence().is_none());
 
     matcher.add_data(&[7, 8, 9, 10, 11]);
-    assert_eq!(
+    original_data.extend_from_slice(&[7, 8, 9, 10, 11]);
+
+    assert_seq_equal(
         matcher.next_sequence().unwrap(),
         Sequence::Triple {
             literals: &[],
             offset: 15,
-            match_len: 5
-        }
+            match_len: 5,
+        },
+        &mut reconstructed,
     );
     assert!(matcher.next_sequence().is_none());
 
     matcher.add_data_no_matching(&[1, 3, 5, 7, 9]);
+    original_data.extend_from_slice(&[1, 3, 5, 7, 9]);
+    reconstructed.extend_from_slice(&[1, 3, 5, 7, 9]);
     assert!(matcher.next_sequence().is_none());
 
     matcher.add_data(&[1, 3, 5, 7, 9]);
-    assert_eq!(
+    original_data.extend_from_slice(&[1, 3, 5, 7, 9]);
+
+    assert_seq_equal(
         matcher.next_sequence().unwrap(),
         Sequence::Triple {
             literals: &[],
             offset: 5,
-            match_len: 5
-        }
+            match_len: 5,
+        },
+        &mut reconstructed,
     );
     assert!(matcher.next_sequence().is_none());
-    matcher.add_data(&[0, 0, 11, 13, 15, 17, 19, 11, 13, 15, 17, 19]);
-    assert_eq!(
+
+    matcher.add_data(&[0, 0, 11, 13, 15, 17, 19, 11, 13, 15, 17, 19, 21, 23]);
+    original_data.extend_from_slice(&[0, 0, 11, 13, 15, 17, 19, 11, 13, 15, 17, 19, 21, 23]);
+
+    assert_seq_equal(
         matcher.next_sequence().unwrap(),
         Sequence::Triple {
-            literals: &[0, 0, 11, 13, 15, 17, 19,],
+            literals: &[0, 0, 11, 13, 15, 17, 19],
             offset: 5,
-            match_len: 5
-        }
+            match_len: 5,
+        },
+        &mut reconstructed,
+    );
+    assert_seq_equal(
+        matcher.next_sequence().unwrap(),
+        Sequence::Literals {
+            literals: &[21, 23],
+        },
+        &mut reconstructed,
     );
     assert!(matcher.next_sequence().is_none());
+
+    assert_eq!(reconstructed, original_data);
 }
