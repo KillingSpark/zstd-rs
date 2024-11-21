@@ -29,7 +29,7 @@ pub fn compress_block<'a>(matcher: &mut MatchGenerator<'a>, data: &'a [u8], outp
                 sequences.push(crate::blocks::sequence_section::Sequence {
                     ll: literals.len() as u32,
                     ml: match_len as u32,
-                    of: offset as u32,
+                    of: (offset + 3) as u32, // TODO make use of the offset history
                 });
             }
         }
