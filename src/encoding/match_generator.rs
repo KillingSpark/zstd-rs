@@ -203,7 +203,7 @@ fn matches() {
     let mut original_data = Vec::new();
     let mut reconstructed = Vec::new();
 
-    let mut assert_seq_equal = |seq1, seq2, reconstructed: &mut Vec<u8>| {
+    let assert_seq_equal = |seq1, seq2, reconstructed: &mut Vec<u8>| {
         assert_eq!(seq1, seq2);
         match seq2 {
             Sequence::Literals { literals } => reconstructed.extend_from_slice(literals),
