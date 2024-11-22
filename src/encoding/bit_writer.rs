@@ -44,6 +44,14 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
         self.bit_idx + self.bits_in_partial
     }
 
+    pub fn reset_to(&mut self, index: usize) {
+        assert!(index % 8 == 0);
+        self.partial = 0;
+        self.bits_in_partial = 0;
+        self.bit_idx = index;
+        self.output.as_mut().resize(index / 8, 0);
+    }
+
     pub fn change_bits(&mut self, idx: usize, bits: impl Into<u64>, num_bits: usize) {
         self.change_bits_64(idx, bits.into(), num_bits);
     }
