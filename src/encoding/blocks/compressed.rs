@@ -200,8 +200,6 @@ fn encode_offset(len: u32) -> (u8, u32, usize) {
     (log as u8, lower, log as usize)
 }
 
-// TODO find usecase fot this
-#[allow(dead_code)]
 fn raw_literals(literals: &[u8], writer: &mut BitWriter<&mut Vec<u8>>) {
     writer.write_bits(0u8, 2);
     writer.write_bits(0b11u8, 2);
@@ -210,6 +208,7 @@ fn raw_literals(literals: &[u8], writer: &mut BitWriter<&mut Vec<u8>>) {
 }
 
 fn compress_literals(literals: &[u8], writer: &mut BitWriter<&mut Vec<u8>>) {
+    let reset_idx = writer.index();
     writer.write_bits(2u8, 2); // compressed literals type
 
     let encoder_table = huff0_encoder::HuffmanTable::build_from_data(literals);
@@ -235,4 +234,11 @@ fn compress_literals(literals: &[u8], writer: &mut BitWriter<&mut Vec<u8>>) {
     };
     let encoded_len = (writer.index() - index_before) / 8;
     writer.change_bits(size_index, encoded_len as u64, size_bits);
+    let total_len = (writer.index() - reset_idx) / 8;
+
+    // If encoded len is bigger than the raw literals we are better off just writing the raw literals here
+    if total_len >= literals.len() {
+        writer.reset_to(reset_idx);
+        raw_literals(literals, writer);
+    }
 }
