@@ -50,13 +50,13 @@ pub enum CompressionLevel {
 /// # Examples
 /// ```
 /// use ruzstd::encoding::{FrameCompressor, CompressionLevel};
-/// let mock_data = &[0x1, 0x2, 0x3, 0x4];
+/// let mock_data: &[_] = &[0x1, 0x2, 0x3, 0x4];
+/// let mut output = std::vec::Vec::new();
 /// // Initialize a compressor.
-/// let compressor = FrameCompressor::new(mock_data, CompressionLevel::Uncompressed);
+/// let mut compressor = FrameCompressor::new(mock_data, &mut output, CompressionLevel::Uncompressed);
 ///
-/// let mut output = Vec::new();
 /// // `compress` writes the compressed output into the provided buffer.
-/// compressor.compress(&mut output);
+/// compressor.compress();
 /// ```
 pub struct FrameCompressor<R: Read, W: Write> {
     uncompressed_data: R,
