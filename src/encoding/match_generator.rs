@@ -183,16 +183,11 @@ impl<'data> MatchGenerator<'data> {
 
     fn reserve(&mut self, amount: usize) {
         assert!(self.max_window_size > amount);
-        let mut removed_slices = 0;
         while self.window_size + amount > self.max_window_size {
             let removed = self.window.remove(0);
             self.window_size -= removed.data.len();
             #[cfg(debug_assertions)]
             self.concat_window.drain(0..removed.data.len());
-            removed_slices += 1;
-        }
-        if removed_slices == 0 {
-            return;
         }
     }
 }
