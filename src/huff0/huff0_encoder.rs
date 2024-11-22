@@ -17,7 +17,7 @@ impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, V> {
     }
     pub fn encode(&mut self, data: &[u8]) {
         self.write_table();
-        Self::encode_stream(&self.table, &mut self.writer, data);
+        Self::encode_stream(&self.table, self.writer, data);
     }
     pub fn encode4x(&mut self, data: &[u8]) {
         assert!(data.len() >= 4);

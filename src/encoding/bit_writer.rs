@@ -31,7 +31,7 @@ impl BitWriter<&mut Vec<u8>> {}
 
 impl<V: AsMut<Vec<u8>>> BitWriter<V> {
     /// Initialize a new writer.
-    pub fn from<'a>(mut output: V) -> BitWriter<V> {
+    pub fn from(mut output: V) -> BitWriter<V> {
         BitWriter {
             bit_idx: output.as_mut().len() * 8,
             output,
