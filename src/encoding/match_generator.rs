@@ -125,7 +125,7 @@ impl<'data> MatchGenerator<'data> {
                 self.last_idx_in_sequence = self.suffix_idx;
             } else {
                 let last_entry = self.window.last_mut().unwrap();
-                let key = &last_entry.data[self.suffix_idx..self.suffix_idx+MIN_MATCH_LEN];
+                let key = &last_entry.data[self.suffix_idx..self.suffix_idx + MIN_MATCH_LEN];
                 if !last_entry.suffixes.contains_key(&key) {
                     last_entry.suffixes.insert(key, self.suffix_idx);
                 }
