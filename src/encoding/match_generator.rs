@@ -125,7 +125,7 @@ impl<'data> MatchGenerator<'data> {
                 self.last_idx_in_sequence = self.suffix_idx;
             } else {
                 let last_entry = self.window.last_mut().unwrap();
-                let key = &last_entry.data[..MIN_MATCH_LEN];
+                let key = &last_entry.data[self.suffix_idx..self.suffix_idx+MIN_MATCH_LEN];
                 if !last_entry.suffixes.contains_key(&key) {
                     last_entry.suffixes.insert(key, self.suffix_idx);
                 }
@@ -141,11 +141,10 @@ impl<'data> MatchGenerator<'data> {
         if last_entry.data.len() < MIN_MATCH_LEN {
             return;
         }
-        let last_idx = usize::min(idx, last_entry.data.len() - MIN_MATCH_LEN);
-        for idx in self.suffix_idx..=last_idx {
-            let key = &last_entry.data[idx..idx + MIN_MATCH_LEN];
+        let slice = &last_entry.data[self.suffix_idx..idx];
+        for (key_index, key) in slice.windows(MIN_MATCH_LEN).enumerate() {
             if !last_entry.suffixes.contains_key(&key) {
-                last_entry.suffixes.insert(key, idx);
+                last_entry.suffixes.insert(key, self.suffix_idx + key_index);
             }
         }
     }
