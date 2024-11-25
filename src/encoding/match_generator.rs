@@ -6,7 +6,7 @@ const MIN_MATCH_LEN: usize = 5;
 
 struct WindowEntry<'data> {
     data: &'data [u8],
-    suffixes: HashMap<[u8; MIN_MATCH_LEN], usize>,
+    suffixes: HashMap<&'data [u8], usize>,
     base_offset: usize,
 }
 
@@ -75,8 +75,7 @@ impl<'data> MatchGenerator<'data> {
                 });
             }
 
-            let mut key = [0u8; MIN_MATCH_LEN];
-            key.copy_from_slice(&data_slice[..MIN_MATCH_LEN]);
+            let key = &data_slice[..MIN_MATCH_LEN];
 
             for (match_entry_idx, match_entry) in self.window.iter().enumerate() {
                 let is_last = match_entry_idx == self.window.len() - 1;
@@ -126,6 +125,7 @@ impl<'data> MatchGenerator<'data> {
                 self.last_idx_in_sequence = self.suffix_idx;
             } else {
                 let last_entry = self.window.last_mut().unwrap();
+                let key = &last_entry.data[..MIN_MATCH_LEN];
                 if !last_entry.suffixes.contains_key(&key) {
                     last_entry.suffixes.insert(key, self.suffix_idx);
                 }
@@ -143,8 +143,7 @@ impl<'data> MatchGenerator<'data> {
         }
         let last_idx = usize::min(idx, last_entry.data.len() - MIN_MATCH_LEN);
         for idx in self.suffix_idx..=last_idx {
-            let mut key = [0u8; MIN_MATCH_LEN];
-            key.copy_from_slice(&last_entry.data[idx..idx + MIN_MATCH_LEN]);
+            let key = &last_entry.data[idx..idx + MIN_MATCH_LEN];
             if !last_entry.suffixes.contains_key(&key) {
                 last_entry.suffixes.insert(key, idx);
             }
