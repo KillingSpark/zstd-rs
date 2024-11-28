@@ -2,19 +2,122 @@ use hashbrown::HashMap;
 
 use alloc::vec::Vec;
 
+use super::Matcher;
+
 const MIN_MATCH_LEN: usize = 5;
 
-struct WindowEntry<'data> {
-    data: &'data [u8],
-    suffixes: HashMap<&'data [u8], usize>,
+pub(crate) struct MatchGeneratorDriver {
+    vec_pool: Vec<Vec<u8>>,
+    current_space: Option<Vec<u8>>,
+    match_generator: MatchGenerator,
+    slice_size: usize,
+}
+
+impl MatchGeneratorDriver {
+    pub(crate) fn new(slice_size: usize, max_size: usize) -> Self {
+        Self {
+            vec_pool: Vec::new(),
+            current_space: None,
+            match_generator: MatchGenerator::new(max_size),
+            slice_size,
+        }
+    }
+}
+
+impl Matcher for MatchGeneratorDriver {
+    fn get_next_space(&mut self) -> &mut [u8] {
+        if self.current_space.is_some() {
+            return self.current_space.as_mut().unwrap();
+        }
+
+        let space = self.vec_pool.pop();
+        if space.is_some() {
+            self.current_space = space;
+            self.current_space.as_mut().unwrap()
+        } else {
+            let mut space = Vec::new();
+            space.resize(self.slice_size, 0);
+            space.resize(space.capacity(), 0);
+            self.current_space = Some(space);
+            self.current_space.as_mut().unwrap()
+        }
+    }
+
+    fn get_last_space(&mut self) -> &[u8] {
+        self.match_generator.window.last().unwrap().leaked_vec.data
+    }
+
+    fn commit_space(&mut self, len: usize) {
+        let vec_pool = &mut self.vec_pool;
+        let vec = self.current_space.take().unwrap();
+        let slice_size = self.slice_size;
+
+        self.match_generator.add_data_no_matching(
+            LeakedVec {
+                cap: vec.capacity(),
+                data: &vec.leak()[..len],
+            },
+            |data| {
+                let vec = unsafe {
+                    alloc::vec::Vec::from_raw_parts(
+                        data.data.as_ptr() as *mut u8,
+                        slice_size,
+                        data.cap,
+                    )
+                };
+                vec_pool.push(vec);
+            },
+        );
+    }
+
+    fn start_matching(
+        &mut self,
+        len: usize,
+        mut handle_sequence: impl for<'a> FnMut(Sequence<'a>),
+    ) {
+        let vec_pool = &mut self.vec_pool;
+        let vec = self.current_space.take().unwrap();
+        let slice_size = self.slice_size;
+
+        self.match_generator.add_data(
+            LeakedVec {
+                cap: vec.capacity(),
+                data: &vec.leak()[..len],
+            },
+            |data| {
+                let vec = unsafe {
+                    alloc::vec::Vec::from_raw_parts(
+                        data.data.as_ptr() as *mut u8,
+                        slice_size,
+                        data.cap,
+                    )
+                };
+                vec_pool.push(vec);
+            },
+        );
+
+        while let Some(seq) = self.match_generator.next_sequence() {
+            handle_sequence(seq);
+        }
+    }
+}
+
+struct LeakedVec {
+    data: &'static [u8],
+    cap: usize,
+}
+
+struct WindowEntry {
+    leaked_vec: LeakedVec,
+    suffixes: HashMap<&'static [u8], usize>,
     base_offset: usize,
 }
 
-pub(crate) struct MatchGenerator<'data> {
+pub(crate) struct MatchGenerator {
     max_window_size: usize,
     /// Data window we are operating on to find matches
     /// The data we want to find matches for is in the last slice
-    window: Vec<WindowEntry<'data>>,
+    window: Vec<WindowEntry>,
     window_size: usize,
     #[cfg(debug_assertions)]
     concat_window: Vec<u8>,
@@ -36,8 +139,8 @@ pub(crate) enum Sequence<'data> {
     },
 }
 
-impl<'data> MatchGenerator<'data> {
-    pub(crate) fn new(max_size: usize) -> Self {
+impl MatchGenerator {
+    fn new(max_size: usize) -> Self {
         Self {
             max_window_size: max_size,
             window: Vec::new(),
@@ -49,12 +152,12 @@ impl<'data> MatchGenerator<'data> {
         }
     }
 
-    pub(crate) fn next_sequence(&mut self) -> Option<Sequence<'data>> {
+    fn next_sequence(&mut self) -> Option<Sequence<'static>> {
         let mut sequence = None;
 
         while sequence.is_none() {
             let last_entry = self.window.last().unwrap();
-            let data_slice = last_entry.data;
+            let data_slice = last_entry.leaked_vec.data;
             if self.suffix_idx >= data_slice.len() {
                 if self.last_idx_in_sequence != self.suffix_idx {
                     let literals = &data_slice[self.last_idx_in_sequence..];
@@ -68,10 +171,10 @@ impl<'data> MatchGenerator<'data> {
 
             if data_slice.len() < MIN_MATCH_LEN {
                 let last_idx_in_sequence = self.last_idx_in_sequence;
-                self.last_idx_in_sequence = last_entry.data.len();
-                self.suffix_idx = last_entry.data.len();
+                self.last_idx_in_sequence = last_entry.leaked_vec.data.len();
+                self.suffix_idx = last_entry.leaked_vec.data.len();
                 return Some(Sequence::Literals {
-                    literals: &last_entry.data[last_idx_in_sequence..],
+                    literals: &&last_entry.leaked_vec.data[last_idx_in_sequence..],
                 });
             }
 
@@ -81,9 +184,9 @@ impl<'data> MatchGenerator<'data> {
                 let is_last = match_entry_idx == self.window.len() - 1;
                 if let Some(match_index) = match_entry.suffixes.get(&key).copied() {
                     let match_slice = if is_last {
-                        &match_entry.data[match_index..self.suffix_idx]
+                        &match_entry.leaked_vec.data[match_index..self.suffix_idx]
                     } else {
-                        &match_entry.data[match_index..]
+                        &match_entry.leaked_vec.data[match_index..]
                     };
                     let min_len = usize::min(match_slice.len(), data_slice.len());
 
@@ -96,12 +199,13 @@ impl<'data> MatchGenerator<'data> {
                     }
 
                     if match_len >= MIN_MATCH_LEN {
-                        let literals = &last_entry.data[self.last_idx_in_sequence..self.suffix_idx];
+                        let literals = &&last_entry.leaked_vec.data
+                            [self.last_idx_in_sequence..self.suffix_idx];
                         let offset = match_entry.base_offset + self.suffix_idx - match_index;
 
                         #[cfg(debug_assertions)]
                         {
-                            let unprocessed = last_entry.data.len() - self.suffix_idx;
+                            let unprocessed = last_entry.leaked_vec.data.len() - self.suffix_idx;
                             let start = self.concat_window.len() - unprocessed - offset;
                             let end = start + match_len;
                             let check_slice = &self.concat_window[start..end];
@@ -125,7 +229,8 @@ impl<'data> MatchGenerator<'data> {
                 self.last_idx_in_sequence = self.suffix_idx;
             } else {
                 let last_entry = self.window.last_mut().unwrap();
-                let key = &last_entry.data[self.suffix_idx..self.suffix_idx + MIN_MATCH_LEN];
+                let key =
+                    &last_entry.leaked_vec.data[self.suffix_idx..self.suffix_idx + MIN_MATCH_LEN];
                 if !last_entry.suffixes.contains_key(&key) {
                     last_entry.suffixes.insert(key, self.suffix_idx);
                 }
@@ -138,10 +243,10 @@ impl<'data> MatchGenerator<'data> {
 
     fn add_suffixes_till(&mut self, idx: usize) {
         let last_entry = self.window.last_mut().unwrap();
-        if last_entry.data.len() < MIN_MATCH_LEN {
+        if last_entry.leaked_vec.data.len() < MIN_MATCH_LEN {
             return;
         }
-        let slice = &last_entry.data[self.suffix_idx..idx];
+        let slice = &last_entry.leaked_vec.data[self.suffix_idx..idx];
         for (key_index, key) in slice.windows(MIN_MATCH_LEN).enumerate() {
             if !last_entry.suffixes.contains_key(&key) {
                 last_entry.suffixes.insert(key, self.suffix_idx + key_index);
@@ -149,43 +254,47 @@ impl<'data> MatchGenerator<'data> {
         }
     }
 
-    pub(crate) fn add_data_no_matching(&mut self, data: &'data [u8]) {
-        self.add_data(data);
-        self.add_suffixes_till(data.len());
-        self.suffix_idx = data.len();
-        self.last_idx_in_sequence = data.len();
+    fn add_data_no_matching(&mut self, data: LeakedVec, reuse_space: impl FnMut(LeakedVec)) {
+        let len = data.data.len();
+        self.add_data(data, reuse_space);
+        self.add_suffixes_till(len);
+        self.suffix_idx = len;
+        self.last_idx_in_sequence = len;
     }
-    pub(crate) fn add_data(&mut self, data: &'data [u8]) {
+    fn add_data(&mut self, data: LeakedVec, reuse_space: impl FnMut(LeakedVec)) {
         assert!(
-            self.window.is_empty() || self.suffix_idx == self.window.last().unwrap().data.len()
+            self.window.is_empty()
+                || self.suffix_idx == self.window.last().unwrap().leaked_vec.data.len()
         );
-        self.reserve(data.len());
+        self.reserve(data.data.len(), reuse_space);
         #[cfg(debug_assertions)]
-        self.concat_window.extend_from_slice(data);
+        self.concat_window.extend_from_slice(data.data);
 
-        if let Some(last_len) = self.window.last().map(|last| last.data.len()) {
+        if let Some(last_len) = self.window.last().map(|last| last.leaked_vec.data.len()) {
             for entry in self.window.iter_mut() {
                 entry.base_offset += last_len;
             }
         }
 
+        let len = data.data.len();
         self.window.push(WindowEntry {
-            data,
-            suffixes: HashMap::with_capacity(data.len()),
+            leaked_vec: data,
+            suffixes: HashMap::with_capacity(len),
             base_offset: 0,
         });
-        self.window_size += data.len();
+        self.window_size += len;
         self.suffix_idx = 0;
         self.last_idx_in_sequence = 0;
     }
 
-    fn reserve(&mut self, amount: usize) {
-        assert!(self.max_window_size > amount);
+    fn reserve(&mut self, amount: usize, mut reuse_space: impl FnMut(LeakedVec)) {
+        assert!(self.max_window_size >= amount);
         while self.window_size + amount > self.max_window_size {
             let removed = self.window.remove(0);
-            self.window_size -= removed.data.len();
+            self.window_size -= removed.leaked_vec.data.len();
             #[cfg(debug_assertions)]
-            self.concat_window.drain(0..removed.data.len());
+            self.concat_window.drain(0..removed.leaked_vec.data.len());
+            reuse_space(removed.leaked_vec);
         }
     }
 }
@@ -213,7 +322,13 @@ fn matches() {
         }
     };
 
-    matcher.add_data(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    matcher.add_data(
+        LeakedVec {
+            cap: 0,
+            data: &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        },
+        |_| {},
+    );
     original_data.extend_from_slice(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
     assert_seq_equal(
@@ -228,9 +343,15 @@ fn matches() {
 
     assert!(matcher.next_sequence().is_none());
 
-    matcher.add_data(&[
-        1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 0, 0, 0, 0, 0,
-    ]);
+    matcher.add_data(
+        LeakedVec {
+            cap: 0,
+            data: &[
+                1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 0, 0, 0, 0, 0,
+            ],
+        },
+        |_| {},
+    );
     original_data.extend_from_slice(&[
         1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 0, 0, 0, 0, 0,
     ]);
@@ -264,7 +385,13 @@ fn matches() {
     );
     assert!(matcher.next_sequence().is_none());
 
-    matcher.add_data(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0, 0, 0, 0, 0]);
+    matcher.add_data(
+        LeakedVec {
+            cap: 0,
+            data: &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0, 0, 0, 0, 0],
+        },
+        |_| {},
+    );
     original_data.extend_from_slice(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0, 0, 0, 0, 0]);
 
     assert_seq_equal(
@@ -287,7 +414,13 @@ fn matches() {
     );
     assert!(matcher.next_sequence().is_none());
 
-    matcher.add_data(&[0, 0, 0, 0, 0]);
+    matcher.add_data(
+        LeakedVec {
+            cap: 0,
+            data: &[0, 0, 0, 0, 0],
+        },
+        |_| {},
+    );
     original_data.extend_from_slice(&[0, 0, 0, 0, 0]);
 
     assert_seq_equal(
@@ -301,7 +434,13 @@ fn matches() {
     );
     assert!(matcher.next_sequence().is_none());
 
-    matcher.add_data(&[7, 8, 9, 10, 11]);
+    matcher.add_data(
+        LeakedVec {
+            cap: 0,
+            data: &[7, 8, 9, 10, 11],
+        },
+        |_| {},
+    );
     original_data.extend_from_slice(&[7, 8, 9, 10, 11]);
 
     assert_seq_equal(
@@ -315,12 +454,24 @@ fn matches() {
     );
     assert!(matcher.next_sequence().is_none());
 
-    matcher.add_data_no_matching(&[1, 3, 5, 7, 9]);
+    matcher.add_data_no_matching(
+        LeakedVec {
+            cap: 0,
+            data: &[1, 3, 5, 7, 9],
+        },
+        |_| {},
+    );
     original_data.extend_from_slice(&[1, 3, 5, 7, 9]);
     reconstructed.extend_from_slice(&[1, 3, 5, 7, 9]);
     assert!(matcher.next_sequence().is_none());
 
-    matcher.add_data(&[1, 3, 5, 7, 9]);
+    matcher.add_data(
+        LeakedVec {
+            cap: 0,
+            data: &[1, 3, 5, 7, 9],
+        },
+        |_| {},
+    );
     original_data.extend_from_slice(&[1, 3, 5, 7, 9]);
 
     assert_seq_equal(
@@ -334,7 +485,13 @@ fn matches() {
     );
     assert!(matcher.next_sequence().is_none());
 
-    matcher.add_data(&[0, 0, 11, 13, 15, 17, 19, 11, 13, 15, 17, 19, 21, 23]);
+    matcher.add_data(
+        LeakedVec {
+            cap: 0,
+            data: &[0, 0, 11, 13, 15, 17, 19, 11, 13, 15, 17, 19, 21, 23],
+        },
+        |_| {},
+    );
     original_data.extend_from_slice(&[0, 0, 11, 13, 15, 17, 19, 11, 13, 15, 17, 19, 21, 23]);
 
     assert_seq_equal(

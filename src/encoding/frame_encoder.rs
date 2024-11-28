@@ -4,10 +4,8 @@ use alloc::vec::Vec;
 use core::convert::TryInto;
 
 use super::{
-    block_header::BlockHeader,
-    blocks::{compress_block, compress_raw_block},
-    frame_header::FrameHeader,
-    match_generator::MatchGenerator,
+    block_header::BlockHeader, blocks::compress_block, frame_header::FrameHeader,
+    match_generator::MatchGeneratorDriver, Matcher,
 };
 
 use crate::io::{Read, Write};
@@ -91,84 +89,77 @@ impl<R: Read, W: Write> FrameCompressor<R, W> {
         };
         header.serialize(output);
 
-        // TODO dont read input completely into memory here, work on a window of input
-        let mut uncompressed_data = Vec::new();
-        self.uncompressed_data
-            .read_to_end(&mut uncompressed_data)
-            .unwrap();
-        let uncompressed_data = uncompressed_data;
-        let mut matcher = MatchGenerator::new(1024 * 128);
+        let mut matcher = MatchGeneratorDriver::new(1024 * 128, 1024 * 128);
+        loop {
+            let uncompressed_data = matcher.get_next_space();
+            let mut read_bytes = 0;
+            let last_block;
+            'read_loop: loop {
+                let new_bytes = self
+                    .uncompressed_data
+                    .read(&mut uncompressed_data[read_bytes..])
+                    .unwrap();
+                if new_bytes == 0 {
+                    last_block = true;
+                    break 'read_loop;
+                }
+                read_bytes += new_bytes;
+                if read_bytes == uncompressed_data.len() {
+                    last_block = false;
+                    break 'read_loop;
+                }
+            }
+            let uncompressed_data = &uncompressed_data[..read_bytes];
 
-        // Special handling is needed for compression of a totally empty file (why you'd want to do that, I don't know)
-        if uncompressed_data.is_empty() {
-            let header = BlockHeader {
-                last_block: true,
-                block_type: crate::blocks::block::BlockType::Raw,
-                block_size: 0,
-            };
-            // Write the header, then the block
-            header.serialize(output);
-        }
+            // Special handling is needed for compression of a totally empty file (why you'd want to do that, I don't know)
+            if uncompressed_data.is_empty() {
+                let header = BlockHeader {
+                    last_block: true,
+                    block_type: crate::blocks::block::BlockType::Raw,
+                    block_size: 0,
+                };
+                // Write the header, then the block
+                header.serialize(output);
+                self.compressed_data.write_all(output).unwrap();
+                output.clear();
+                break;
+            }
 
-        match self.compression_level {
-            CompressionLevel::Uncompressed => {
-                // Blocks are compressed by writing a header, then writing
-                // the block in repetition until the last block is reached.
-                let mut index = 0;
-                while index < uncompressed_data.len() {
-                    let last_block = index + MAX_BLOCK_SIZE >= uncompressed_data.len();
-                    // We read till the end of the data, or till the max block size, whichever comes sooner
-                    let block_size = if last_block {
-                        uncompressed_data.len() - index
-                    } else {
-                        MAX_BLOCK_SIZE
-                    };
+            match self.compression_level {
+                CompressionLevel::Uncompressed => {
                     let header = BlockHeader {
                         last_block,
                         block_type: crate::blocks::block::BlockType::Raw,
-                        block_size: block_size.try_into().unwrap(),
+                        block_size: read_bytes.try_into().unwrap(),
                     };
                     // Write the header, then the block
                     header.serialize(output);
-                    compress_raw_block(&uncompressed_data[index..(index + block_size)], output);
-                    index += block_size;
+                    output.extend_from_slice(uncompressed_data);
                 }
-            }
-            CompressionLevel::Fastest => {
-                let mut index = 0;
-                while index < uncompressed_data.len() {
-                    let last_block = index + MAX_BLOCK_SIZE >= uncompressed_data.len();
-                    // We read till the end of the data, or till the max block size, whichever comes sooner
-                    let block_size = if last_block {
-                        uncompressed_data.len() - index
-                    } else {
-                        MAX_BLOCK_SIZE
-                    };
-
-                    let uncompressed = &uncompressed_data[index..(index + block_size)];
-
-                    if uncompressed.iter().all(|x| uncompressed[0].eq(x)) {
-                        matcher.add_data_no_matching(uncompressed);
+                CompressionLevel::Fastest => {
+                    if uncompressed_data.iter().all(|x| uncompressed_data[0].eq(x)) {
+                        let rle_byte = uncompressed_data[0];
+                        matcher.commit_space(read_bytes);
                         let header = BlockHeader {
                             last_block,
                             block_type: crate::blocks::block::BlockType::RLE,
-                            block_size: uncompressed.len().try_into().unwrap(),
+                            block_size: read_bytes.try_into().unwrap(),
                         };
                         // Write the header, then the block
                         header.serialize(output);
-                        output.push(uncompressed[0]);
+                        output.push(rle_byte);
                     } else {
                         let mut compressed = Vec::new();
-                        compress_block(&mut matcher, uncompressed, &mut compressed);
+                        compress_block(&mut matcher, read_bytes, &mut compressed);
                         if compressed.len() >= MAX_BLOCK_SIZE {
                             let header = BlockHeader {
                                 last_block,
                                 block_type: crate::blocks::block::BlockType::Raw,
-                                block_size: block_size.try_into().unwrap(),
+                                block_size: read_bytes.try_into().unwrap(),
                             };
                             // Write the header, then the block
                             header.serialize(output);
-                            compress_raw_block(uncompressed, output);
+                            output.extend_from_slice(matcher.get_last_space());
                         } else {
                             let header = BlockHeader {
                                 last_block,
@@ -180,16 +171,17 @@ impl<R: Read, W: Write> FrameCompressor<R, W> {
                             output.extend(compressed);
                         }
                     }
-                    index += block_size;
-                    self.compressed_data.write_all(output).unwrap();
-                    output.clear();
+                }
+                _ => {
+                    unimplemented!();
                 }
             }
-            _ => {
-                unimplemented!();
+            self.compressed_data.write_all(output).unwrap();
+            output.clear();
+            if last_block {
+                break;
             }
         }
-        self.compressed_data.write_all(output).unwrap();
     }
 }
 

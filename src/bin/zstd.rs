@@ -10,6 +10,7 @@ use ruzstd::encoding::CompressionLevel;
 use ruzstd::encoding::FrameCompressor;
 use ruzstd::frame::ReadFrameHeaderError;
 use ruzstd::frame_decoder::FrameDecoderError;
+use ruzstd::FrameDecoder;
 
 struct StateTracker {
     bytes_used: u64,
@@ -144,8 +145,23 @@ fn main() {
                 "Compressed {path:} from {} to {} ({}%)",
                 input_len,
                 output.len(),
-                output.len() * 100 / input_len
+                if input_len == 0 {
+                    0
+                } else {
+                    output.len() * 100 / input_len
+                }
             );
+            let mut dec = FrameDecoder::new();
+            let mut decomp = Vec::new();
+            decomp.reserve(input_len + 10000);
+            dec.decode_all_to_vec(&output, &mut decomp).unwrap();
+
+            let mut original = Vec::new();
+            std::fs::File::open(&path)
+                .unwrap()
+                .read_to_end(&mut original)
+                .unwrap();
+            assert_eq!(original, decomp);
         }
     } else {
         decompress(&flags, &file_paths);

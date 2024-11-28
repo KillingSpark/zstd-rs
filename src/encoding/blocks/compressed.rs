@@ -1,23 +1,17 @@
+use std::eprintln;
+
 use alloc::vec::Vec;
 
 use crate::{
-    encoding::{
-        bit_writer::BitWriter,
-        match_generator::{MatchGenerator, Sequence},
-    },
+    encoding::{bit_writer::BitWriter, match_generator::Sequence, Matcher},
     fse::fse_encoder::{default_ll_table, default_ml_table, default_of_table, FSETable, State},
     huff0::huff0_encoder,
 };
 
-pub fn compress_block<'a>(matcher: &mut MatchGenerator<'a>, data: &'a [u8], output: &mut Vec<u8>) {
-    matcher.add_data(data);
+pub fn compress_block<M: Matcher>(matcher: &mut M, len: usize, output: &mut Vec<u8>) {
     let mut literals_vec = Vec::new();
     let mut sequences = Vec::new();
-    loop {
-        let Some(seq) = matcher.next_sequence() else {
-            break;
-        };
-
+    matcher.start_matching(len, |seq| {
         match seq {
             Sequence::Literals { literals } => literals_vec.extend_from_slice(literals),
             Sequence::Triple {
@@ -33,7 +27,9 @@ pub fn compress_block<'a>(matcher: &mut MatchGenerator<'a>, data: &'a [u8], outp
                 });
             }
         }
-    }
+    });
+
+    eprintln!("Seqs: {}", sequences.len());
 
     // literals section
 
