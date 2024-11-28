@@ -301,7 +301,7 @@ impl RingBuffer {
             unsafe {
                 let src = (
                     self.buf.as_ptr().cast_const().add(self.head + start),
-                    self.tail - self.head,
+                    self.tail - self.head - start,
                 );
                 let dst = (self.buf.as_ptr().add(self.tail), self.cap - self.tail);
                 copy_bytes_overshooting(src, dst, after_tail);
@@ -317,10 +317,7 @@ impl RingBuffer {
             if self.head + start > self.cap {
                 let start = (self.head + start) % self.cap;
                 unsafe {
-                    let src = (
-                        self.buf.as_ptr().add(start).cast_const(),
-                        self.cap - self.head,
-                    );
+                    let src = (self.buf.as_ptr().add(start).cast_const(), self.tail - start);
                     let dst = (self.buf.as_ptr().add(self.tail), self.head - self.tail);
                     copy_bytes_overshooting(src, dst, len);
                 }
@@ -329,7 +326,7 @@ impl RingBuffer {
                 unsafe {
                     let src = (
                         self.buf.as_ptr().add(self.head + start).cast_const(),
-                        self.cap - self.head,
+                        self.cap - self.head - start,
                     );
                     let dst = (self.buf.as_ptr().add(self.tail), self.head - self.tail);
                     copy_bytes_overshooting(src, dst, after_start);
