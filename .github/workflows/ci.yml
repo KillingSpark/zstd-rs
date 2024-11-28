@@ -20,8 +20,8 @@ jobs:
         - run: cargo hack clippy --feature-powerset --exclude-features rustc-dep-of-std
         - run: cargo hack test --feature-powerset --exclude-features rustc-dep-of-std
 
-  clippy-nightly:
-    name: clippy nightly
+  nightly-stuff:
+    name: nightly clippy, format and miri tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
@@ -30,8 +30,11 @@ jobs:
       - name: Install nightly toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
-          components: rustfmt, clippy
+          components: rustfmt, clippy, miri
 
       - run: cargo +nightly fmt --all -- --check
       - run: cargo +nightly clippy --no-default-features -- -D warnings
       - run: cargo +nightly clippy -- -D warnings
+      - run: cargo +nightly miri test ringbuffer
+      - run: cargo +nightly miri test short_Writer
+
