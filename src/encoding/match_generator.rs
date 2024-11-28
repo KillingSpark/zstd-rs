@@ -293,7 +293,16 @@ impl MatchGenerator {
             self.window_size -= removed.leaked_vec.data.len();
             #[cfg(debug_assertions)]
             self.concat_window.drain(0..removed.leaked_vec.data.len());
-            reuse_space(removed.leaked_vec);
+
+            let WindowEntry {
+                suffixes,
+                leaked_vec,
+                base_offset: _,
+            } = removed;
+            // Make sure all references into the leaked vec are gone
+            drop(suffixes);
+            // Then repurpose the vec
+            reuse_space(leaked_vec);
         }
     }
 }
