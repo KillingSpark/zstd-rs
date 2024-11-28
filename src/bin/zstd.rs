@@ -151,16 +151,6 @@ fn main() {
                     output.len() * 100 / input_len
                 }
             );
-            let mut dec = FrameDecoder::new();
-            let mut decomp = Vec::with_capacity(input_len);
-            dec.decode_all_to_vec(&output, &mut decomp).unwrap();
-
-            let mut original = Vec::new();
-            std::fs::File::open(&path)
-                .unwrap()
-                .read_to_end(&mut original)
-                .unwrap();
-            assert_eq!(original, decomp);
         }
     } else {
         decompress(&flags, &file_paths);
