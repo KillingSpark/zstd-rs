@@ -295,6 +295,9 @@ impl RingBuffer {
     /// 2. More then len reserved space so we do not write out-of-bounds
     #[warn(unsafe_op_in_unsafe_fn)]
     pub unsafe fn extend_from_within_unchecked(&mut self, start: usize, len: usize) {
+        debug_assert!(start + len <= self.len());
+        debug_assert!(self.free() >= len);
+
         if self.head < self.tail {
             // Continuous source section and possibly non continuous write section:
             //
