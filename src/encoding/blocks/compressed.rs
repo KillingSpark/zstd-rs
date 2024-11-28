@@ -1,5 +1,3 @@
-use std::eprintln;
-
 use alloc::vec::Vec;
 
 use crate::{
@@ -28,8 +26,6 @@ pub fn compress_block<M: Matcher>(matcher: &mut M, len: usize, output: &mut Vec<
             }
         }
     });
-
-    eprintln!("Seqs: {}", sequences.len());
 
     // literals section
 
