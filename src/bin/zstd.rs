@@ -10,7 +10,6 @@ use ruzstd::encoding::CompressionLevel;
 use ruzstd::encoding::FrameCompressor;
 use ruzstd::frame::ReadFrameHeaderError;
 use ruzstd::frame_decoder::FrameDecoderError;
-use ruzstd::FrameDecoder;
 
 struct StateTracker {
     bytes_used: u64,
