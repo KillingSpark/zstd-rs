@@ -35,8 +35,7 @@ impl Matcher for MatchGeneratorDriver {
             self.current_space = space;
             self.current_space.as_mut().unwrap()
         } else {
-            let mut space = Vec::new();
-            space.resize(self.slice_size, 0);
+            let mut space = alloc::vec![0; self.slice_size];
             space.resize(space.capacity(), 0);
             self.current_space = Some(space);
             self.current_space.as_mut().unwrap()
@@ -174,7 +173,7 @@ impl MatchGenerator {
                 self.last_idx_in_sequence = last_entry.leaked_vec.data.len();
                 self.suffix_idx = last_entry.leaked_vec.data.len();
                 return Some(Sequence::Literals {
-                    literals: &&last_entry.leaked_vec.data[last_idx_in_sequence..],
+                    literals: &last_entry.leaked_vec.data[last_idx_in_sequence..],
                 });
             }
 

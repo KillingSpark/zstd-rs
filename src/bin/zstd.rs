@@ -152,8 +152,7 @@ fn main() {
                 }
             );
             let mut dec = FrameDecoder::new();
-            let mut decomp = Vec::new();
-            decomp.reserve(input_len + 10000);
+            let mut decomp = Vec::with_capacity(input_len);
             dec.decode_all_to_vec(&output, &mut decomp).unwrap();
 
             let mut original = Vec::new();
