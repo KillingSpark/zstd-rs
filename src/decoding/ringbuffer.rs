@@ -296,46 +296,166 @@ impl RingBuffer {
     #[warn(unsafe_op_in_unsafe_fn)]
     pub unsafe fn extend_from_within_unchecked(&mut self, start: usize, len: usize) {
         if self.head < self.tail {
-            // continous data slice  |____HDDDDDDDT_____|
+            // Continuous source section and possibly non continuous write section:
+            //
+            //            H           T
+            // Read:  ____XXXXSSSSXXXX________
+            // Write: ________________DDDD____
+            //
+            // H: Head position (first readable byte)
+            // T: Tail position (first writable byte)
+            // X: Uninvolved bytes in the readable section
+            // S: Source bytes, to be copied to D bytes
+            // D: Destination bytes, going to be copied from S bytes
+            // _: Uninvolved bytes in the writable section
             let after_tail = usize::min(len, self.cap - self.tail);
-            unsafe {
-                let src = (
-                    self.buf.as_ptr().cast_const().add(self.head + start),
-                    self.tail - self.head - start,
-                );
-                let dst = (self.buf.as_ptr().add(self.tail), self.cap - self.tail);
-                copy_bytes_overshooting(src, dst, after_tail);
 
-                if after_tail < len {
-                    let src = (src.0.add(after_tail), src.1 - after_tail);
-                    let dst = (self.buf.as_ptr(), self.head);
-                    copy_bytes_overshooting(src, dst, len - after_tail);
-                }
+            let src = (
+                // SAFETY: `len <= isize::MAX` and fits the memory range of `buf`
+                unsafe { self.buf.as_ptr().add(self.head + start) }.cast_const(),
+                // Src length (see above diagram)
+                self.tail - self.head - start,
+            );
+
+            let dst = (
+                // SAFETY: `len <= isize::MAX` and fits the memory range of `buf`
+                unsafe { self.buf.as_ptr().add(self.tail) },
+                // Dst length (see above diagram)
+                self.cap - self.tail,
+            );
+
+            // SAFETY: `src` points at initialized data, `dst` points to writable memory
+            // and does not overlap `src`.
+            unsafe { copy_bytes_overshooting(src, dst, after_tail) }
+
+            if after_tail < len {
+                // The write section was not continuous:
+                //
+                //            H           T
+                // Read:  ____XXXXSSSSXXXX__
+                // Write: DD______________DD
+                //
+                // H: Head position (first readable byte)
+                // T: Tail position (first writable byte)
+                // X: Uninvolved bytes in the readable section
+                // S: Source bytes, to be copied to D bytes
+                // D: Destination bytes, going to be copied from S bytes
+                // _: Uninvolved bytes in the writable section
+
+                let src = (
+                    // SAFETY: we are still within the memory range of `buf`
+                    unsafe { src.0.add(after_tail) },
+                    // Src length (see above diagram)
+                    src.1 - after_tail,
+                );
+                let dst = (
+                    self.buf.as_ptr(),
+                    // Dst length overflowing (see above diagram)
+                    self.head,
+                );
+
+                // SAFETY: `src` points at initialized data, `dst` points to writable memory
+                // and does not overlap `src`.
+                unsafe { copy_bytes_overshooting(src, dst, len - after_tail) }
             }
         } else {
-            // continous free slice |DDDT_________HDDDD|
             if self.head + start > self.cap {
-                let start = (self.head + start) % self.cap;
-                unsafe {
-                    let src = (self.buf.as_ptr().add(start).cast_const(), self.tail - start);
-                    let dst = (self.buf.as_ptr().add(self.tail), self.head - self.tail);
-                    copy_bytes_overshooting(src, dst, len);
-                }
-            } else {
-                let after_start = usize::min(len, self.cap - self.head - start);
-                unsafe {
-                    let src = (
-                        self.buf.as_ptr().add(self.head + start).cast_const(),
-                        self.cap - self.head - start,
-                    );
-                    let dst = (self.buf.as_ptr().add(self.tail), self.head - self.tail);
-                    copy_bytes_overshooting(src, dst, after_start);
+                // Continuous read section and destination section:
+                //
+                //                  T           H
+                // Read:  XXSSSSXXXX____________XX
+                // Write: __________DDDD__________
+                //
+                // H: Head position (first readable byte)
+                // T: Tail position (first writable byte)
+                // X: Uninvolved bytes in the readable section
+                // S: Source bytes, to be copied to D bytes
+                // D: Destination bytes, going to be copied from S bytes
+                // _: Uninvolved bytes in the writable section
 
-                    if after_start < len {
-                        let src = (self.buf.as_ptr().cast_const(), self.tail);
-                        let dst = (dst.0.add(after_start), dst.1 - after_start);
-                        copy_bytes_overshooting(src, dst, len - after_start);
-                    }
+                let start = (self.head + start) % self.cap;
+
+                let src = (
+                    // SAFETY: `len <= isize::MAX` and fits the memory range of `buf`
+                    unsafe { self.buf.as_ptr().add(start) }.cast_const(),
+                    // Src length (see above diagram)
+                    self.tail - start,
+                );
+
+                let dst = (
+                    // SAFETY: `len <= isize::MAX` and fits the memory range of `buf`
+                    unsafe { self.buf.as_ptr().add(self.tail) }, // Dst length (see above diagram)
+                    // Dst length (see above diagram)
+                    self.head - self.tail,
+                );
+
+                // SAFETY: `src` points at initialized data, `dst` points to writable memory
+                // and does not overlap `src`.
+                unsafe { copy_bytes_overshooting(src, dst, len) }
+            } else {
+                // Possibly non continuous read section and continuous destination section:
+                //
+                //            T           H
+                // Read:  XXXX____________XXSSSSXX
+                // Write: ____DDDD________________
+                //
+                // H: Head position (first readable byte)
+                // T: Tail position (first writable byte)
+                // X: Uninvolved bytes in the readable section
+                // S: Source bytes, to be copied to D bytes
+                // D: Destination bytes, going to be copied from S bytes
+                // _: Uninvolved bytes in the writable section
+
+                let after_start = usize::min(len, self.cap - self.head - start);
+
+                let src = (
+                    // SAFETY: `len <= isize::MAX` and fits the memory range of `buf`
+                    unsafe { self.buf.as_ptr().add(self.head + start) }.cast_const(),
+                    // Src length - chunk 1 (see above diagram on the right)
+                    self.cap - self.head - start,
+                );
+
+                let dst = (
+                    // SAFETY: `len <= isize::MAX` and fits the memory range of `buf`
+                    unsafe { self.buf.as_ptr().add(self.tail) },
+                    // Dst length (see above diagram)
+                    self.head - self.tail,
+                );
+
+                // SAFETY: `src` points at initialized data, `dst` points to writable memory
+                // and does not overlap `src`.
+                unsafe { copy_bytes_overshooting(src, dst, after_start) }
+
+                if after_start < len {
+                    // The read section was not continuous:
+                    //
+                    //                T           H
+                    // Read:  SSXXXXXX____________XXSS
+                    // Write: ________DDDD____________
+                    //
+                    // H: Head position (first readable byte)
+                    // T: Tail position (first writable byte)
+                    // X: Uninvolved bytes in the readable section
+                    // S: Source bytes, to be copied to D bytes
+                    // D: Destination bytes, going to be copied from S bytes
+                    // _: Uninvolved bytes in the writable section
+
+                    let src = (
+                        self.buf.as_ptr().cast_const(),
+                        // Src length - chunk 2 (see above diagram on the left)
+                        self.tail,
+                    );
+
+                    let dst = (
+                        // SAFETY: we are still within the memory range of `buf`
+                        unsafe { dst.0.add(after_start) },
+                        // Dst length (see above diagram)
+                        dst.1 - after_start,
+                    );
+
+                    // SAFETY: `src` points at initialized data, `dst` points to writable memory
+                    // and does not overlap `src`.
+                    unsafe { copy_bytes_overshooting(src, dst, len - after_start) }
                 }
             }
         }
