@@ -26,3 +26,9 @@ This document records the changes made between versions, starting with version 0
 * Preparations to become a std dependency (https://github.com/workingjubilee)
 
 # After 0.7.2
+* Soundness fix in decoding::RingBuffer. The lengths of the diferent regions where sometimes calculated wrongly, resulting in reads of heap memory not belonging to that ringbuffer
+    * Fixed by https://github.com/paolobarbolini
+    * Affected versions: 0.7.0 up to and including 0.7.2
+
+# After 0.7.3
+
