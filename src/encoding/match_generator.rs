@@ -115,7 +115,16 @@ impl SuffixStore {
         let s2 = suffix[2] as usize;
         let s3 = suffix[3] as usize;
         let s4 = suffix[4] as usize;
-        let index = (889523592379 * (s0 << 24)) ^ (889523592379 * (s1 << 32)) ^ (889523592379 * (s2 << 40)) ^ (889523592379 * (s3 << 48)) ^ (889523592379 * (s4 << 56));
+
+        let poly = 889523592379;
+
+        let s0 = (s0 << 24).wrapping_mul(poly);
+        let s1 = (s1 << 32).wrapping_mul(poly);
+        let s2 = (s2 << 40).wrapping_mul(poly);
+        let s3 = (s3 << 48).wrapping_mul(poly);
+        let s4 = (s4 << 56).wrapping_mul(poly);
+
+        let index = s0 ^ s1 ^ s2 ^ s3 ^ s4;
         let index = index >> (64 - self.len_log);
         index % self.slots.len()
     }
