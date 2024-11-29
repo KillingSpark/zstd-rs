@@ -88,34 +88,32 @@ impl SuffixStore {
         }
     }
 
+    #[inline(always)]
     fn insert(&mut self, suffix: &[u8], idx: usize) {
         let key = self.key(suffix);
         self.slots[key] = Some(idx);
     }
 
+    #[inline(always)]
     fn contains_key(&self, suffix: &[u8]) -> bool {
         let key = self.key(suffix);
         self.slots[key].is_some()
     }
 
+    #[inline(always)]
     fn get(&self, suffix: &[u8]) -> Option<usize> {
         let key = self.key(suffix);
         self.slots[key]
     }
 
+    #[inline(always)]
     fn key(&self, suffix: &[u8]) -> usize {
-        let mut index = 0usize;
-        for (high, b) in suffix
-            .iter()
-            .enumerate()
-            .map(|(x, b)| (x % 2 == 0, (*b) as usize))
-        {
-            if high {
-                index ^= b << 8;
-            } else {
-                index ^= b;
-            }
-        }
+        let s0 = suffix[0] as usize;
+        let s1 = suffix[1] as usize;
+        let s2 = suffix[2] as usize;
+        let s3 = suffix[3] as usize;
+        let s4 = suffix[4] as usize;
+        let index =  s0 ^ (s1 << 2) ^ (s2 << 4) ^(s3 << 6) ^ (s4 << 8);
         index % self.slots.len()
     }
 }
