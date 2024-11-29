@@ -12,9 +12,9 @@ fn test_encode_corpus_files_uncompressed_our_decompressor() {
 
     let mut failures: Vec<PathBuf> = Vec::new();
     let mut files: Vec<_> = fs::read_dir("./decodecorpus_files").unwrap().collect();
-    //if fs::read_dir("./local_corpus_files").is_ok() {
-    //    files.extend(fs::read_dir("./local_corpus_files").unwrap());
-    //}
+    if fs::read_dir("./local_corpus_files").is_ok() {
+        files.extend(fs::read_dir("./local_corpus_files").unwrap());
+    }
 
     files.sort_by_key(|x| match x {
         Err(_) => "".to_owned(),
