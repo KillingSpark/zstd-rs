@@ -110,23 +110,23 @@ impl SuffixStore {
 
     #[inline(always)]
     fn key(&self, suffix: &[u8]) -> usize {
-        let s0 = suffix[0] as usize;
-        let s1 = suffix[1] as usize;
-        let s2 = suffix[2] as usize;
-        let s3 = suffix[3] as usize;
-        let s4 = suffix[4] as usize;
+        let s0 = suffix[0] as u64;
+        let s1 = suffix[1] as u64;
+        let s2 = suffix[2] as u64;
+        let s3 = suffix[3] as u64;
+        let s4 = suffix[4] as u64;
 
-        let poly = 889523592379;
+        const POLY: u64 = 0xCF3BCCDCABu64;
 
-        let s0 = (s0 << 24).wrapping_mul(poly);
-        let s1 = (s1 << 32).wrapping_mul(poly);
-        let s2 = (s2 << 40).wrapping_mul(poly);
-        let s3 = (s3 << 48).wrapping_mul(poly);
-        let s4 = (s4 << 56).wrapping_mul(poly);
+        let s0 = (s0 << 24).wrapping_mul(POLY);
+        let s1 = (s1 << 32).wrapping_mul(POLY);
+        let s2 = (s2 << 40).wrapping_mul(POLY);
+        let s3 = (s3 << 48).wrapping_mul(POLY);
+        let s4 = (s4 << 56).wrapping_mul(POLY);
 
         let index = s0 ^ s1 ^ s2 ^ s3 ^ s4;
         let index = index >> (64 - self.len_log);
-        index % self.slots.len()
+        index as usize % self.slots.len()
     }
 }
 
