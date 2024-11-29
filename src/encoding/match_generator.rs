@@ -113,7 +113,7 @@ impl SuffixStore {
         let s2 = suffix[2] as usize;
         let s3 = suffix[3] as usize;
         let s4 = suffix[4] as usize;
-        let index =  s0 ^ (s1 << 2) ^ (s2 << 4) ^(s3 << 6) ^ (s4 << 8);
+        let index = s0 ^ (s1 << 2) ^ (s2 << 4) ^ (s3 << 6) ^ (s4 << 8);
         index % self.slots.len()
     }
 }
