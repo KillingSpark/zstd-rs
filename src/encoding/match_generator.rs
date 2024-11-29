@@ -189,7 +189,7 @@ impl MatchGenerator {
 
             for (match_entry_idx, match_entry) in self.window.iter().enumerate() {
                 let is_last = match_entry_idx == self.window.len() - 1;
-                if let Some(match_index) = match_entry.suffixes.get(&key) {
+                if let Some(match_index) = match_entry.suffixes.get(key) {
                     let match_slice = if is_last {
                         &match_entry.data[match_index..self.suffix_idx]
                     } else {
@@ -236,7 +236,7 @@ impl MatchGenerator {
 
             let last_entry = self.window.last_mut().unwrap();
             let key = &last_entry.data[self.suffix_idx..self.suffix_idx + MIN_MATCH_LEN];
-            if !last_entry.suffixes.contains_key(&key) {
+            if !last_entry.suffixes.contains_key(key) {
                 last_entry.suffixes.insert(key, self.suffix_idx);
             }
             self.suffix_idx += 1;
@@ -250,7 +250,7 @@ impl MatchGenerator {
         }
         let slice = &last_entry.data[self.suffix_idx..idx];
         for (key_index, key) in slice.windows(MIN_MATCH_LEN).enumerate() {
-            if !last_entry.suffixes.contains_key(&key) {
+            if !last_entry.suffixes.contains_key(key) {
                 last_entry.suffixes.insert(key, self.suffix_idx + key_index);
             }
         }
