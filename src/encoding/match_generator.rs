@@ -79,12 +79,14 @@ struct WindowEntry {
 
 struct SuffixStore {
     slots: Vec<Option<usize>>,
+    len_log: u32,
 }
 
 impl SuffixStore {
     fn with_capacity(capacity: usize) -> Self {
         Self {
             slots: alloc::vec![None; capacity],
+            len_log: capacity.ilog2(),
         }
     }
 
@@ -113,7 +115,8 @@ impl SuffixStore {
         let s2 = suffix[2] as usize;
         let s3 = suffix[3] as usize;
         let s4 = suffix[4] as usize;
-        let index = s0 ^ (s1 << 2) ^ (s2 << 4) ^ (s3 << 6) ^ (s4 << 8);
+        let index = (889523592379 * (s0 << 24)) ^ (889523592379 * (s1 << 32)) ^ (889523592379 * (s2 << 40)) ^ (889523592379 * (s3 << 48)) ^ (889523592379 * (s4 << 56));
+        let index = index >> (64 - self.len_log);
         index % self.slots.len()
     }
 }
