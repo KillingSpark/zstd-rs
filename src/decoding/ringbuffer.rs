@@ -1,5 +1,5 @@
 use alloc::collections::VecDeque;
-use core::cmp;
+use core::{cmp, mem::MaybeUninit};
 
 pub struct RingBuffer {
     buf: VecDeque<u8>,
@@ -78,7 +78,7 @@ impl RingBuffer {
 
     /// Copies elements from the provided range to the end of the buffer.
     #[allow(dead_code)]
-    pub fn extend_from_within(&mut self, mut start: usize, len: usize) {
+    pub fn extend_from_within(&mut self, start: usize, mut len: usize) {
         if start + len > self.len() {
             panic!(
                 "Calls to this functions must respect start ({}) + len ({}) <= self.len() ({})!",
@@ -88,124 +88,53 @@ impl RingBuffer {
             );
         }
 
-        // Naive and cheaper implementation (for small lengths)
-        if len <= 12 {
-            self.reserve(len);
-            for i in 0..len {
-                let byte = self.get(start + i).unwrap();
-                self.push_back(byte);
+        self.reserve(len);
+
+        let mut buf = [MaybeUninit::<u8>::uninit(); 2048];
+        let mut start = start;
+        while len > 0 {
+            let round_len = cmp::min(len, buf.len());
+            let mut remaining_len = round_len;
+
+            let (a, b) = self.buf.as_slices();
+            let b = if start < a.len() {
+                let a = &a[start..];
+                let end = cmp::min(a.len(), remaining_len);
+                unsafe {
+                    buf.as_mut_ptr()
+                        .cast::<u8>()
+                        .copy_from_nonoverlapping(a.as_ptr(), end);
+                }
+                remaining_len -= end;
+                b
+            } else {
+                unsafe { b.get_unchecked(start - a.len()..) }
+            };
+
+            if remaining_len > 0 {
+                unsafe {
+                    buf.as_mut_ptr()
+                        .cast::<u8>()
+                        .add(round_len - remaining_len)
+                        .copy_from_nonoverlapping(b.as_ptr(), remaining_len);
+                }
             }
 
-            return;
+            /*
+            let mut i = 0;
+            self.buf.iter().skip(start).take(len).for_each(|&b| unsafe {
+                *buf.get_unchecked_mut(i) = MaybeUninit::new(b);
+                i += 1;
+            });
+            */
+
+            self.buf.extend(unsafe {
+                std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), round_len)
+            });
+            len -= round_len;
+            start += round_len;
         }
-
-        let original_len = self.len();
-        let mut intermediate = {
-            IntermediateRingBuffer {
-                this: self,
-                original_len,
-            }
-        };
-
-        intermediate.this.buf.extend((0..len).map(|_| 0));
-        debug_assert_eq!(intermediate.this.buf.len(), original_len + len);
-
-        let (a, b, a_spare, b_spare) = intermediate.as_slices_spare_mut();
-        debug_assert_eq!(a_spare.len() + b_spare.len(), len);
-
-        let skip = cmp::min(a.len(), start);
-        start -= skip;
-        let a = &a[skip..];
-        let b = &b[start..];
-
-        let mut remaining_copy_len = len;
-
-        // A -> A Spare
-        let copy_at_least = cmp::min(cmp::min(a.len(), a_spare.len()), remaining_copy_len);
-        copy_bytes_overshooting(a, a_spare, copy_at_least);
-        remaining_copy_len -= copy_at_least;
-
-        if remaining_copy_len == 0 {
-            return;
-        }
-
-        let a = &a[copy_at_least..];
-        let a_spare = &mut a_spare[copy_at_least..];
-
-        // A -> B Spare
-        let copy_at_least = cmp::min(cmp::min(a.len(), b_spare.len()), remaining_copy_len);
-        copy_bytes_overshooting(a, b_spare, copy_at_least);
-        remaining_copy_len -= copy_at_least;
-
-        if remaining_copy_len == 0 {
-            return;
-        }
-
-        let b_spare = &mut b_spare[copy_at_least..];
-
-        // B -> A Spare
-        let copy_at_least = cmp::min(cmp::min(b.len(), a_spare.len()), remaining_copy_len);
-        copy_bytes_overshooting(b, a_spare, copy_at_least);
-        remaining_copy_len -= copy_at_least;
-
-        if remaining_copy_len == 0 {
-            return;
-        }
-
-        let b = &b[copy_at_least..];
-
-        // B -> B Spare
-        let copy_at_least = cmp::min(cmp::min(b.len(), b_spare.len()), remaining_copy_len);
-        copy_bytes_overshooting(b, b_spare, copy_at_least);
-        remaining_copy_len -= copy_at_least;
-
-        debug_assert_eq!(remaining_copy_len, 0);
     }
-}
-
-struct IntermediateRingBuffer<'a> {
-    this: &'a mut RingBuffer,
-    original_len: usize,
-}
-
-impl<'a> IntermediateRingBuffer<'a> {
-    // inspired by `Vec::split_at_spare_mut`
-    fn as_slices_spare_mut(&mut self) -> (&[u8], &[u8], &mut [u8], &mut [u8]) {
-        let (a, b) = self.this.buf.as_mut_slices();
-        debug_assert!(a.len() + b.len() >= self.original_len);
-
-        let mut remaining_init_len = self.original_len;
-        let a_mid = cmp::min(a.len(), remaining_init_len);
-        remaining_init_len -= a_mid;
-        let b_mid = remaining_init_len;
-        debug_assert!(b.len() >= b_mid);
-
-        let (a, a_spare) = a.split_at_mut(a_mid);
-        let (b, b_spare) = b.split_at_mut(b_mid);
-        debug_assert!(a_spare.is_empty() || b.is_empty());
-
-        (a, b, a_spare, b_spare)
-    }
-}
-
-/// Similar to ptr::copy_nonoverlapping
-///
-/// But it might overshoot the desired copy length if deemed useful
-///
-/// src and dst specify the entire length they are eligible for reading/writing respectively
-/// in addition to the desired copy length.
-///
-/// This function will then copy in chunks and might copy up to chunk size - 1 more bytes from src to dst
-/// if that operation does not read/write memory that does not belong to src/dst.
-///
-/// The chunk size is not part of the contract and may change depending on the target platform.
-///
-/// If that isn't possible we just fall back to ptr::copy_nonoverlapping
-fn copy_bytes_overshooting(src: &[u8], dst: &mut [u8], copy_at_least: usize) {
-    let src = &src[..copy_at_least];
-    let dst = &mut dst[..copy_at_least];
-
-    dst.copy_from_slice(src);
 }
 
 #[cfg(test)]
