@@ -1,37 +1,25 @@
-use alloc::alloc::{alloc, dealloc};
-use core::{alloc::Layout, ptr::NonNull, slice};
+use alloc::boxed::Box;
+use core::{mem::MaybeUninit, slice};
 
 pub struct RingBuffer {
     // Safety invariants:
     //
-    // 1.
-    //    a.`buf` must be a valid allocation of capacity `cap`
-    //    b. ...unless `cap=0`, in which case it is dangling
-    // 2. If tail≥head
+    // 1. If tail≥head
     //    a. `head..tail` must contain initialized memory.
     //    b. Else, `head..` and `..tail` must be initialized
-    // 3. `head` and `tail` are in bounds (≥ 0 and < cap)
-    // 4. `tail` is never `cap` except for a full buffer, and instead uses the value `0`. In other words, `tail` always points to the place
+    // 2. `head` and `tail` are in bounds (≥ 0 and < cap)
+    // 3. `tail` is never `cap` except for a full buffer, and instead uses the value `0`. In other words, `tail` always points to the place
     //    where the next element would go (if there is space)
-    buf: NonNull<u8>,
-    cap: usize,
+    buf: Box<[MaybeUninit<u8>]>,
     head: usize,
     tail: usize,
 }
 
-// SAFETY: RingBuffer does not hold any thread specific values -> it can be sent to another thread -> RingBuffer is Send
-unsafe impl Send for RingBuffer {}
-
-// SAFETY: Ringbuffer does not provide unsyncronized interior mutability which makes &RingBuffer Send -> RingBuffer is Sync
-unsafe impl Sync for RingBuffer {}
-
 impl RingBuffer {
     pub fn new() -> Self {
         RingBuffer {
-            // SAFETY: Upholds invariant 1a as stated
-            buf: NonNull::dangling(),
-            cap: 0,
-            // SAFETY: Upholds invariant 2-4
+            buf: Box::new_uninit_slice(0),
+            // SAFETY: Upholds invariant 1-3
             head: 0,
             tail: 0,
         }
@@ -43,6 +31,11 @@ impl RingBuffer {
         x + y
     }
 
+    /// Return the total capacity in the buffer
+    pub fn capacity(&self) -> usize {
+        self.buf.len()
+    }
+
     /// Return the amount of available space (in bytes) of the buffer.
     pub fn free(&self) -> usize {
         let (x, y) = self.free_slice_lengths();
@@ -51,8 +44,8 @@ impl RingBuffer {
 
     /// Empty the buffer and reset the head and tail.
     pub fn clear(&mut self) {
-        // SAFETY: Upholds invariant 2, trivially
-        // SAFETY: Upholds invariant 3; 0 is always valid
+        // SAFETY: Upholds invariant 1, trivially
+        // SAFETY: Upholds invariant 2; 0 is always valid
         self.head = 0;
         self.tail = 0;
     }
@@ -75,65 +68,44 @@ impl RingBuffer {
     #[inline(never)]
     #[cold]
     fn reserve_amortized(&mut self, amount: usize) {
-        // SAFETY: if we were succesfully able to construct this layout when we allocated then it's also valid do so now
-        let current_layout = unsafe { Layout::array::<u8>(self.cap).unwrap_unchecked() };
-
         // Always have at least 1 unused element as the sentinel.
         let new_cap = usize::max(
-            self.cap.next_power_of_two(),
-            (self.cap + amount).next_power_of_two(),
+            self.capacity().next_power_of_two(),
+            (self.capacity() + amount).next_power_of_two(),
         ) + 1;
 
-        // Check that the capacity isn't bigger than isize::MAX, which is the max allowed by LLVM, or that
-        // we are on a >= 64 bit system which will never allow that much memory to be allocated
-        #[allow(clippy::assertions_on_constants)]
-        {
-            debug_assert!(usize::BITS >= 64 || new_cap < isize::MAX as usize);
-        }
-
-        let new_layout = Layout::array::<u8>(new_cap)
-            .unwrap_or_else(|_| panic!("Could not create layout for u8 array of size {}", new_cap));
-
-        // alloc the new memory region and panic if alloc fails
-        // TODO maybe rework this to generate an error?
-        let new_buf = unsafe {
-            let new_buf = alloc(new_layout);
-
-            NonNull::new(new_buf).expect("Allocating new space for the ringbuffer failed")
-        };
+        let mut new_buf = Box::new_uninit_slice(new_cap);
 
         // If we had data before, copy it over to the newly alloced memory region
-        if self.cap > 0 {
-            let ((s1_ptr, s1_len), (s2_ptr, s2_len)) = self.data_slice_parts();
+        if self.capacity() > 0 {
+            let (a, b) = self.as_slices();
 
+            let new_buf_ptr = new_buf.as_mut_ptr().cast::<u8>();
             unsafe {
-                // SAFETY: Upholds invariant 2, we end up populating (0..(len₁ + len₂))
-                new_buf.as_ptr().copy_from_nonoverlapping(s1_ptr, s1_len);
-                new_buf
-                    .as_ptr()
-                    .add(s1_len)
-                    .copy_from_nonoverlapping(s2_ptr, s2_len);
-                dealloc(self.buf.as_ptr(), current_layout);
+                // SAFETY: Upholds invariant 1, we end up populating (0..(len₁ + len₂))
+                new_buf_ptr.copy_from_nonoverlapping(a.as_ptr(), a.len());
+                new_buf_ptr
+                    .add(a.len())
+                    .copy_from_nonoverlapping(b.as_ptr(), b.len());
             }
 
-            // SAFETY: Upholds invariant 3, head is 0 and in bounds, tail is only ever `cap` if the buffer
+            // SAFETY: Upholds invariant 2, head is 0 and in bounds, tail is only ever `cap` if the buffer
             // is entirely full
-            self.tail = s1_len + s2_len;
+            self.tail = a.len() + b.len();
             self.head = 0;
         }
-        // SAFETY: Upholds invariant 1: the buffer was just allocated correctly
+
         self.buf = new_buf;
-        self.cap = new_cap;
     }
 
     #[allow(dead_code)]
     pub fn push_back(&mut self, byte: u8) {
         self.reserve(1);
 
-        // SAFETY: Upholds invariant 2 by writing initialized memory
-        unsafe { self.buf.as_ptr().add(self.tail).write(byte) };
-        // SAFETY: Upholds invariant 3 by wrapping `tail` around
-        self.tail = (self.tail + 1) % self.cap;
+        // SAFETY: Upholds invariant 1 by writing initialized memory
+        unsafe { *self.buf.get_unchecked_mut(self.tail) = MaybeUninit::new(byte) }
+        // SAFETY: Upholds invariant 2 by wrapping `tail` around
+        self.tail = (self.tail + 1) % self.capacity();
     }
 
     /// Fetch the byte stored at the selected index from the buffer, returning it, or
@@ -142,47 +114,66 @@ impl RingBuffer {
     pub fn get(&self, idx: usize) -> Option<u8> {
         if idx < self.len() {
             // SAFETY: Establishes invariants on memory being initialized and the range being in-bounds
-            // (Invariants 2 & 3)
-            let idx = (self.head + idx) % self.cap;
-            Some(unsafe { self.buf.as_ptr().add(idx).read() })
+            // (Invariants 1 & 2)
+            let idx = (self.head + idx) % self.capacity();
+            Some(unsafe { self.buf.get_unchecked(idx).assume_init_read() })
         } else {
             None
         }
     }
+
     /// Append the provided data to the end of `self`.
     pub fn extend(&mut self, data: &[u8]) {
-        let len = data.len();
-        let ptr = data.as_ptr();
-        if len == 0 {
+        if data.is_empty() {
             return;
         }
 
-        self.reserve(len);
+        self.reserve(data.len());
 
-        debug_assert!(self.len() + len <= self.cap - 1);
-        debug_assert!(self.free() >= len, "free: {} len: {}", self.free(), len);
+        let (a, b) = self.free_slice_parts();
+        if let Some((src1, src2)) = data.split_at_checked(a.len()) {
+            debug_assert!(
+                src1.len() <= a.len(),
+                "{} does not fit {}",
+                src1.len(),
+                a.len()
+            );
+            debug_assert!(
+                src2.len() <= b.len(),
+                "{} does not fit {}",
+                src2.len(),
+                a.len()
+            );
 
-        let ((f1_ptr, f1_len), (f2_ptr, f2_len)) = self.free_slice_parts();
-        debug_assert!(f1_len + f2_len >= len, "{} + {} < {}", f1_len, f2_len, len);
-
-        let in_f1 = usize::min(len, f1_len);
-
-        let in_f2 = len - in_f1;
-
-        debug_assert!(in_f1 + in_f2 == len);
-
-        unsafe {
             // SAFETY: `in_f₁ + in_f₂ = len`, so this writes `len` bytes total
-            // upholding invariant 2
-            if in_f1 > 0 {
-                f1_ptr.copy_from_nonoverlapping(ptr, in_f1);
+            // upholding invariant 1
+            unsafe {
+                a.as_mut_ptr()
+                    .cast::<u8>()
+                    .copy_from_nonoverlapping(src1.as_ptr(), src1.len());
+                b.as_mut_ptr()
+                    .cast::<u8>()
+                    .copy_from_nonoverlapping(src2.as_ptr(), src2.len());
             }
-            if in_f2 > 0 {
-                f2_ptr.copy_from_nonoverlapping(ptr.add(in_f1), in_f2);
+        } else {
+            debug_assert!(
+                data.len() <= a.len(),
+                "{} does not fit {}",
+                data.len(),
+                a.len()
+            );
+
+            // SAFETY: `in_f₁ + in_f₂ = len`, so this writes `len` bytes total
+            // upholding invariant 1
+            unsafe {
+                a.as_mut_ptr()
+                    .cast::<u8>()
+                    .copy_from_nonoverlapping(data.as_ptr(), data.len());
             }
         }
+
         // SAFETY: Upholds invariant 3 by wrapping `tail` around.
-        self.tail = (self.tail + len) % self.cap;
+        self.tail = (self.tail + data.len()) % self.capacity();
     }
 
     /// Advance head past `amount` elements, effectively removing
@@ -192,7 +183,7 @@ impl RingBuffer {
         let amount = usize::min(amount, self.len());
         // SAFETY: we maintain invariant 2 here since this will always lead to a smaller buffer
         // for amount≤len
-        self.head = (self.head + amount) % self.cap;
+        self.head = (self.head + amount) % self.capacity();
     }
 
     /// Return the size of the two contiguous occupied sections of memory used
@@ -207,32 +198,21 @@ impl RingBuffer {
             len_after_head = self.tail - self.head;
             len_to_tail = 0;
         } else {
-            len_after_head = self.cap - self.head;
+            len_after_head = self.capacity() - self.head;
             len_to_tail = self.tail;
         }
         (len_after_head, len_to_tail)
     }
 
-    // SAFETY: other code relies on this pointing to initialized halves of the buffer only
-    /// Return pointers to the head and tail, and the length of each section.
-    fn data_slice_parts(&self) -> ((*const u8, usize), (*const u8, usize)) {
-        let (len_after_head, len_to_tail) = self.data_slice_lengths();
-
-        (
-            (unsafe { self.buf.as_ptr().add(self.head) }, len_after_head),
-            (self.buf.as_ptr(), len_to_tail),
-        )
-    }
-
     /// Return references to each part of the ring buffer.
     pub fn as_slices(&self) -> (&[u8], &[u8]) {
-        let (s1, s2) = self.data_slice_parts();
-        unsafe {
-            // SAFETY: relies on the behavior of data_slice_parts for producing initialized memory
-            let s1 = slice::from_raw_parts(s1.0, s1.1);
-            let s2 = slice::from_raw_parts(s2.0, s2.1);
-            (s1, s2)
-        }
+        let (len_after_head, len_to_tail) = self.data_slice_lengths();
+
+        let buf_ptr = self.buf.as_ptr().cast::<u8>();
+        (
+            unsafe { slice::from_raw_parts(buf_ptr.add(self.head), len_after_head) },
+            unsafe { slice::from_raw_parts(buf_ptr, len_to_tail) },
+        )
     }
 
     // SAFETY: other code relies on this producing the lengths of free zones
@@ -247,7 +227,7 @@ impl RingBuffer {
             len_after_tail = self.head - self.tail;
             len_to_head = 0;
         } else {
-            len_after_tail = self.cap - self.tail;
+            len_after_tail = self.capacity() - self.tail;
             len_to_head = self.head;
         }
         (len_to_head, len_after_tail)
@@ -257,12 +237,13 @@ impl RingBuffer {
     /// for the two sections in the buffer.
     // SAFETY: Other code relies on this pointing to the free zones, data after the first and before the second must
     // be valid
-    fn free_slice_parts(&self) -> ((*mut u8, usize), (*mut u8, usize)) {
+    fn free_slice_parts(&mut self) -> (&mut [MaybeUninit<u8>], &mut [MaybeUninit<u8>]) {
         let (len_to_head, len_after_tail) = self.free_slice_lengths();
 
+        let buf_ptr = self.buf.as_mut_ptr();
         (
-            (unsafe { self.buf.as_ptr().add(self.tail) }, len_after_tail),
-            (self.buf.as_ptr(), len_to_head),
+            unsafe { slice::from_raw_parts_mut(buf_ptr.add(self.tail), len_after_tail) },
+            unsafe { slice::from_raw_parts_mut(buf_ptr, len_to_head) },
         )
     }
 
@@ -281,8 +262,8 @@ impl RingBuffer {
         self.reserve(len);
 
         // SAFETY: Requirements checked:
-        // 1. explicitly checked above, resulting in a panic if it does not hold
-        // 2. explicitly reserved enough memory
+        // 2. explicitly checked above, resulting in a panic if it does not hold
+        // 3. explicitly reserved enough memory
         unsafe { self.extend_from_within_unchecked(start, len) }
     }
 
@@ -291,12 +272,15 @@ impl RingBuffer {
     ///
     /// SAFETY:
     /// For this to be safe two requirements need to hold:
-    /// 1. start + len <= self.len() so we do not copy uninitialised memory
-    /// 2. More then len reserved space so we do not write out-of-bounds
+    /// 2. start + len <= self.len() so we do not copy uninitialised memory
+    /// 3. More then len reserved space so we do not write out-of-bounds
     #[warn(unsafe_op_in_unsafe_fn)]
     pub unsafe fn extend_from_within_unchecked(&mut self, start: usize, len: usize) {
         debug_assert!(start + len <= self.len());
         debug_assert!(self.free() >= len);
+
+        let capacity = self.capacity();
+        let buf_ptr = self.buf.as_mut_ptr().cast::<u8>();
 
         if self.head < self.tail {
             // Continuous source section and possibly non continuous write section:
@@ -311,20 +295,20 @@ impl RingBuffer {
             // S: Source bytes, to be copied to D bytes
             // D: Destination bytes, going to be copied from S bytes
             // _: Uninvolved bytes in the writable section
-            let after_tail = usize::min(len, self.cap - self.tail);
+            let after_tail = usize::min(len, capacity - self.tail);
 
             let src = (
                 // SAFETY: `len <= isize::MAX` and fits the memory range of `buf`
-                unsafe { self.buf.as_ptr().add(self.head + start) }.cast_const(),
+                unsafe { buf_ptr.add(self.head + start) }.cast_const(),
                 // Src length (see above diagram)
                 self.tail - self.head - start,
             );
 
             let dst = (
                 // SAFETY: `len <= isize::MAX` and fits the memory range of `buf`
-                unsafe { self.buf.as_ptr().add(self.tail) },
+                unsafe { buf_ptr.add(self.tail) },
                 // Dst length (see above diagram)
-                self.cap - self.tail,
+                capacity - self.tail,
             );
 
             // SAFETY: `src` points at initialized data, `dst` points to writable memory
@@ -352,8 +336,7 @@ impl RingBuffer {
                     src.1 - after_tail,
                 );
                 let dst = (
-                    self.buf.as_ptr(),
-                    // Dst length overflowing (see above diagram)
+                    buf_ptr, // Dst length overflowing (see above diagram)
                     self.head,
                 );
 
@@ -362,7 +345,7 @@ impl RingBuffer {
                 unsafe { copy_bytes_overshooting(src, dst, len - after_tail) }
             }
         } else {
-            if self.head + start > self.cap {
+            if self.head + start > capacity {
                 // Continuous read section and destination section:
                 //
                 //                  T           H
@@ -376,18 +359,18 @@ impl RingBuffer {
                 // D: Destination bytes, going to be copied from S bytes
                 // _: Uninvolved bytes in the writable section
 
-                let start = (self.head + start) % self.cap;
+                let start = (self.head + start) % capacity;
 
                 let src = (
                     // SAFETY: `len <= isize::MAX` and fits the memory range of `buf`
-                    unsafe { self.buf.as_ptr().add(start) }.cast_const(),
+                    unsafe { buf_ptr.add(start) }.cast_const(),
                     // Src length (see above diagram)
                     self.tail - start,
                 );
 
                 let dst = (
                     // SAFETY: `len <= isize::MAX` and fits the memory range of `buf`
-                    unsafe { self.buf.as_ptr().add(self.tail) }, // Dst length (see above diagram)
+                    unsafe { buf_ptr.add(self.tail) }, // Dst length (see above diagram)
                     // Dst length (see above diagram)
                     self.head - self.tail,
                 );
@@ -409,18 +392,18 @@ impl RingBuffer {
                 // D: Destination bytes, going to be copied from S bytes
                 // _: Uninvolved bytes in the writable section
 
-                let after_start = usize::min(len, self.cap - self.head - start);
+                let after_start = usize::min(len, capacity - self.head - start);
 
                 let src = (
                     // SAFETY: `len <= isize::MAX` and fits the memory range of `buf`
-                    unsafe { self.buf.as_ptr().add(self.head + start) }.cast_const(),
+                    unsafe { buf_ptr.add(self.head + start) }.cast_const(),
                     // Src length - chunk 1 (see above diagram on the right)
-                    self.cap - self.head - start,
+                    capacity - self.head - start,
                 );
 
                 let dst = (
                     // SAFETY: `len <= isize::MAX` and fits the memory range of `buf`
-                    unsafe { self.buf.as_ptr().add(self.tail) },
+                    unsafe { buf_ptr.add(self.tail) },
                     // Dst length (see above diagram)
                     self.head - self.tail,
                 );
@@ -444,7 +427,7 @@ impl RingBuffer {
                     // _: Uninvolved bytes in the writable section
 
                     let src = (
-                        self.buf.as_ptr().cast_const(),
+                        buf_ptr.cast_const(),
                         // Src length - chunk 2 (see above diagram on the left)
                         self.tail,
                     );
@@ -463,23 +446,7 @@ impl RingBuffer {
             }
         }
 
-        self.tail = (self.tail + len) % self.cap;
-    }
-}
-
-impl Drop for RingBuffer {
-    fn drop(&mut self) {
-        if self.cap == 0 {
-            return;
-        }
-
-        // SAFETY: is we were succesfully able to construct this layout when we allocated then it's also valid do so now
-        // Relies on / establishes invariant 1
-        let current_layout = unsafe { Layout::array::<u8>(self.cap).unwrap_unchecked() };
-
-        unsafe {
-            dealloc(self.buf.as_ptr(), current_layout);
-        }
+        self.tail = (self.tail + len) % capacity;
     }
 }
 
@@ -554,7 +521,7 @@ mod tests {
         let mut rb = RingBuffer::new();
 
         rb.reserve(15);
-        assert_eq!(17, rb.cap);
+        assert_eq!(17, rb.capacity());
 
         rb.extend(b"0123456789");
         assert_eq!(rb.len(), 10);
@@ -607,9 +574,9 @@ mod tests {
         // Fill exactly, then empty then fill again
         let mut rb = RingBuffer::new();
         rb.reserve(16);
-        assert_eq!(17, rb.cap);
+        assert_eq!(17, rb.capacity());
         rb.extend(b"0123456789012345");
-        assert_eq!(17, rb.cap);
+        assert_eq!(17, rb.capacity());
         assert_eq!(16, rb.len());
         assert_eq!(0, rb.free());
         rb.drop_first_n(16);
@@ -618,7 +585,7 @@ mod tests {
         rb.extend(b"0123456789012345");
         assert_eq!(16, rb.len());
         assert_eq!(0, rb.free());
-        assert_eq!(17, rb.cap);
+        assert_eq!(17, rb.capacity());
         assert_eq!(1, rb.as_slices().0.len());
         assert_eq!(15, rb.as_slices().1.len());
 
@@ -630,13 +597,13 @@ mod tests {
         rb.extend(b"67890123");
         assert_eq!(16, rb.len());
         assert_eq!(0, rb.free());
-        assert_eq!(17, rb.cap);
+        assert_eq!(17, rb.capacity());
         assert_eq!(9, rb.as_slices().0.len());
         assert_eq!(7, rb.as_slices().1.len());
         rb.reserve(1);
         assert_eq!(16, rb.len());
         assert_eq!(16, rb.free());
-        assert_eq!(33, rb.cap);
+        assert_eq!(33, rb.capacity());
         assert_eq!(16, rb.as_slices().0.len());
         assert_eq!(0, rb.as_slices().1.len());
 
@@ -647,7 +614,7 @@ mod tests {
         rb.extend_from_within(0, 16);
         assert_eq!(32, rb.len());
         assert_eq!(0, rb.free());
-        assert_eq!(33, rb.cap);
+        assert_eq!(33, rb.capacity());
         assert_eq!(32, rb.as_slices().0.len());
         assert_eq!(0, rb.as_slices().1.len());
 
