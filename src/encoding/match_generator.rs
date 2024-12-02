@@ -473,16 +473,16 @@ fn matches() {
     assert!(!matcher.next_sequence(|_| {}));
 
     matcher.add_data(
-        alloc::vec![0, 0, 11, 13, 15, 17, 19, 11, 13, 15, 17, 19, 21, 23],
+        alloc::vec![0, 0, 11, 13, 15, 17, 20, 11, 13, 15, 17, 20, 21, 23],
         |_| {},
     );
-    original_data.extend_from_slice(&[0, 0, 11, 13, 15, 17, 19, 11, 13, 15, 17, 19, 21, 23]);
+    original_data.extend_from_slice(&[0, 0, 11, 13, 15, 17, 20, 11, 13, 15, 17, 20, 21, 23]);
 
     matcher.next_sequence(|seq| {
         assert_seq_equal(
             seq,
             Sequence::Triple {
-                literals: &[0, 0, 11, 13, 15, 17, 19],
+                literals: &[0, 0, 11, 13, 15, 17, 20],
                 offset: 5,
                 match_len: 5,
             },
