@@ -7,6 +7,7 @@ const MIN_MATCH_LEN: usize = 5;
 /// Takes care of allocating and reusing vecs
 pub(crate) struct MatchGeneratorDriver {
     vec_pool: Vec<Vec<u8>>,
+    suffix_pool: Vec<SuffixStore>,
     match_generator: MatchGenerator,
     slice_size: usize,
 }
@@ -15,6 +16,7 @@ impl MatchGeneratorDriver {
     pub(crate) fn new(slice_size: usize, max_size: usize) -> Self {
         Self {
             vec_pool: Vec::new(),
+            suffix_pool: Vec::new(),
             match_generator: MatchGenerator::new(max_size),
             slice_size,
         }
@@ -36,10 +38,19 @@ impl Matcher for MatchGeneratorDriver {
 
     fn commit_space(&mut self, space: Vec<u8>) {
         let vec_pool = &mut self.vec_pool;
-        self.match_generator.add_data(space, |mut data| {
-            data.resize(data.capacity(), 0);
-            vec_pool.push(data);
-        });
+        let suffixes = self
+            .suffix_pool
+            .pop()
+            .unwrap_or_else(|| SuffixStore::with_capacity(space.len()));
+        let suffix_pool = &mut self.suffix_pool;
+        self.match_generator
+            .add_data(space, suffixes, |mut data, mut suffixes| {
+                data.resize(data.capacity(), 0);
+                vec_pool.push(data);
+                suffixes.slots.clear();
+                suffixes.slots.resize(suffixes.slots.capacity(), None);
+                suffix_pool.push(suffixes);
+            });
     }
 
     fn start_matching(&mut self, mut handle_sequence: impl for<'a> FnMut(Sequence<'a>)) {
@@ -259,7 +270,12 @@ impl MatchGenerator {
         self.suffix_idx = len;
         self.last_idx_in_sequence = len;
     }
-    fn add_data(&mut self, data: Vec<u8>, reuse_space: impl FnMut(Vec<u8>)) {
+    fn add_data(
+        &mut self,
+        data: Vec<u8>,
+        suffixes: SuffixStore,
+        reuse_space: impl FnMut(Vec<u8>, SuffixStore),
+    ) {
         assert!(
             self.window.is_empty() || self.suffix_idx == self.window.last().unwrap().data.len()
         );
@@ -276,7 +292,7 @@ impl MatchGenerator {
         let len = data.len();
         self.window.push(WindowEntry {
             data,
-            suffixes: SuffixStore::with_capacity(len),
+            suffixes,
             base_offset: 0,
         });
         self.window_size += len;
@@ -284,7 +300,7 @@ impl MatchGenerator {
         self.last_idx_in_sequence = 0;
     }
 
-    fn reserve(&mut self, amount: usize, mut reuse_space: impl FnMut(Vec<u8>)) {
+    fn reserve(&mut self, amount: usize, mut reuse_space: impl FnMut(Vec<u8>, SuffixStore)) {
         assert!(self.max_window_size >= amount);
         while self.window_size + amount > self.max_window_size {
             let removed = self.window.remove(0);
@@ -297,10 +313,7 @@ impl MatchGenerator {
                 data: leaked_vec,
                 base_offset: _,
             } = removed;
-            // Make sure all references into the leaked vec are gone
-            drop(suffixes);
-            // Then repurpose the vec
-            reuse_space(leaked_vec);
+            reuse_space(leaked_vec, suffixes);
         }
     }
 }
