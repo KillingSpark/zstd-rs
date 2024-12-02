@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use std::num::NonZeroUsize;
+use core::num::NonZeroUsize;
 
 use super::Matcher;
 
