@@ -42,10 +42,7 @@ impl Matcher for MatchGeneratorDriver {
         });
     }
 
-    fn start_matching(
-        &mut self,
-        mut handle_sequence: impl for<'a> FnMut(Sequence<'a>),
-    ) {
+    fn start_matching(&mut self, mut handle_sequence: impl for<'a> FnMut(Sequence<'a>)) {
         while self.match_generator.next_sequence(&mut handle_sequence) {}
     }
     fn skip_matching(&mut self) {
