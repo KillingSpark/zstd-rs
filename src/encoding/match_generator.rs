@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use std::num::NonZeroUsize;
 
 use super::Matcher;
 
@@ -68,7 +69,7 @@ struct WindowEntry {
 }
 
 struct SuffixStore {
-    slots: Vec<Option<usize>>,
+    slots: Vec<Option<NonZeroUsize>>,
     len_log: u32,
 }
 
@@ -83,7 +84,7 @@ impl SuffixStore {
     #[inline(always)]
     fn insert(&mut self, suffix: &[u8], idx: usize) {
         let key = self.key(suffix);
-        self.slots[key] = Some(idx);
+        self.slots[key] = Some(NonZeroUsize::new(idx + 1).unwrap());
     }
 
     #[inline(always)]
@@ -95,7 +96,7 @@ impl SuffixStore {
     #[inline(always)]
     fn get(&self, suffix: &[u8]) -> Option<usize> {
         let key = self.key(suffix);
-        self.slots[key]
+        self.slots[key].map(|x| <NonZeroUsize as Into<usize>>::into(x) - 1)
     }
 
     #[inline(always)]
@@ -341,7 +342,11 @@ fn matches() {
         }
     };
 
-    matcher.add_data(alloc::vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0], |_| {});
+    matcher.add_data(
+        alloc::vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        SuffixStore::with_capacity(100),
+        |_, _| {},
+    );
     original_data.extend_from_slice(&[0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 
     matcher.next_sequence(|seq| {
@@ -360,7 +365,8 @@ fn matches() {
 
     matcher.add_data(
         alloc::vec![1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 0, 0, 0, 0, 0,],
-        |_| {},
+        SuffixStore::with_capacity(100),
+        |_, _| {},
     );
     original_data.extend_from_slice(&[
         1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 0, 0, 0, 0, 0,
@@ -403,7 +409,8 @@ fn matches() {
 
     matcher.add_data(
         alloc::vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0, 0, 0, 0, 0],
-        |_| {},
+        SuffixStore::with_capacity(100),
+        |_, _| {},
     );
     original_data.extend_from_slice(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0, 0, 0, 0, 0]);
 
@@ -431,7 +438,11 @@ fn matches() {
     });
     assert!(!matcher.next_sequence(|_| {}));
 
-    matcher.add_data(alloc::vec![0, 0, 0, 0, 0], |_| {});
+    matcher.add_data(
+        alloc::vec![0, 0, 0, 0, 0],
+        SuffixStore::with_capacity(100),
+        |_, _| {},
+    );
     original_data.extend_from_slice(&[0, 0, 0, 0, 0]);
 
     matcher.next_sequence(|seq| {
@@ -447,7 +458,11 @@ fn matches() {
     });
     assert!(!matcher.next_sequence(|_| {}));
 
-    matcher.add_data(alloc::vec![7, 8, 9, 10, 11], |_| {});
+    matcher.add_data(
+        alloc::vec![7, 8, 9, 10, 11],
+        SuffixStore::with_capacity(100),
+        |_, _| {},
+    );
     original_data.extend_from_slice(&[7, 8, 9, 10, 11]);
 
     matcher.next_sequence(|seq| {
@@ -463,13 +478,21 @@ fn matches() {
     });
     assert!(!matcher.next_sequence(|_| {}));
 
-    matcher.add_data(alloc::vec![1, 3, 5, 7, 9], |_| {});
+    matcher.add_data(
+        alloc::vec![1, 3, 5, 7, 9],
+        SuffixStore::with_capacity(100),
+        |_, _| {},
+    );
     matcher.skip_matching();
     original_data.extend_from_slice(&[1, 3, 5, 7, 9]);
     reconstructed.extend_from_slice(&[1, 3, 5, 7, 9]);
     assert!(!matcher.next_sequence(|_| {}));
 
-    matcher.add_data(alloc::vec![1, 3, 5, 7, 9], |_| {});
+    matcher.add_data(
+        alloc::vec![1, 3, 5, 7, 9],
+        SuffixStore::with_capacity(100),
+        |_, _| {},
+    );
     original_data.extend_from_slice(&[1, 3, 5, 7, 9]);
 
     matcher.next_sequence(|seq| {
@@ -487,7 +510,8 @@ fn matches() {
 
     matcher.add_data(
         alloc::vec![0, 0, 11, 13, 15, 17, 20, 11, 13, 15, 17, 20, 21, 23],
-        |_| {},
+        SuffixStore::with_capacity(100),
+        |_, _| {},
     );
     original_data.extend_from_slice(&[0, 0, 11, 13, 15, 17, 20, 11, 13, 15, 17, 20, 21, 23]);
 
