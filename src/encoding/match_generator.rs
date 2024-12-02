@@ -205,15 +205,7 @@ impl MatchGenerator {
                     } else {
                         &match_entry.data[match_index..]
                     };
-                    let min_len = usize::min(match_slice.len(), data_slice.len());
-
-                    let mut match_len = 0;
-                    for idx in 0..min_len {
-                        if match_slice[idx] != data_slice[idx] {
-                            break;
-                        }
-                        match_len = idx + 1;
-                    }
+                    let match_len = Self::common_prefix_len(match_slice, data_slice);
 
                     if match_len >= MIN_MATCH_LEN {
                         let offset = match_entry.base_offset + self.suffix_idx - match_index;
@@ -251,6 +243,21 @@ impl MatchGenerator {
             }
             self.suffix_idx += 1;
         }
+    }
+
+    #[inline(always)]
+    fn common_prefix_len(a: &[u8], b: &[u8]) -> usize {
+        Self::mismatch_chunks::<8>(a, b)
+    }
+
+    fn mismatch_chunks<const N: usize>(xs: &[u8], ys: &[u8]) -> usize {
+        let off = core::iter::zip(xs.chunks_exact(N), ys.chunks_exact(N))
+            .take_while(|(x, y)| x == y)
+            .count()
+            * N;
+        off + core::iter::zip(&xs[off..], &ys[off..])
+            .take_while(|(x, y)| x == y)
+            .count()
     }
 
     fn add_suffixes_till(&mut self, idx: usize) {
