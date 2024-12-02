@@ -6,10 +6,10 @@ use crate::{
     huff0::huff0_encoder,
 };
 
-pub fn compress_block<M: Matcher>(matcher: &mut M, len: usize, output: &mut Vec<u8>) {
+pub fn compress_block<M: Matcher>(matcher: &mut M, output: &mut Vec<u8>) {
     let mut literals_vec = Vec::new();
     let mut sequences = Vec::new();
-    matcher.start_matching(len, |seq| {
+    matcher.start_matching(|seq| {
         match seq {
             Sequence::Literals { literals } => literals_vec.extend_from_slice(literals),
             Sequence::Triple {

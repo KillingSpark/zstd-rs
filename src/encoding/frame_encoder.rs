@@ -91,7 +91,7 @@ impl<R: Read, W: Write> FrameCompressor<R, W> {
 
         let mut matcher = MatchGeneratorDriver::new(1024 * 128, 1024 * 128);
         loop {
-            let uncompressed_data = matcher.get_next_space();
+            let mut uncompressed_data = matcher.get_next_space();
             let mut read_bytes = 0;
             let last_block;
             'read_loop: loop {
@@ -109,7 +109,7 @@ impl<R: Read, W: Write> FrameCompressor<R, W> {
                     break 'read_loop;
                 }
             }
-            let uncompressed_data = &uncompressed_data[..read_bytes];
+            uncompressed_data.resize(read_bytes, 0);
 
             // Special handling is needed for compression of a totally empty file (why you'd want to do that, I don't know)
             if uncompressed_data.is_empty() {
@@ -134,12 +134,13 @@ impl<R: Read, W: Write> FrameCompressor<R, W> {
                     };
                     // Write the header, then the block
                     header.serialize(output);
-                    output.extend_from_slice(uncompressed_data);
+                    output.extend_from_slice(&uncompressed_data);
                 }
                 CompressionLevel::Fastest => {
                     if uncompressed_data.iter().all(|x| uncompressed_data[0].eq(x)) {
                         let rle_byte = uncompressed_data[0];
-                        matcher.commit_space(read_bytes);
+                        matcher.commit_space(uncompressed_data);
+                        matcher.skip_matching();
                         let header = BlockHeader {
                             last_block,
                             block_type: crate::blocks::block::BlockType::RLE,
@@ -150,7 +151,8 @@ impl<R: Read, W: Write> FrameCompressor<R, W> {
                         output.push(rle_byte);
                     } else {
                         let mut compressed = Vec::new();
-                        compress_block(&mut matcher, read_bytes, &mut compressed);
+                        matcher.commit_space(uncompressed_data);
+                        compress_block(&mut matcher, &mut compressed);
                         if compressed.len() >= MAX_BLOCK_SIZE {
                             let header = BlockHeader {
                                 last_block,

@@ -4,9 +4,9 @@ use super::Matcher;
 
 const MIN_MATCH_LEN: usize = 5;
 
+/// Takes care of allocating and reusing vecs
 pub(crate) struct MatchGeneratorDriver {
     vec_pool: Vec<Vec<u8>>,
-    current_space: Option<Vec<u8>>,
     match_generator: MatchGenerator,
     slice_size: usize,
 }
@@ -15,7 +15,6 @@ impl MatchGeneratorDriver {
     pub(crate) fn new(slice_size: usize, max_size: usize) -> Self {
         Self {
             vec_pool: Vec::new(),
-            current_space: None,
             match_generator: MatchGenerator::new(max_size),
             slice_size,
         }
@@ -23,51 +22,34 @@ impl MatchGeneratorDriver {
 }
 
 impl Matcher for MatchGeneratorDriver {
-    fn get_next_space(&mut self) -> &mut [u8] {
-        if self.current_space.is_some() {
-            return self.current_space.as_mut().unwrap();
-        }
-
-        let space = self.vec_pool.pop();
-        if space.is_some() {
-            self.current_space = space;
-            self.current_space.as_mut().unwrap()
-        } else {
+    fn get_next_space(&mut self) -> Vec<u8> {
+        self.vec_pool.pop().unwrap_or_else(|| {
             let mut space = alloc::vec![0; self.slice_size];
             space.resize(space.capacity(), 0);
-            self.current_space = Some(space);
-            self.current_space.as_mut().unwrap()
-        }
+            space
+        })
     }
 
     fn get_last_space(&mut self) -> &[u8] {
         self.match_generator.window.last().unwrap().data.as_slice()
     }
 
-    fn commit_space(&mut self, len: usize) {
+    fn commit_space(&mut self, space: Vec<u8>) {
         let vec_pool = &mut self.vec_pool;
-        let mut vec = self.current_space.take().unwrap();
-        vec.resize(len, 0);
-
-        self.match_generator.add_data_no_matching(vec, |data| {
+        self.match_generator.add_data(space, |mut data| {
+            data.resize(data.capacity(), 0);
             vec_pool.push(data);
         });
     }
 
     fn start_matching(
         &mut self,
-        len: usize,
         mut handle_sequence: impl for<'a> FnMut(Sequence<'a>),
     ) {
-        let vec_pool = &mut self.vec_pool;
-        let mut vec = self.current_space.take().unwrap();
-        vec.resize(len, 0);
-
-        self.match_generator.add_data(vec, |data| {
-            vec_pool.push(data);
-        });
-
         while self.match_generator.next_sequence(&mut handle_sequence) {}
+    }
+    fn skip_matching(&mut self) {
+        self.match_generator.skip_matching();
     }
 }
 
@@ -274,9 +256,8 @@ impl MatchGenerator {
         }
     }
 
-    fn add_data_no_matching(&mut self, data: Vec<u8>, reuse_space: impl FnMut(Vec<u8>)) {
-        let len = data.len();
-        self.add_data(data, reuse_space);
+    fn skip_matching(&mut self) {
+        let len = self.window.last().unwrap().data.len();
         self.add_suffixes_till(len);
         self.suffix_idx = len;
         self.last_idx_in_sequence = len;
@@ -472,7 +453,8 @@ fn matches() {
     });
     assert!(!matcher.next_sequence(|_| {}));
 
-    matcher.add_data_no_matching(alloc::vec![1, 3, 5, 7, 9], |_| {});
+    matcher.add_data(alloc::vec![1, 3, 5, 7, 9], |_| {});
+    matcher.skip_matching();
     original_data.extend_from_slice(&[1, 3, 5, 7, 9]);
     reconstructed.extend_from_slice(&[1, 3, 5, 7, 9]);
     assert!(!matcher.next_sequence(|_| {}));

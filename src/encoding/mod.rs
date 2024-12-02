@@ -11,8 +11,14 @@ pub(crate) mod match_generator;
 pub(crate) mod util;
 
 pub(crate) trait Matcher {
-    fn get_next_space(&mut self) -> &mut [u8];
+    /// Get a space where we can put data to be matched on
+    fn get_next_space(&mut self) -> alloc::vec::Vec<u8>;
+    /// Get a reference to the last commited space
     fn get_last_space(&mut self) -> &[u8];
-    fn commit_space(&mut self, len: usize);
-    fn start_matching(&mut self, len: usize, handle_sequence: impl for<'a> FnMut(Sequence<'a>));
+    /// Commit a space to the matcher so it can be matched against
+    fn commit_space(&mut self, space: alloc::vec::Vec<u8>);
+    /// Just process the data in the last commited space for future matching
+    fn skip_matching(&mut self);
+    /// Process the data in the last commited space for future matching AND generate matches for the data
+    fn start_matching(&mut self, handle_sequence: impl for<'a> FnMut(Sequence<'a>));
 }
