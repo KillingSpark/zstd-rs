@@ -260,6 +260,7 @@ impl MatchGenerator {
             .count()
     }
 
+    #[inline(always)]
     fn add_suffixes_till(&mut self, idx: usize) {
         let last_entry = self.window.last_mut().unwrap();
         if last_entry.data.len() < MIN_MATCH_LEN {
