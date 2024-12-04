@@ -152,7 +152,7 @@ pub struct FSETable {
 impl FSETable {
     pub(crate) fn next_state(&self, symbol: u8, idx: usize) -> &State {
         let states = &self.states[symbol as usize];
-        states.get(idx)
+        states.get(idx, self.table_size)
     }
 
     pub(crate) fn start_state(&self, symbol: u8) -> &State {
@@ -169,9 +169,10 @@ pub(super) struct SymbolStates {
 }
 
 impl SymbolStates {
-    fn get(&self, idx: usize) -> &State {
-        // TODO we can do better, we can determin the correct state from the index with a bit of math
-        self.states
+    fn get(&self, idx: usize, max_idx: usize) -> &State {
+        let start_search_at = (idx * self.states.len()) / max_idx;
+
+        self.states[start_search_at..]
             .iter()
             .find(|state| state.contains(idx))
             .unwrap()
