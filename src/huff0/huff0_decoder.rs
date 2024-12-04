@@ -209,7 +209,7 @@ impl From<GetBitsError> for HuffmanDecoderError {
 
 /// A single entry in the table contains the decoded symbol/literal and the
 /// size of the prefix code.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Entry {
     /// The byte that the prefix code replaces during encoding.
     symbol: u8,
@@ -293,7 +293,7 @@ impl HuffmanTable {
             bits: Vec::with_capacity(256),
             bit_ranks: Vec::with_capacity(11),
             rank_indexes: Vec::with_capacity(11),
-            fse_table: FSETable::new(100),
+            fse_table: FSETable::new(255),
         }
     }
 
@@ -360,9 +360,7 @@ impl HuffmanTable {
                     });
                 }
                 //fse decompress weights
-                let bytes_used_by_fse_header = self
-                    .fse_table
-                    .build_decoder(fse_stream, /*TODO find actual max*/ 100)?;
+                let bytes_used_by_fse_header = self.fse_table.build_decoder(fse_stream, 6)?;
 
                 if bytes_used_by_fse_header > header as usize {
                     return Err(err::FSETableUsedTooManyBytes {

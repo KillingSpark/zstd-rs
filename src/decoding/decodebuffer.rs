@@ -285,7 +285,7 @@ impl DecodeBuffer {
             amount: usize,
         }
 
-        impl<'a> Drop for DrainGuard<'a> {
+        impl Drop for DrainGuard<'_> {
             fn drop(&mut self) {
                 if self.amount != 0 {
                     self.buffer.drop_first_n(self.amount);
