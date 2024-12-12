@@ -15,6 +15,12 @@ impl<V: AsMut<Vec<u8>>> FSEEncoder<'_, V> {
         self.table
     }
 
+    /// Encodes the data using the provided table
+    /// Writes
+    /// * Table description
+    /// * Encoded data
+    /// * Last state index
+    /// * Padding bits to fill up last byte
     pub fn encode(&mut self, data: &[u8]) {
         self.write_table();
 
@@ -36,12 +42,20 @@ impl<V: AsMut<Vec<u8>>> FSEEncoder<'_, V> {
         }
     }
 
+    /// Encodes the data using the provided table but with two interleaved streams
+    /// Writes
+    /// * Table description
+    /// * Encoded data with two interleaved states
+    /// * Both Last state indexes
+    /// * Padding bits to fill up last byte
     pub fn encode_interleaved(&mut self, data: &[u8]) {
         self.write_table();
 
         let mut state_1 = self.table.start_state(data[data.len() - 1]);
         let mut state_2 = self.table.start_state(data[data.len() - 2]);
 
+        // The first two symbols are represented by the start states
+        // Then encode the state transitions for two symbols at a time
         let mut idx = data.len() - 4;
         loop {
             {
@@ -66,6 +80,9 @@ impl<V: AsMut<Vec<u8>>> FSEEncoder<'_, V> {
             }
             idx -= 2;
         }
+
+        // Determine if we have an even or odd number of symbols to encode
+        // If odd we need to encode the last states transition and encode the final states in the flipped order
         if idx == 1 {
             let state = state_1;
             let x = data[0];
@@ -146,6 +163,7 @@ impl<V: AsMut<Vec<u8>>> FSEEncoder<'_, V> {
 pub struct FSETable {
     /// Indexed by symbol
     pub(super) states: [SymbolStates; 256],
+    /// Sum of all states.states.len()
     pub(crate) table_size: usize,
 }
 
@@ -163,7 +181,7 @@ impl FSETable {
 
 #[derive(Debug)]
 pub(super) struct SymbolStates {
-    /// Sorted by baseline
+    /// Sorted by baseline to allow easy lookup using an index
     pub(super) states: Vec<State>,
     pub(super) probability: i32,
 }
@@ -181,8 +199,11 @@ impl SymbolStates {
 
 #[derive(Debug)]
 pub(crate) struct State {
+    /// How many bits the range of this state needs to be encoded as
     pub(crate) num_bits: u8,
+    /// The first index targeted by this state
     pub(crate) baseline: usize,
+    /// The last index targeted by this state (baseline + the maximum number with numbits bits allows)
     pub(crate) last_index: usize,
     /// Index of this state in the decoding table
     pub(crate) index: usize,
@@ -283,6 +304,8 @@ pub(super) fn build_table_from_probabilities(probs: &[i32], acc_log: u8) -> FSET
     }
 
     // distribute other symbols
+
+    // Setup all needed states per symbol with their respective index
     let mut idx = 0;
     for (symbol, prob) in probs.iter().copied().enumerate() {
         if prob <= 0 {
@@ -306,12 +329,15 @@ pub(super) fn build_table_from_probabilities(probs: &[i32], acc_log: u8) -> FSET
         assert_eq!(states.len(), prob as usize);
     }
 
+    // After all states know their index we can determine the numbits and baselines
     for (symbol, prob) in probs.iter().copied().enumerate() {
         if prob <= 0 {
             continue;
         }
         let prob = prob as u32;
         let state = &mut states[symbol];
+
+        // We process the states in their order in the table
         state.states.sort_by(|l, r| l.index.cmp(&r.index));
 
         let prob_log = if prob.is_power_of_two() {
@@ -320,6 +346,8 @@ pub(super) fn build_table_from_probabilities(probs: &[i32], acc_log: u8) -> FSET
             prob.ilog2() + 1
         };
         let rounded_up = 1u32 << prob_log;
+
+        // The lower states target double the amount of indexes -> numbits + 1
         let double_states = rounded_up - prob;
         let single_states = prob - double_states;
         let num_bits = acc_log - prob_log as u8;
@@ -340,6 +368,8 @@ pub(super) fn build_table_from_probabilities(probs: &[i32], acc_log: u8) -> FSET
                 baseline += 1 << num_bits;
             }
         }
+
+        // For encoding we use the states ordered by the indexes they target
         state.states.sort_by(|l, r| l.baseline.cmp(&r.baseline));
     }
 
