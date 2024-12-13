@@ -31,3 +31,11 @@ path = "fuzz_targets/encode.rs"
 [[bin]]
 name = "interop"
 path = "fuzz_targets/interop.rs"
+
+[[bin]]
+name = "huff0"
+path = "fuzz_targets/huff0.rs"
+
+[[bin]]
+name = "fse"
+path = "fuzz_targets/fse.rs"

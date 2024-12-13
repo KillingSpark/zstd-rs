@@ -1,4 +1,4 @@
-use std::vec::Vec;
+use alloc::vec::Vec;
 
 /// Returns the minimum number of bytes needed to represent this value, as
 /// either 1, 2, 4, or 8 bytes. A value of 0 will still return one byte.
@@ -33,7 +33,7 @@ pub fn minify_val(val: u64) -> Vec<u8> {
 mod tests {
     use super::find_min_size;
     use super::minify_val;
-    use std::vec;
+    use alloc::vec;
 
     #[test]
     fn min_size_detection() {

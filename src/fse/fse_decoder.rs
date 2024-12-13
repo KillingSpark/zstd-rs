@@ -6,6 +6,7 @@ use alloc::vec::Vec;
 /// all literals from 0 to the highest present one
 ///
 /// <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#fse-table-description>
+#[derive(Debug)]
 pub struct FSETable {
     /// The maximum symbol in the table (inclusive). Limits the probabilities length to max_symbol + 1.
     max_symbol: u8,
@@ -144,7 +145,7 @@ impl From<GetBitsError> for FSEDecoderError {
 }
 
 /// A single entry in an FSE table.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Entry {
     /// This value is used as an offset value, and it is added
     /// to a value read from the stream to determine the next state value.
@@ -188,7 +189,8 @@ impl<'t> FSEDecoder<'t> {
         if self.table.accuracy_log == 0 {
             return Err(FSEDecoderError::TableIsUninitialized);
         }
-        self.state = self.table.decode[bits.get_bits(self.table.accuracy_log) as usize];
+        let new_state = bits.get_bits(self.table.accuracy_log);
+        self.state = self.table.decode[new_state as usize];
 
         Ok(())
     }
@@ -444,6 +446,9 @@ fn calc_baseline_and_numbits(
     num_states_symbol: u32,
     state_number: u32,
 ) -> (u32, u8) {
+    if num_states_symbol == 0 {
+        return (0, 0);
+    }
     let num_state_slices = if 1 << (highest_bit_set(num_states_symbol) - 1) == num_states_symbol {
         num_states_symbol
     } else {

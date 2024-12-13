@@ -3,6 +3,6 @@
 //!
 //! There are a few different kinds of blocks, and implementations for those kinds are
 //! in this module.
-mod raw;
+mod compressed;
 
-pub(super) use raw::*;
+pub(super) use compressed::*;

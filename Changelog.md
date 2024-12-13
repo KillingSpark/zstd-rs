@@ -33,4 +33,4 @@ This document records the changes made between versions, starting with version 0
 * Added convenience functions to FrameDecoder to decode multiple frames from a buffer (https://github.com/philipc)
 
 # After 0.7.3
-
+* Add initial compression support

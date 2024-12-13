@@ -362,6 +362,7 @@ impl RingBuffer {
                 unsafe { copy_bytes_overshooting(src, dst, len - after_tail) }
             }
         } else {
+            #[allow(clippy::collapsible_else_if)]
             if self.head + start > self.cap {
                 // Continuous read section and destination section:
                 //
