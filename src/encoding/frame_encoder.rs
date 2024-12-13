@@ -21,8 +21,6 @@ pub enum CompressionLevel {
     /// it in a Zstandard frame.
     Uncompressed,
     /// This level is roughly equivalent to Zstd compression level 1
-    ///
-    /// UNIMPLEMENTED
     Fastest,
     /// This level is roughly equivalent to Zstd level 3,
     /// or the one used by the official compressor when no level

@@ -9,8 +9,7 @@
 A pure Rust implementation of the Zstandard compression algorithm, as defined in [this document](https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md).
 
 This crate contains a fully operational implementation of the decompression portion of the standard.
-
-*Work has started on a compressor, but it has not reached a point where the compressor provides any real function.* (CONTRIBUTORS WELCOME)
+It also provides a compressor which is usable, but it does not yet reach the speed, ratio or configurability of the original zstd library.
 
 This crate is currently actively maintained.
 
@@ -19,9 +18,14 @@ This crate is currently actively maintained.
 Feature complete on the decoder side. In terms of speed it is still behind the original C implementation which has a rust binding located [here](https://github.com/gyscos/zstd-rs).
 
 On the compression side:
-- [x] Support for generating raw, uncompressed frames
-- [ ] Support for generating RLE compressed blocks
-- [ ] Support for generating compressed blocks at any compression level
+- Support for generating compressed blocks at any compression level
+  - [x] Uncompressed
+  - [x] Fastest (roughly level 1)
+  - [ ] Default (roughly level 3)
+  - [ ] Better (roughly level 7)
+  - [ ] Best (roughly level 11)
+- [ ] Checksums
+- [ ] Dictionaries
 
 ## Speed
 
