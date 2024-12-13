@@ -6,12 +6,12 @@
 //! Decompression can be achieved by using the [`StreamingDecoder`] interface.
 //!
 //! ## Compression
-//! Although functionality has not yet been implemented past raw frames, refer to the
-//! [encoding] module for more info.
+//! The [encoding] module contains the internals for compression.
+//! Decompression can be achieved by using the [`encoding::compress`]/[`encoding::compress_to_vec`] functions or the [`FrameCompressor`] interface.
 //!
 //! # Speed
 //! The decoder has been measured to be roughly between 3.5 to 1.4 times slower
-//! than the original implementation.
+//! than the original implementation depending on the compressed data.
 #![no_std]
 #![deny(trivial_casts, trivial_numeric_casts, rust_2018_idioms)]
 
@@ -55,3 +55,5 @@ pub use io_nostd as io;
 pub use frame_decoder::BlockDecodingStrategy;
 pub use frame_decoder::FrameDecoder;
 pub use streaming_decoder::StreamingDecoder;
+
+pub use encoding::FrameCompressor;

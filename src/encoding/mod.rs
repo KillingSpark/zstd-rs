@@ -4,11 +4,38 @@ pub(crate) mod bit_writer;
 pub(crate) mod block_header;
 pub(crate) mod blocks;
 mod frame_encoder;
-pub use frame_encoder::*;
-use match_generator::Sequence;
 pub(crate) mod frame_header;
 pub(crate) mod match_generator;
 pub(crate) mod util;
+
+use alloc::vec::Vec;
+use crate::io::{Read, Write};
+pub use frame_encoder::*;
+use match_generator::Sequence;
+
+/// Convenience function to compress some source into a target without reusing any resources of the compressor
+/// ```rust
+/// use ruzstd::encoding::{compress, CompressionLevel};
+/// let data: &[u8] = &[0,0,0,0,0,0,0,0,0,0,0,0];
+/// let mut target = Vec::new();
+/// compress(data, &mut target, CompressionLevel::Fastest);
+/// ```
+pub fn compress<R: Read, W: Write>(source: R, target: W, level: CompressionLevel) {
+    let mut frame_enc = FrameCompressor::new(source, target, level);
+    frame_enc.compress();
+}
+
+/// Convenience function to compress some source into a target without reusing any resources of the compressor into a Vec
+/// ```rust
+/// use ruzstd::encoding::{compress_to_vec, CompressionLevel};
+/// let data: &[u8] = &[0,0,0,0,0,0,0,0,0,0,0,0];
+/// let compressed = compress_to_vec(data, CompressionLevel::Fastest);
+/// ```
+pub fn compress_to_vec<R: Read>(source: R, level: CompressionLevel) -> Vec<u8> {
+    let mut vec = Vec::new();
+    compress(source, &mut vec, level);
+    vec
+}
 
 pub(crate) trait Matcher {
     /// Get a space where we can put data to be matched on
