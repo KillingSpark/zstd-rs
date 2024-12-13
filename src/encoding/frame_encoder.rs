@@ -89,7 +89,7 @@ impl<R: Read, W: Write> FrameCompressor<R, W> {
         };
         header.serialize(output);
 
-        let mut matcher = MatchGeneratorDriver::new(1024 * 128, 1024 * 128);
+        let mut matcher = MatchGeneratorDriver::new(1024 * 128, 1);
         loop {
             let mut uncompressed_data = matcher.get_next_space();
             let mut read_bytes = 0;
