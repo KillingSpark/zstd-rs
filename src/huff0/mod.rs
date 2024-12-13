@@ -10,6 +10,11 @@ pub use huff0_decoder::*;
 use crate::{decoding::bit_reader_reverse::BitReaderReversed, encoding::bit_writer::BitWriter};
 pub mod huff0_encoder;
 
+/// Only needed for testing.
+///
+/// Encodes the data with a table built from that data
+/// Decodes the result again by first decoding the table and then the data
+/// Asserts that the decoded data equals the input
 pub fn round_trip(data: &[u8]) {
     if data.len() < 2 {
         return;
