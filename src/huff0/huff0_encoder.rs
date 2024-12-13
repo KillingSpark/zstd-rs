@@ -15,24 +15,42 @@ impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, V> {
     pub fn new(table: HuffmanTable, writer: &mut BitWriter<V>) -> HuffmanEncoder<'_, V> {
         HuffmanEncoder { table, writer }
     }
+
+    /// Encodes the data using the provided table
+    /// Writes
+    /// * Table description
+    /// * Encoded data
+    /// * Padding bits to fill up last byte
     pub fn encode(&mut self, data: &[u8]) {
         self.write_table();
         Self::encode_stream(&self.table, self.writer, data);
     }
+
+    /// Encodes the data using the provided table in 4 concatenated streams
+    /// Writes
+    /// * Table description
+    /// * Jumptable
+    /// * Encoded data in 4 streams, each padded to fill the last byte
     pub fn encode4x(&mut self, data: &[u8]) {
         assert!(data.len() >= 4);
+
+        // Split data in 4 equally sized parts (the last one might be a bit smaller than the rest)
         let split_size = (data.len() + 3) / 4;
         let src1 = &data[..split_size];
         let src2 = &data[split_size..split_size * 2];
         let src3 = &data[split_size * 2..split_size * 3];
         let src4 = &data[split_size * 3..];
 
+        // Write table description
         self.write_table();
+
+        // Reserve space for the jump table, will be changed later
         let size_idx = self.writer.index();
         self.writer.write_bits(0u16, 16);
         self.writer.write_bits(0u16, 16);
         self.writer.write_bits(0u16, 16);
 
+        // Write the 4 streams, noting the sizes of the encoded streams
         let index_before = self.writer.index();
         Self::encode_stream(&self.table, self.writer, src1);
         let size1 = (self.writer.index() - index_before) / 8;
@@ -47,15 +65,18 @@ impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, V> {
 
         Self::encode_stream(&self.table, self.writer, src4);
 
-        assert!(size1 as u16 <= u16::MAX);
-        assert!(size2 as u16 <= u16::MAX);
-        assert!(size3 as u16 <= u16::MAX);
+        // Sanity check, if this doesn't hold we produce a broken stream
+        assert!(size1 <= u16::MAX as usize);
+        assert!(size2 <= u16::MAX as usize);
+        assert!(size3 <= u16::MAX as usize);
 
+        // Update the jumptable with the real sizes
         self.writer.change_bits(size_idx, size1 as u16, 16);
         self.writer.change_bits(size_idx + 16, size2 as u16, 16);
         self.writer.change_bits(size_idx + 32, size3 as u16, 16);
     }
 
+    /// Encode one stream and pad it to fill the last byte
     fn encode_stream<VV: AsMut<Vec<u8>>>(
         table: &HuffmanTable,
         writer: &mut BitWriter<VV>,
@@ -170,6 +191,9 @@ impl HuffmanTable {
             symbol: u8,
             weight: usize,
         }
+
+        // TODO this doesn't need to be a temporary Vec, it could be done in a [_; 264]
+        // only non-zero weights are interesting here
         for (symbol, weight) in weights.iter().copied().enumerate() {
             if weight > 0 {
                 sorted.push(SortEntry {
@@ -178,11 +202,13 @@ impl HuffmanTable {
                 });
             }
         }
+        // We process symbols ordered by weight and then ordered by symbol
         sorted.sort_by(|left, right| match left.weight.cmp(&right.weight) {
             Ordering::Equal => left.symbol.cmp(&right.symbol),
             other => other,
         });
 
+        // Prepare huffman table with placeholders
         let mut table = HuffmanTable {
             codes: Vec::with_capacity(weights.len()),
         };
@@ -190,23 +216,29 @@ impl HuffmanTable {
             table.codes.push((0, 0));
         }
 
+        // Determine the number of bits needed for codes with the lowest weight
         let weight_sum = sorted.iter().map(|e| 1 << (e.weight - 1)).sum::<usize>();
         if !weight_sum.is_power_of_two() {
             panic!("This is an internal error");
         }
         let max_num_bits = highest_bit_set(weight_sum) - 1; // this is a log_2 of a clean power of two
 
-        let mut current_value = 0;
+        // Starting at the symbols with the lowest weight we update the placeholders in the table
+        let mut current_code = 0;
         let mut current_weight = 0;
         let mut current_num_bits = 0;
         for entry in sorted.iter() {
+            // If the entry isn't the same weight as the last one we need to change a few things
             if current_weight != entry.weight {
-                current_value >>= entry.weight - current_weight;
-                current_weight = entry.weight;
+                // The code shifts by the difference of the weights to allow for enough unique values
+                current_code >>= entry.weight - current_weight;
+                // Encoding a symbol of this weight will take less bits than the previous weight
                 current_num_bits = max_num_bits - entry.weight + 1;
+                // Run the next update when the weight changes again
+                current_weight = entry.weight;
             }
-            table.codes[entry.symbol as usize] = (current_value as u32, current_num_bits as u8);
-            current_value += 1;
+            table.codes[entry.symbol as usize] = (current_code as u32, current_num_bits as u8);
+            current_code += 1;
         }
 
         table
@@ -237,21 +269,39 @@ fn huffman() {
     assert_eq!(table.codes[5], (1, 4));
 }
 
+/// Distributes weights that add up to a clean power of two
 fn distribute_weights(amount: usize) -> Vec<usize> {
     assert!(amount >= 2);
     assert!(amount <= 256);
     let mut weights = Vec::new();
+
+    // This is the trivial power of two we always need
+    weights.push(1);
+    weights.push(1);
+
+    // This is the weight we are adding right now
     let mut target_weight = 1;
+    // Counts how many times we have added weights
     let mut weight_counter = 2;
 
-    weights.push(1);
-    weights.push(1);
-
+    // We always add a power of 2 new weights so that the weights that we add equal
+    // the weights are already in the vec if raised to the power of two.
+    // This means we double the weights in the vec -> results in a new power of two
+    //
+    // Example: [1, 1]      -> [1,1,2]       (2^1 + 2^1 == 2^2)
+    //
+    // Example: [1, 1]      -> [1,1,1,1]     (2^1 + 2^1 == 2^1 + 2^1)
+    //          [1,1,1,1]   -> [1,1,1,1,3]   (2^1 + 2^1 + 2^1 + 2^1 == 2^3)
     while weights.len() < amount {
         let mut add_new = 1 << (weight_counter - target_weight);
         let available_space = amount - weights.len();
 
+        // If the amount of new weights needed to get to the next power of two would exceed amount
+        // We instead add 1 of a bigger weight and start the cycle again
         if add_new > available_space {
+            // TODO we could maybe instead do this until add_new <= available_space?
+            //  target_weight += 1
+            //  add_new /= 2
             target_weight = weight_counter;
             add_new = 1;
         }
@@ -262,31 +312,44 @@ fn distribute_weights(amount: usize) -> Vec<usize> {
         weight_counter += 1;
     }
 
+    assert_eq!(amount, weights.len());
+
     weights
 }
 
+/// Sometimes distribute_weights generates weights that require too many bits to encode
+/// This redistributes the weights to have less variance by raising the lower weights while still maintaining the
+/// required attributes of the weight distribution
 fn redistribute_weights(weights: &mut [usize], max_num_bits: usize) {
-    let weight_sum = weights
+    let weight_sum_log = weights
         .iter()
         .copied()
         .map(|x| 1 << x)
         .sum::<usize>()
         .ilog2() as usize;
-    if weight_sum < max_num_bits {
+
+    // Nothing needs to be done, this is already fine
+    if weight_sum_log < max_num_bits {
         return;
     }
-    let decrease_weights_by = weight_sum - max_num_bits + 1;
+
+    // We need to decrease the weight difference by the difference between weight_sum_log and max_num_bits
+    let decrease_weights_by = weight_sum_log - max_num_bits + 1;
+
+    // To do that we raise the lower weights up by that difference, recording how much weight we added in the process
     let mut added_weights = 0;
     for weight in weights.iter_mut() {
         if *weight < decrease_weights_by {
             for add in *weight..decrease_weights_by {
                 added_weights += 1 << add;
             }
-            *weight += decrease_weights_by - *weight;
+            *weight = decrease_weights_by;
         }
     }
 
+    // Then we reduce weights until the added weights are equaled out
     while added_weights > 0 {
+        // Find the highest weight that is still lower or equal to the added weight
         let mut current_idx = 0;
         let mut current_weight = 0;
         for (idx, weight) in weights.iter().copied().enumerate() {
@@ -299,10 +362,12 @@ fn redistribute_weights(weights: &mut [usize], max_num_bits: usize) {
             }
         }
 
+        // Reduce that weight by 1
         added_weights -= 1 << (current_weight - 1);
         weights[current_idx] -= 1;
     }
 
+    // At the end we normalize the weights so that they start at 1 again
     if weights[0] > 1 {
         let offset = weights[0] - 1;
         for weight in weights.iter_mut() {
