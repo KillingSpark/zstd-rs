@@ -8,8 +8,8 @@ pub(crate) mod frame_header;
 pub(crate) mod match_generator;
 pub(crate) mod util;
 
-use alloc::vec::Vec;
 use crate::io::{Read, Write};
+use alloc::vec::Vec;
 pub use frame_encoder::*;
 use match_generator::Sequence;
 
