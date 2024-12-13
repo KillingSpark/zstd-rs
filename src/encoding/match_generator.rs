@@ -62,13 +62,12 @@ impl Matcher for MatchGeneratorDriver {
     }
 }
 
-struct WindowEntry {
-    data: Vec<u8>,
-    suffixes: SuffixStore,
-    base_offset: usize,
-}
-
+/// This stores the index of a suffix of a string by hashing the first few bytes of that suffix
+/// This means that collisions just overwrite and that you need to check validity after a get
 struct SuffixStore {
+    // We use NonZeroUsize to enable niche optimization here.
+    // On store we do +1 and on get -1
+    // This is ok since usize::MAX is never a valid offset
     slots: Vec<Option<NonZeroUsize>>,
     len_log: u32,
 }
@@ -121,6 +120,16 @@ impl SuffixStore {
     }
 }
 
+/// We keep a window of a few of these entries
+/// All of these are valid targets for a match to be generated for
+struct WindowEntry {
+    data: Vec<u8>,
+    /// Stores indexes into data
+    suffixes: SuffixStore,
+    /// Makes offset calculations efficient
+    base_offset: usize,
+}
+
 pub(crate) struct MatchGenerator {
     max_window_size: usize,
     /// Data window we are operating on to find matches
@@ -148,6 +157,7 @@ pub(crate) enum Sequence<'data> {
 }
 
 impl MatchGenerator {
+    /// max_size defines how many bytes will be used at most in the window used for matching
     fn new(max_size: usize) -> Self {
         Self {
             max_window_size: max_size,
@@ -160,10 +170,16 @@ impl MatchGenerator {
         }
     }
 
+    /// Processes bytes in the current window until either a match is found or no more matches can be found
+    /// * If a match is found handle_sequence is called with the Triple variant
+    /// * If no more matches can be found but there are bytes still left handle_sequence is called with the Literals variant
+    /// * If no more matches can be found and no more bytes are left this returns false
     fn next_sequence(&mut self, mut handle_sequence: impl for<'a> FnMut(Sequence<'a>)) -> bool {
         loop {
             let last_entry = self.window.last().unwrap();
             let data_slice = &last_entry.data;
+
+            // We already reached the end of the window, check if we need to return a Literals{}
             if self.suffix_idx >= data_slice.len() {
                 if self.last_idx_in_sequence != self.suffix_idx {
                     let literals = &data_slice[self.last_idx_in_sequence..];
@@ -174,8 +190,9 @@ impl MatchGenerator {
                     return false;
                 }
             }
-            let data_slice = &data_slice[self.suffix_idx..];
 
+            // If the remaining data is smaller than the minimum match length we can stop and return a Literals{}
+            let data_slice = &data_slice[self.suffix_idx..];
             if data_slice.len() < MIN_MATCH_LEN {
                 let last_idx_in_sequence = self.last_idx_in_sequence;
                 self.last_idx_in_sequence = last_entry.data.len();
@@ -186,8 +203,10 @@ impl MatchGenerator {
                 return true;
             }
 
+            // This is the key we are looking to find a match for
             let key = &data_slice[..MIN_MATCH_LEN];
 
+            // Look in each window entry
             for (match_entry_idx, match_entry) in self.window.iter().enumerate() {
                 let is_last = match_entry_idx == self.window.len() - 1;
                 if let Some(match_index) = match_entry.suffixes.get(key) {
@@ -196,11 +215,15 @@ impl MatchGenerator {
                     } else {
                         &match_entry.data[match_index..]
                     };
+
+                    // Check how long the common prefix actually is
                     let match_len = Self::common_prefix_len(match_slice, data_slice);
 
+                    // Collisions in the suffix store might make this check fail
                     if match_len >= MIN_MATCH_LEN {
                         let offset = match_entry.base_offset + self.suffix_idx - match_index;
 
+                        // If we are in debug/tests make sure the match we found is actually at the offset we calculated
                         #[cfg(debug_assertions)]
                         {
                             let unprocessed = last_entry.data.len() - self.suffix_idx;
@@ -210,10 +233,15 @@ impl MatchGenerator {
                             debug_assert_eq!(check_slice, &match_slice[..match_len]);
                         }
 
+                        // For each index in the match we found we do not need to look for another match
+                        // But we still want them registered in the suffix store
                         self.add_suffixes_till(self.suffix_idx + match_len);
 
+                        // All literals that were not included between this match and the last are now included here
                         let last_entry = self.window.last().unwrap();
                         let literals = &last_entry.data[self.last_idx_in_sequence..self.suffix_idx];
+
+                        // Update the indexes, all indexes upto and including the current index have been included in a sequence now
                         self.suffix_idx += match_len;
                         self.last_idx_in_sequence = self.suffix_idx;
                         handle_sequence(Sequence::Triple {
@@ -236,11 +264,14 @@ impl MatchGenerator {
         }
     }
 
+    /// Find the common prefix length between two byte slices
     #[inline(always)]
     fn common_prefix_len(a: &[u8], b: &[u8]) -> usize {
         Self::mismatch_chunks::<8>(a, b)
     }
 
+    /// Find the common prefix length between two byte slices with a configurable chunk length
+    /// This enables vectorization optimizations
     fn mismatch_chunks<const N: usize>(xs: &[u8], ys: &[u8]) -> usize {
         let off = core::iter::zip(xs.chunks_exact(N), ys.chunks_exact(N))
             .take_while(|(x, y)| x == y)
@@ -251,6 +282,7 @@ impl MatchGenerator {
             .count()
     }
 
+    /// Process bytes and add the suffixes to the suffix store up to a specific index
     #[inline(always)]
     fn add_suffixes_till(&mut self, idx: usize) {
         let last_entry = self.window.last_mut().unwrap();
@@ -265,12 +297,16 @@ impl MatchGenerator {
         }
     }
 
+    /// Skip matching for the whole current window entry
     fn skip_matching(&mut self) {
         let len = self.window.last().unwrap().data.len();
         self.add_suffixes_till(len);
         self.suffix_idx = len;
         self.last_idx_in_sequence = len;
     }
+
+    /// Add a new window entry. Will panic if the last window entry hasn't been processed properly.
+    /// If any resources are released by pushing the new entry they are returned via the callback
     fn add_data(
         &mut self,
         data: Vec<u8>,
@@ -301,6 +337,8 @@ impl MatchGenerator {
         self.last_idx_in_sequence = 0;
     }
 
+    /// Reserve space for a new window entry
+    /// If any resources are released by pushing the new entry they are returned via the callback
     fn reserve(&mut self, amount: usize, mut reuse_space: impl FnMut(Vec<u8>, SuffixStore)) {
         assert!(self.max_window_size >= amount);
         while self.window_size + amount > self.max_window_size {
