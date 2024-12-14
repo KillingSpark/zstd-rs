@@ -113,6 +113,7 @@ impl FrameDescriptor {
 
     /// This bit is reserved for some future feature, a compliant decoder **must ensure**
     /// that this value is set to zero.
+    #[expect(dead_code)]
     pub fn reserved_flag(&self) -> bool {
         ((self.0 >> 3) & 0x1) == 1
     }

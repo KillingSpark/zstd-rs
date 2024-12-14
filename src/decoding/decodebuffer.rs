@@ -59,10 +59,6 @@ impl DecodeBuffer {
         self.buffer.len()
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.buffer.is_empty()
-    }
-
     pub fn push(&mut self, data: &[u8]) {
         self.buffer.extend(data);
         self.total_output_counter += data.len() as u64;

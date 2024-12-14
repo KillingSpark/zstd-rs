@@ -120,9 +120,4 @@ impl<'s> BitReader<'s> {
 
         Ok(value)
     }
-
-    pub fn reset(&mut self, new_source: &'s [u8]) {
-        self.idx = 0;
-        self.source = new_source;
-    }
 }

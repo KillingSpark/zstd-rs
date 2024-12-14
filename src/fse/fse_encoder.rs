@@ -11,6 +11,7 @@ impl<V: AsMut<Vec<u8>>> FSEEncoder<'_, V> {
         FSEEncoder { table, writer }
     }
 
+    #[cfg(any(test, feature = "fuzz_exports"))]
     pub fn into_table(self) -> FSETable {
         self.table
     }
@@ -21,6 +22,7 @@ impl<V: AsMut<Vec<u8>>> FSEEncoder<'_, V> {
     /// * Encoded data
     /// * Last state index
     /// * Padding bits to fill up last byte
+    #[cfg(any(test, feature = "fuzz_exports"))]
     pub fn encode(&mut self, data: &[u8]) {
         self.write_table();
 

@@ -56,16 +56,6 @@ impl<'t> HuffmanDecoder<'t> {
         HuffmanDecoder { table, state: 0 }
     }
 
-    /// Re-initialize the decoder, using the new table if one is provided.
-    /// This might used for treeless blocks, because they re-use the table from old
-    /// data.
-    pub fn reset(mut self, new_table: Option<&'t HuffmanTable>) {
-        self.state = 0;
-        if let Some(next_table) = new_table {
-            self.table = next_table;
-        }
-    }
-
     /// Decode the symbol the internal state (cursor) is pointed at and return the
     /// decoded literal.
     pub fn decode_symbol(&mut self) -> u8 {

@@ -15,9 +15,7 @@
 mod fse_decoder;
 
 pub use fse_decoder::*;
-use fse_encoder::FSEEncoder;
 
-use crate::{decoding::bit_reader_reverse::BitReaderReversed, encoding::bit_writer::BitWriter};
 pub mod fse_encoder;
 
 #[test]
@@ -30,6 +28,7 @@ fn tables_equal() {
     check_tables(&dec_table, &enc_table);
 }
 
+#[cfg(any(test, feature = "fuzz_exports"))]
 fn check_tables(dec_table: &fse_decoder::FSETable, enc_table: &fse_encoder::FSETable) {
     for (idx, dec_state) in dec_table.decode.iter().enumerate() {
         let enc_states = &enc_table.states[dec_state.symbol as usize];
@@ -79,6 +78,9 @@ fn roundtrip() {
 /// Asserts that the decoded data equals the input
 #[cfg(any(test, feature = "fuzz_exports"))]
 pub fn round_trip(data: &[u8]) {
+    use crate::{decoding::bit_reader_reverse::BitReaderReversed, encoding::bit_writer::BitWriter};
+    use fse_encoder::FSEEncoder;
+
     if data.len() < 2 {
         return;
     }

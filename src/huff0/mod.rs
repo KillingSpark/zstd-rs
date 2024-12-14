@@ -3,11 +3,7 @@
 /// used symbols get longer codes. Codes are prefix free, meaning no two codes
 /// will start with the same sequence of bits.
 mod huff0_decoder;
-use alloc::vec::Vec;
-
 pub use huff0_decoder::*;
-
-use crate::{decoding::bit_reader_reverse::BitReaderReversed, encoding::bit_writer::BitWriter};
 pub mod huff0_encoder;
 
 /// Only needed for testing.
@@ -17,6 +13,9 @@ pub mod huff0_encoder;
 /// Asserts that the decoded data equals the input
 #[cfg(any(test, feature = "fuzz_exports"))]
 pub fn round_trip(data: &[u8]) {
+    use crate::{decoding::bit_reader_reverse::BitReaderReversed, encoding::bit_writer::BitWriter};
+    use alloc::vec::Vec;
+
     if data.len() < 2 {
         return;
     }
@@ -58,6 +57,7 @@ pub fn round_trip(data: &[u8]) {
 
 #[test]
 fn roundtrip() {
+    use alloc::vec::Vec;
     round_trip(&[1, 1, 1, 1, 2, 3]);
     round_trip(&[1, 1, 1, 1, 2, 3, 5, 45, 12, 90]);
 

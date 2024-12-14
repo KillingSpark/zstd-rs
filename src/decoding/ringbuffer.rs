@@ -57,11 +57,6 @@ impl RingBuffer {
         self.tail = 0;
     }
 
-    /// Whether the buffer is empty
-    pub fn is_empty(&self) -> bool {
-        self.head == self.tail
-    }
-
     /// Ensure that there's space for `amount` elements in the buffer.
     pub fn reserve(&mut self, amount: usize) {
         let free = self.free();

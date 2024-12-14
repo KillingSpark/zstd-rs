@@ -220,11 +220,4 @@ impl<'s> BitReaderReversed<'s> {
 
         value_masked
     }
-
-    pub fn reset(&mut self, new_source: &'s [u8]) {
-        self.idx = new_source.len() as isize * 8;
-        self.source = new_source;
-        self.bit_container = 0;
-        self.bits_in_container = 0;
-    }
 }
