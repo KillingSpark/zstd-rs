@@ -1,4 +1,4 @@
-//! A pure Rust implementation of the [Zstandard compression format](https://facebook.github.io/zstd/).
+//! A pure Rust implementation of the [Zstandard compression format](https://www.rfc-editor.org/rfc/rfc8878.pdf).
 //!
 //! ## Decompression
 //! The [decoding] module contains the code for decompression.
