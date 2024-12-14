@@ -77,6 +77,7 @@ fn roundtrip() {
 /// Encodes the data with a table built from that data
 /// Decodes the result again by first decoding the table and then the data
 /// Asserts that the decoded data equals the input
+#[cfg(any(test, feature = "fuzz_exports"))]
 pub fn round_trip(data: &[u8]) {
     if data.len() < 2 {
         return;
