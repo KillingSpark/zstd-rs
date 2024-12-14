@@ -1,4 +1,4 @@
-# Ruzstd (a pure rust zstd decoder)
+# Ruzstd (a pure rust zstd format implementation)
 
 [![Released API docs](https://docs.rs/ruzstd/badge.svg)](https://docs.rs/ruzstd)
 [![CI](https://github.com/killingspark/zstd-rs/workflows/CI/badge.svg)](https://github.com/killingspark/zstd-rs/actions?query=workflow%3ACI)
@@ -74,9 +74,27 @@ This will tell you where the decoder panics exactly. If you are able to fix the 
 
 # How can you use it?
 
+## Compression
+
+The easiest is to use the provided `compress`/`compress_to_vec` functions
+
+```rust
+use ruzstd::encoding::{compress, compress_to_vec, frame_compressor::CompressionLevel};
+let data: &[u8] = todo!();
+// Either
+let mut compressed = Vec::new();
+compress(data, &mut compressed, CompressionLevel::Fastest);
+// or
+let compressed = compress_to_vec(data, CompressionLevel::Fastest);
+ ```
+
+ Or you can use the `FrameDecoder` manually to compress data. This allows you to process encoded data while it is being encoded instead of collecting into a big vector.
+
+## Decompression
+
 Additionally to the descriptions and the docs you can have a look at the zstd / zstd_streaming binaries. They showcase how this library can be used.
 
-## Easy
+### Easy
 
 The easiest is to wrap the io::Read into a StreamingDecoder which itself implements io::Read. It will decode blocks as necessary to fulfill the read requests
 
@@ -91,7 +109,7 @@ decoder.read_to_end(&mut result).unwrap();
 This might be a problem if you are accepting user provided data. Frames can be REALLY big when decoded. If this is the case you should either check how big the frame
 actually is or use the memory efficient approach described below.
 
-## Memory efficient
+### Memory efficient
 
 If memory is a concern you can decode frames partially. There are two ways to do this:
 
