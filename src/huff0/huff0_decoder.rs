@@ -1,11 +1,9 @@
 //! Utilities for decoding Huff0 encoded huffman data.
 
 use crate::decoding::bit_reader_reverse::BitReaderReversed;
-use crate::decoding::GetBitsError;
-use crate::fse::{FSEDecoder, FSEDecoderError, FSETable, FSETableError};
+use crate::decoding::errors::HuffmanTableError;
+use crate::fse::{FSEDecoder, FSETable};
 use alloc::vec::Vec;
-#[cfg(feature = "std")]
-use std::error::Error as StdError;
 
 pub struct HuffmanTable {
     decode: Vec<Entry>,
@@ -25,187 +23,11 @@ pub struct HuffmanTable {
     fse_table: FSETable,
 }
 
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum HuffmanTableError {
-    GetBitsError(GetBitsError),
-    FSEDecoderError(FSEDecoderError),
-    FSETableError(FSETableError),
-    SourceIsEmpty,
-    NotEnoughBytesForWeights {
-        got_bytes: usize,
-        expected_bytes: u8,
-    },
-    ExtraPadding {
-        skipped_bits: i32,
-    },
-    TooManyWeights {
-        got: usize,
-    },
-    MissingWeights,
-    LeftoverIsNotAPowerOf2 {
-        got: u32,
-    },
-    NotEnoughBytesToDecompressWeights {
-        have: usize,
-        need: usize,
-    },
-    FSETableUsedTooManyBytes {
-        used: usize,
-        available_bytes: u8,
-    },
-    NotEnoughBytesInSource {
-        got: usize,
-        need: usize,
-    },
-    WeightBiggerThanMaxNumBits {
-        got: u8,
-    },
-    MaxBitsTooHigh {
-        got: u8,
-    },
-}
-
-#[cfg(feature = "std")]
-impl StdError for HuffmanTableError {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        match self {
-            HuffmanTableError::GetBitsError(source) => Some(source),
-            HuffmanTableError::FSEDecoderError(source) => Some(source),
-            HuffmanTableError::FSETableError(source) => Some(source),
-            _ => None,
-        }
-    }
-}
-
-impl core::fmt::Display for HuffmanTableError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        match self {
-            HuffmanTableError::GetBitsError(e) => write!(f, "{:?}", e),
-            HuffmanTableError::FSEDecoderError(e) => write!(f, "{:?}", e),
-            HuffmanTableError::FSETableError(e) => write!(f, "{:?}", e),
-            HuffmanTableError::SourceIsEmpty => write!(f, "Source needs to have at least one byte"),
-            HuffmanTableError::NotEnoughBytesForWeights {
-                got_bytes,
-                expected_bytes,
-            } => {
-                write!(f, "Header says there should be {} bytes for the weights but there are only {} bytes in the stream",
-                    expected_bytes,
-                    got_bytes)
-            }
-            HuffmanTableError::ExtraPadding { skipped_bits } => {
-                write!(f,
-                    "Padding at the end of the sequence_section was more than a byte long: {} bits. Probably caused by data corruption",
-                    skipped_bits,
-                )
-            }
-            HuffmanTableError::TooManyWeights { got } => {
-                write!(
-                    f,
-                    "More than 255 weights decoded (got {} weights). Stream is probably corrupted",
-                    got,
-                )
-            }
-            HuffmanTableError::MissingWeights => {
-                write!(f, "Can\'t build huffman table without any weights")
-            }
-            HuffmanTableError::LeftoverIsNotAPowerOf2 { got } => {
-                write!(f, "Leftover must be power of two but is: {}", got)
-            }
-            HuffmanTableError::NotEnoughBytesToDecompressWeights { have, need } => {
-                write!(
-                    f,
-                    "Not enough bytes in stream to decompress weights. Is: {}, Should be: {}",
-                    have, need,
-                )
-            }
-            HuffmanTableError::FSETableUsedTooManyBytes {
-                used,
-                available_bytes,
-            } => {
-                write!(f,
-                    "FSE table used more bytes: {} than were meant to be used for the whole stream of huffman weights ({})",
-                    used,
-                    available_bytes,
-                )
-            }
-            HuffmanTableError::NotEnoughBytesInSource { got, need } => {
-                write!(
-                    f,
-                    "Source needs to have at least {} bytes, got: {}",
-                    need, got,
-                )
-            }
-            HuffmanTableError::WeightBiggerThanMaxNumBits { got } => {
-                write!(
-                    f,
-                    "Cant have weight: {} bigger than max_num_bits: {}",
-                    got, MAX_MAX_NUM_BITS,
-                )
-            }
-            HuffmanTableError::MaxBitsTooHigh { got } => {
-                write!(
-                    f,
-                    "max_bits derived from weights is: {} should be lower than: {}",
-                    got, MAX_MAX_NUM_BITS,
-                )
-            }
-        }
-    }
-}
-
-impl From<GetBitsError> for HuffmanTableError {
-    fn from(val: GetBitsError) -> Self {
-        Self::GetBitsError(val)
-    }
-}
-
-impl From<FSEDecoderError> for HuffmanTableError {
-    fn from(val: FSEDecoderError) -> Self {
-        Self::FSEDecoderError(val)
-    }
-}
-
-impl From<FSETableError> for HuffmanTableError {
-    fn from(val: FSETableError) -> Self {
-        Self::FSETableError(val)
-    }
-}
-
 /// An interface around a huffman table used to decode data.
 pub struct HuffmanDecoder<'table> {
     table: &'table HuffmanTable,
     /// State is used to index into the table.
     pub state: u64,
-}
-
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum HuffmanDecoderError {
-    GetBitsError(GetBitsError),
-}
-
-impl core::fmt::Display for HuffmanDecoderError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            HuffmanDecoderError::GetBitsError(e) => write!(f, "{:?}", e),
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl StdError for HuffmanDecoderError {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        match self {
-            HuffmanDecoderError::GetBitsError(source) => Some(source),
-        }
-    }
-}
-
-impl From<GetBitsError> for HuffmanDecoderError {
-    fn from(val: GetBitsError) -> Self {
-        Self::GetBitsError(val)
-    }
 }
 
 /// A single entry in the table contains the decoded symbol/literal and the
@@ -219,7 +41,7 @@ pub struct Entry {
 }
 
 /// The Zstandard specification limits the maximum length of a code to 11 bits.
-const MAX_MAX_NUM_BITS: u8 = 11;
+pub(crate) const MAX_MAX_NUM_BITS: u8 = 11;
 
 /// Assert that the provided value is greater than zero, and returns the
 /// 32 - the number of leading zeros

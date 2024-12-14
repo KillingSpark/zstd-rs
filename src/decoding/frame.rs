@@ -1,7 +1,5 @@
-use crate::io::{Error, Read};
-use core::fmt;
-#[cfg(feature = "std")]
-use std::error::Error as StdError;
+use crate::decoding::errors::{FrameDescriptorError, FrameHeaderError, ReadFrameHeaderError};
+use crate::io::Read;
 
 /// This magic number is included at the start of a single Zstandard frame
 pub const MAGIC_NUM: u32 = 0xFD2F_B528;
@@ -49,30 +47,48 @@ pub struct FrameHeader {
     frame_content_size: u64,
 }
 
-/// The first byte is called the `Frame Header Descriptor`, and it describes what other fields
-/// are present.
-pub struct FrameDescriptor(pub u8);
+impl FrameHeader {
+    /// Read the size of the window from the header or the total frame content size,
+    /// whichever is defined, returning the size in bytes.
+    pub fn window_size(&self) -> Result<u64, FrameHeaderError> {
+        if self.descriptor.single_segment_flag() {
+            Ok(self.frame_content_size())
+        } else {
+            let exp = self.window_descriptor >> 3;
+            let mantissa = self.window_descriptor & 0x7;
 
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum FrameDescriptorError {
-    InvalidFrameContentSizeFlag { got: u8 },
-}
+            let window_log = 10 + u64::from(exp);
+            let window_base = 1 << window_log;
+            let window_add = (window_base / 8) * u64::from(mantissa);
 
-impl fmt::Display for FrameDescriptorError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::InvalidFrameContentSizeFlag { got } => write!(
-                f,
-                "Invalid Frame_Content_Size_Flag; Is: {}, Should be one of: 0, 1, 2, 3",
-                got
-            ),
+            let window_size = window_base + window_add;
+
+            if window_size >= MIN_WINDOW_SIZE {
+                if window_size < MAX_WINDOW_SIZE {
+                    Ok(window_size)
+                } else {
+                    Err(FrameHeaderError::WindowTooBig { got: window_size })
+                }
+            } else {
+                Err(FrameHeaderError::WindowTooSmall { got: window_size })
+            }
         }
+    }
+
+    /// The ID (if provided) of the dictionary required to decode this frame.
+    pub fn dictionary_id(&self) -> Option<u32> {
+        self.dict_id
+    }
+
+    /// Obtain the uncompressed size (in bytes) of the frame contents.
+    pub fn frame_content_size(&self) -> u64 {
+        self.frame_content_size
     }
 }
 
-#[cfg(feature = "std")]
-impl StdError for FrameDescriptorError {}
+/// The first byte is called the `Frame Header Descriptor`, and it describes what other fields
+/// are present.
+pub struct FrameDescriptor(pub u8);
 
 impl FrameDescriptor {
     /// Read the `Frame_Content_Size_flag` from the frame header descriptor.
@@ -157,169 +173,6 @@ impl FrameDescriptor {
             3 => Ok(4),
             other => Err(FrameDescriptorError::InvalidFrameContentSizeFlag { got: other }),
         }
-    }
-}
-
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum FrameHeaderError {
-    WindowTooBig { got: u64 },
-    WindowTooSmall { got: u64 },
-    FrameDescriptorError(FrameDescriptorError),
-    DictIdTooSmall { got: usize, expected: usize },
-    MismatchedFrameSize { got: usize, expected: u8 },
-    FrameSizeIsZero,
-    InvalidFrameSize { got: u8 },
-}
-
-impl fmt::Display for FrameHeaderError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::WindowTooBig { got } => write!(
-                f,
-                "window_size bigger than allowed maximum. Is: {}, Should be lower than: {}",
-                got, MAX_WINDOW_SIZE
-            ),
-            Self::WindowTooSmall { got } => write!(
-                f,
-                "window_size smaller than allowed minimum. Is: {}, Should be greater than: {}",
-                got, MIN_WINDOW_SIZE
-            ),
-            Self::FrameDescriptorError(e) => write!(f, "{:?}", e),
-            Self::DictIdTooSmall { got, expected } => write!(
-                f,
-                "Not enough bytes in dict_id. Is: {}, Should be: {}",
-                got, expected
-            ),
-            Self::MismatchedFrameSize { got, expected } => write!(
-                f,
-                "frame_content_size does not have the right length. Is: {}, Should be: {}",
-                got, expected
-            ),
-            Self::FrameSizeIsZero => write!(f, "frame_content_size was zero"),
-            Self::InvalidFrameSize { got } => write!(
-                f,
-                "Invalid frame_content_size. Is: {}, Should be one of 1, 2, 4, 8 bytes",
-                got
-            ),
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl StdError for FrameHeaderError {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        match self {
-            FrameHeaderError::FrameDescriptorError(source) => Some(source),
-            _ => None,
-        }
-    }
-}
-
-impl From<FrameDescriptorError> for FrameHeaderError {
-    fn from(error: FrameDescriptorError) -> Self {
-        Self::FrameDescriptorError(error)
-    }
-}
-
-impl FrameHeader {
-    /// Read the size of the window from the header or the total frame content size,
-    /// whichever is defined, returning the size in bytes.
-    pub fn window_size(&self) -> Result<u64, FrameHeaderError> {
-        if self.descriptor.single_segment_flag() {
-            Ok(self.frame_content_size())
-        } else {
-            let exp = self.window_descriptor >> 3;
-            let mantissa = self.window_descriptor & 0x7;
-
-            let window_log = 10 + u64::from(exp);
-            let window_base = 1 << window_log;
-            let window_add = (window_base / 8) * u64::from(mantissa);
-
-            let window_size = window_base + window_add;
-
-            if window_size >= MIN_WINDOW_SIZE {
-                if window_size < MAX_WINDOW_SIZE {
-                    Ok(window_size)
-                } else {
-                    Err(FrameHeaderError::WindowTooBig { got: window_size })
-                }
-            } else {
-                Err(FrameHeaderError::WindowTooSmall { got: window_size })
-            }
-        }
-    }
-
-    /// The ID (if provided) of the dictionary required to decode this frame.
-    pub fn dictionary_id(&self) -> Option<u32> {
-        self.dict_id
-    }
-
-    /// Obtain the uncompressed size (in bytes) of the frame contents.
-    pub fn frame_content_size(&self) -> u64 {
-        self.frame_content_size
-    }
-}
-
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum ReadFrameHeaderError {
-    MagicNumberReadError(Error),
-    BadMagicNumber(u32),
-    FrameDescriptorReadError(Error),
-    InvalidFrameDescriptor(FrameDescriptorError),
-    WindowDescriptorReadError(Error),
-    DictionaryIdReadError(Error),
-    FrameContentSizeReadError(Error),
-    SkipFrame { magic_number: u32, length: u32 },
-}
-
-impl fmt::Display for ReadFrameHeaderError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::MagicNumberReadError(e) => write!(f, "Error while reading magic number: {}", e),
-            Self::BadMagicNumber(e) => write!(f, "Read wrong magic number: 0x{:X}", e),
-            Self::FrameDescriptorReadError(e) => {
-                write!(f, "Error while reading frame descriptor: {}", e)
-            }
-            Self::InvalidFrameDescriptor(e) => write!(f, "{:?}", e),
-            Self::WindowDescriptorReadError(e) => {
-                write!(f, "Error while reading window descriptor: {}", e)
-            }
-            Self::DictionaryIdReadError(e) => write!(f, "Error while reading dictionary id: {}", e),
-            Self::FrameContentSizeReadError(e) => {
-                write!(f, "Error while reading frame content size: {}", e)
-            }
-            Self::SkipFrame {
-                magic_number,
-                length,
-            } => write!(
-                f,
-                "SkippableFrame encountered with MagicNumber 0x{:X} and length {} bytes",
-                magic_number, length
-            ),
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl StdError for ReadFrameHeaderError {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        match self {
-            ReadFrameHeaderError::MagicNumberReadError(source) => Some(source),
-            ReadFrameHeaderError::FrameDescriptorReadError(source) => Some(source),
-            ReadFrameHeaderError::InvalidFrameDescriptor(source) => Some(source),
-            ReadFrameHeaderError::WindowDescriptorReadError(source) => Some(source),
-            ReadFrameHeaderError::DictionaryIdReadError(source) => Some(source),
-            ReadFrameHeaderError::FrameContentSizeReadError(source) => Some(source),
-            _ => None,
-        }
-    }
-}
-
-impl From<FrameDescriptorError> for ReadFrameHeaderError {
-    fn from(error: FrameDescriptorError) -> Self {
-        Self::InvalidFrameDescriptor(error)
     }
 }
 

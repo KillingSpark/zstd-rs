@@ -28,7 +28,7 @@ impl crate::io_nostd::Read for std::fs::File {
 fn assure_error_impl() {
     // not a real test just there to throw an compiler error if Error is not derived correctly
 
-    use crate::decoding::frame_decoder::FrameDecoderError;
+    use crate::decoding::errors::FrameDecoderError;
     let _err: &dyn std::error::Error = &FrameDecoderError::NotYetInitialized;
 }
 
@@ -46,6 +46,7 @@ fn assure_decoder_send_sync() {
 
 #[test]
 fn skippable_frame() {
+    use crate::decoding::errors;
     use crate::decoding::frame;
 
     let mut content = vec![];
@@ -55,7 +56,7 @@ fn skippable_frame() {
     let err = frame::read_frame_header(content.as_slice());
     assert!(matches!(
         err,
-        Err(frame::ReadFrameHeaderError::SkipFrame {
+        Err(errors::ReadFrameHeaderError::SkipFrame {
             magic_number: 0x184D2A50u32,
             length: 300
         })
@@ -68,7 +69,7 @@ fn skippable_frame() {
     let err = frame::read_frame_header(content.as_slice());
     assert!(matches!(
         err,
-        Err(frame::ReadFrameHeaderError::SkipFrame {
+        Err(errors::ReadFrameHeaderError::SkipFrame {
             magic_number: 0x184D2A5Fu32,
             length: 0xFFFFFFFF
         })
@@ -484,7 +485,8 @@ fn test_streaming_no_std() {
 
 #[test]
 fn test_decode_all() {
-    use crate::decoding::frame_decoder::{FrameDecoder, FrameDecoderError};
+    use crate::decoding::errors::FrameDecoderError;
+    use crate::decoding::frame_decoder::FrameDecoder;
 
     let skip_frame = |input: &mut Vec<u8>, length: usize| {
         input.extend_from_slice(&0x184D2A50u32.to_le_bytes());

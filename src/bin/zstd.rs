@@ -7,8 +7,8 @@ use std::io::SeekFrom;
 use std::io::Write;
 use std::time::Instant;
 
-use ruzstd::decoding::frame::ReadFrameHeaderError;
-use ruzstd::decoding::frame_decoder::FrameDecoderError;
+use ruzstd::decoding::errors::FrameDecoderError;
+use ruzstd::decoding::errors::ReadFrameHeaderError;
 use ruzstd::encoding::frame_compressor::CompressionLevel;
 use ruzstd::encoding::frame_compressor::FrameCompressor;
 

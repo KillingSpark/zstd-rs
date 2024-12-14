@@ -1,6 +1,6 @@
 use crate::decoding::bit_reader::BitReader;
 use crate::decoding::bit_reader_reverse::BitReaderReversed;
-use crate::decoding::GetBitsError;
+use crate::decoding::errors::{FSEDecoderError, FSETableError};
 use alloc::vec::Vec;
 
 /// FSE decoding involves a decoding table that describes the probabilities of
@@ -34,115 +34,11 @@ pub struct FSETable {
     symbol_counter: Vec<u32>,
 }
 
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum FSETableError {
-    AccLogIsZero,
-    AccLogTooBig {
-        got: u8,
-        max: u8,
-    },
-    GetBitsError(GetBitsError),
-    ProbabilityCounterMismatch {
-        got: u32,
-        expected_sum: u32,
-        symbol_probabilities: Vec<i32>,
-    },
-    TooManySymbols {
-        got: usize,
-    },
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for FSETableError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            FSETableError::GetBitsError(source) => Some(source),
-            _ => None,
-        }
-    }
-}
-
-impl core::fmt::Display for FSETableError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            FSETableError::AccLogIsZero => write!(f, "Acclog must be at least 1"),
-            FSETableError::AccLogTooBig { got, max } => {
-                write!(
-                    f,
-                    "Found FSE acc_log: {0} bigger than allowed maximum in this case: {1}",
-                    got, max
-                )
-            }
-            FSETableError::GetBitsError(e) => write!(f, "{:?}", e),
-            FSETableError::ProbabilityCounterMismatch {
-                got,
-                expected_sum,
-                symbol_probabilities,
-            } => {
-                write!(f,
-                    "The counter ({}) exceeded the expected sum: {}. This means an error or corrupted data \n {:?}",
-                    got,
-                    expected_sum,
-                    symbol_probabilities,
-                )
-            }
-            FSETableError::TooManySymbols { got } => {
-                write!(
-                    f,
-                    "There are too many symbols in this distribution: {}. Max: 256",
-                    got,
-                )
-            }
-        }
-    }
-}
-
-impl From<GetBitsError> for FSETableError {
-    fn from(val: GetBitsError) -> Self {
-        Self::GetBitsError(val)
-    }
-}
-
 pub struct FSEDecoder<'table> {
     /// An FSE state value represents an index in the FSE table.
     pub state: Entry,
     /// A reference to the table used for decoding.
     table: &'table FSETable,
-}
-
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum FSEDecoderError {
-    GetBitsError(GetBitsError),
-    TableIsUninitialized,
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for FSEDecoderError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            FSEDecoderError::GetBitsError(source) => Some(source),
-            _ => None,
-        }
-    }
-}
-
-impl core::fmt::Display for FSEDecoderError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            FSEDecoderError::GetBitsError(e) => write!(f, "{:?}", e),
-            FSEDecoderError::TableIsUninitialized => {
-                write!(f, "Tried to use an uninitialized table!")
-            }
-        }
-    }
-}
-
-impl From<GetBitsError> for FSEDecoderError {
-    fn from(val: GetBitsError) -> Self {
-        Self::GetBitsError(val)
-    }
 }
 
 /// A single entry in an FSE table.

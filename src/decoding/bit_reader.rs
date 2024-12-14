@@ -1,4 +1,4 @@
-use super::GetBitsError;
+use super::errors::GetBitsError;
 
 /// Interact with a provided source at a bit level.
 pub struct BitReader<'s> {
