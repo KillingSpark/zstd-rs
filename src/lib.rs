@@ -34,11 +34,12 @@ macro_rules! vprintln {
     }
 }
 
-pub mod blocks;
 pub mod decoding;
 pub mod encoding;
-pub mod fse;
-pub mod huff0;
+
+pub(crate) mod blocks;
+pub(crate) mod fse;
+pub(crate) mod huff0;
 mod tests;
 
 #[cfg(feature = "std")]
