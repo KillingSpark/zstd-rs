@@ -13,6 +13,7 @@ zstd = "0.5.1+zstd.1.4.4"
 
 [dependencies.ruzstd]
 path = ".."
+features = ["fuzz_exports"]
 [dependencies.libfuzzer-sys]
 git = "https://github.com/rust-fuzz/libfuzzer-sys.git"
 

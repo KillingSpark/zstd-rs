@@ -29,6 +29,7 @@ zstd = "0.13.2"
 [features]
 default = ["hash", "std"]
 hash = ["dep:twox-hash"]
+fuzz_exports = []
 std = []
 
 # Internal feature, only used when building as part of libstd, not part of the

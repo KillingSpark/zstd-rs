@@ -38,8 +38,17 @@ pub mod decoding;
 pub mod encoding;
 
 pub(crate) mod blocks;
+
+#[cfg(feature = "fuzz_exports")]
+pub mod fse;
+#[cfg(feature = "fuzz_exports")]
+pub mod huff0;
+
+#[cfg(not(feature = "fuzz_exports"))]
 pub(crate) mod fse;
+#[cfg(not(feature = "fuzz_exports"))]
 pub(crate) mod huff0;
+
 mod tests;
 
 #[cfg(feature = "std")]
