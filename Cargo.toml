@@ -13,7 +13,7 @@ keywords = ["zstd", "zstandard", "decompression"]
 categories = ["compression"]
 
 [dependencies]
-twox-hash = { version = "1.6", default-features = false, optional = true }
+twox-hash = { version = "2.0", default-features = false, features = ["xxhash64"], optional = true }
 
 # Internal feature, only used when building as part of libstd, not part of the
 # stable interface of this crate.
