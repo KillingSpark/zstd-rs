@@ -23,7 +23,7 @@ extern crate std;
 extern crate alloc;
 
 #[cfg(feature = "std")]
-pub const VERBOSE: bool = false;
+pub(crate) const VERBOSE: bool = false;
 
 macro_rules! vprintln {
     ($($x:expr),*) => {
