@@ -1,4 +1,4 @@
-//! A pure Rust implementation of the [Zstandard compression algorithm](https://facebook.github.io/zstd/).
+//! A pure Rust implementation of the [Zstandard compression format](https://facebook.github.io/zstd/).
 //!
 //! # Getting Started
 //! ## Decompression
