@@ -6,7 +6,7 @@
 
 # What is this
 
-A pure Rust implementation of the Zstandard compression algorithm, as defined in [this document](https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md).
+A pure Rust implementation of the Zstandard compression format, as defined in [RFC8878](https://www.rfc-editor.org/rfc/rfc8878.pdf).
 
 This crate contains a fully operational implementation of the decompression portion of the standard.
 It also provides a compressor which is usable, but it does not yet reach the speed, ratio or configurability of the original zstd library.
