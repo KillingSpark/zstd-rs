@@ -406,7 +406,8 @@ fn test_streaming_no_std() {
 
     let content = include_bytes!("../../decodecorpus_files/z000088.zst");
     let mut content = content.as_slice();
-    let mut stream = crate::decoding::streaming_decoder::StreamingDecoder::new(&mut content).unwrap();
+    let mut stream =
+        crate::decoding::streaming_decoder::StreamingDecoder::new(&mut content).unwrap();
 
     let original = include_bytes!("../../decodecorpus_files/z000088");
     let mut result = vec![0; original.len()];
