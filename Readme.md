@@ -48,7 +48,13 @@ This decoder is pretty much feature complete. If there are any wishes for new AP
 
 ## Roadmap
 
-1. More Performance optimizations (targets would be sequence_decoding and reverse_bitreader::get_bits. Those account for about 50% of the whole time used)
+1. More Performance optimizations
+  * sequence_decoding and reverse_bitreader::get_bits. Those account for about 50% of the whole time used in decoding
+  * Matching suffixes. This accounts for >60% of the whole time used in encoding
+2. Implement encoder features
+  * More levels
+  * Dictionaries
+  * Checksums
 
 ## Testing
 
