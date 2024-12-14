@@ -15,7 +15,7 @@ This crate is currently actively maintained.
 
 # Current Status
 
-Feature complete on the decoder side. In terms of speed it is still behind the original C implementation which has a rust binding located [here](https://github.com/gyscos/zstd-rs).
+Feature complete on the decoder side.
 
 On the compression side:
 - Support for generating compressed blocks at any compression level
@@ -26,6 +26,8 @@ On the compression side:
   - [ ] Best (roughly level 11)
 - [ ] Checksums
 - [ ] Dictionaries
+
+In terms of speed this library is behind the original C implementation which has a rust binding located [here](https://github.com/gyscos/zstd-rs).
 
 ## Speed
 
