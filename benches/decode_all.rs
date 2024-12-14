@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use ruzstd::FrameDecoder;
+use ruzstd::decoding::frame_decoder::FrameDecoder;
 
 fn criterion_benchmark(c: &mut Criterion) {
     let mut fr = FrameDecoder::new();

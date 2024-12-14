@@ -1,20 +1,9 @@
+use super::GetBitsError;
+
 /// Interact with a provided source at a bit level.
 pub struct BitReader<'s> {
     idx: usize, //index counts bits already read
     source: &'s [u8],
-}
-
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum GetBitsError {
-    TooManyBits {
-        num_requested_bits: usize,
-        limit: u8,
-    },
-    NotEnoughRemainingBits {
-        requested: usize,
-        remaining: usize,
-    },
 }
 
 #[cfg(feature = "std")]

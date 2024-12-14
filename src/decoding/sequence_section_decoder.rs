@@ -1,11 +1,12 @@
 use super::super::blocks::sequence_section::ModeType;
 use super::super::blocks::sequence_section::Sequence;
 use super::super::blocks::sequence_section::SequencesHeader;
-use super::bit_reader_reverse::{BitReaderReversed, GetBitsError};
+use super::bit_reader_reverse::BitReaderReversed;
 use super::scratch::FSEScratch;
 use crate::blocks::sequence_section::{
     MAX_LITERAL_LENGTH_CODE, MAX_MATCH_LENGTH_CODE, MAX_OFFSET_CODE,
 };
+use crate::decoding::GetBitsError;
 use crate::fse::{FSEDecoder, FSEDecoderError, FSETableError};
 use alloc::vec::Vec;
 

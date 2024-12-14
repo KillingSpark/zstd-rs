@@ -7,10 +7,10 @@ use std::io::SeekFrom;
 use std::io::Write;
 use std::time::Instant;
 
-use ruzstd::encoding::CompressionLevel;
-use ruzstd::encoding::FrameCompressor;
-use ruzstd::frame::ReadFrameHeaderError;
-use ruzstd::frame_decoder::FrameDecoderError;
+use ruzstd::decoding::frame::ReadFrameHeaderError;
+use ruzstd::decoding::frame_decoder::FrameDecoderError;
+use ruzstd::encoding::frame_compressor::CompressionLevel;
+use ruzstd::encoding::frame_compressor::FrameCompressor;
 
 struct StateTracker {
     bytes_used: u64,
@@ -41,7 +41,7 @@ fn decompress(flags: &[String], file_paths: &[String]) {
         return;
     }
 
-    let mut frame_dec = ruzstd::FrameDecoder::new();
+    let mut frame_dec = ruzstd::decoding::frame_decoder::FrameDecoder::new();
 
     for path in file_paths {
         eprintln!("File: {}", path);
@@ -79,7 +79,12 @@ fn decompress(flags: &[String], file_paths: &[String]) {
 
             while !frame_dec.is_finished() {
                 frame_dec
-                    .decode_blocks(&mut f, ruzstd::BlockDecodingStrategy::UptoBytes(batch_size))
+                    .decode_blocks(
+                        &mut f,
+                        ruzstd::decoding::frame_decoder::BlockDecodingStrategy::UptoBytes(
+                            batch_size,
+                        ),
+                    )
                     .unwrap();
 
                 if frame_dec.can_collect() > batch_size {

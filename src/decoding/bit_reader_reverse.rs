@@ -1,7 +1,5 @@
-use core::convert::TryInto;
-
-pub use super::bit_reader::GetBitsError;
 use crate::io::Read;
+use core::convert::TryInto;
 
 /// Zstandard encodes some types of data in a way that the data must be read
 /// back to front to decode it properly. `BitReaderReversed` provides a

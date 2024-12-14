@@ -3,11 +3,12 @@
 //! # Getting Started
 //! ## Decompression
 //! The [decoding] module contains the internals for decompression.
-//! Decompression can be achieved by using the [`StreamingDecoder`] interface.
+//! Decompression can be achieved by using the [`decoding::streaming_decoder::StreamingDecoder`] interface
+//! or the more low-level [`decoding::frame_decoder::FrameDecoder`]
 //!
 //! ## Compression
 //! The [encoding] module contains the internals for compression.
-//! Decompression can be achieved by using the [`encoding::compress`]/[`encoding::compress_to_vec`] functions or the [`FrameCompressor`] interface.
+//! Decompression can be achieved by using the [`encoding::compress`]/[`encoding::compress_to_vec`] functions or the [`encoding::frame_compressor::FrameCompressor`] interface.
 //!
 //! # Speed
 //! The decoder has been measured to be roughly between 3.5 to 1.4 times slower
@@ -36,11 +37,8 @@ macro_rules! vprintln {
 pub mod blocks;
 pub mod decoding;
 pub mod encoding;
-pub mod frame;
-pub mod frame_decoder;
 pub mod fse;
 pub mod huff0;
-pub mod streaming_decoder;
 mod tests;
 
 #[cfg(feature = "std")]
@@ -51,9 +49,3 @@ pub mod io_nostd;
 
 #[cfg(not(feature = "std"))]
 pub use io_nostd as io;
-
-pub use frame_decoder::BlockDecodingStrategy;
-pub use frame_decoder::FrameDecoder;
-pub use streaming_decoder::StreamingDecoder;
-
-pub use encoding::FrameCompressor;

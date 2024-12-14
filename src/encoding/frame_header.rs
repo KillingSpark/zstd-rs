@@ -1,9 +1,9 @@
 //! Utilities and representations for a frame header.
+use crate::decoding::frame;
 use crate::encoding::{
     bit_writer::BitWriter,
     util::{find_min_size, minify_val},
 };
-use crate::frame;
 use alloc::vec::Vec;
 
 /// A header for a single Zstandard frame.
@@ -162,7 +162,7 @@ fn minify_val_fcs(val: u64) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::FrameHeader;
-    use crate::frame::{read_frame_header, FrameDescriptor};
+    use crate::decoding::frame::{read_frame_header, FrameDescriptor};
     use alloc::vec::Vec;
 
     #[test]

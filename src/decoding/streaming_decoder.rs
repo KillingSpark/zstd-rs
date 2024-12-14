@@ -1,6 +1,6 @@
 use core::borrow::BorrowMut;
 
-use crate::frame_decoder::{BlockDecodingStrategy, FrameDecoder, FrameDecoderError};
+use crate::decoding::frame_decoder::{BlockDecodingStrategy, FrameDecoder, FrameDecoderError};
 use crate::io::{Error, ErrorKind, Read};
 
 /// High level Zstandard frame decoder that can be used to decompress a given Zstandard frame.
@@ -19,7 +19,7 @@ use crate::io::{Error, ErrorKind, Read};
 ///
 /// To decode all the frames in a finite stream, the calling code needs to recreate
 /// the instance of the decoder and handle
-/// [crate::frame::ReadFrameHeaderError::SkipFrame]
+/// [crate::decoding::frame::ReadFrameHeaderError::SkipFrame]
 /// errors by skipping forward the `length` amount of bytes, see <https://github.com/KillingSpark/zstd-rs/issues/57>
 ///
 /// ```no_run
@@ -28,7 +28,7 @@ use crate::io::{Error, ErrorKind, Read};
 /// {
 ///     use std::fs::File;
 ///     use std::io::Read;
-///     use ruzstd::{StreamingDecoder};
+///     use ruzstd::decoding::streaming_decoder::StreamingDecoder;
 ///
 ///     // Read a Zstandard archive from the filesystem then decompress it into a vec.
 ///     let mut f: File = todo!("Read a .zstd archive from somewhere");

@@ -1,6 +1,6 @@
 //! Framedecoder is the man struct users interact with to decode zstd frames
 //!
-//! Zstandard compressed data is made of one or more [Frame]s. Each frame is independent and can be
+//! Zstandard compressed data is made of one or more [crate::decoding::frame::Frame]s. Each frame is independent and can be
 //! decompressed independently of other frames. This module contains structures
 //! and utilities that can be used to decode a frame.
 
@@ -26,7 +26,7 @@ use std::error::Error as StdError;
 ///
 /// Workflow is as follows:
 /// ```
-/// use ruzstd::frame_decoder::BlockDecodingStrategy;
+/// use ruzstd::decoding::frame_decoder::BlockDecodingStrategy;
 ///
 /// # #[cfg(feature = "std")]
 /// use std::io::{Read, Write};
@@ -37,7 +37,7 @@ use std::error::Error as StdError;
 ///
 /// fn decode_this(mut file: impl Read) {
 ///     //Create a new decoder
-///     let mut frame_dec = ruzstd::FrameDecoder::new();
+///     let mut frame_dec = ruzstd::decoding::frame_decoder::FrameDecoder::new();
 ///     let mut result = Vec::new();
 ///
 ///     // Use reset or init to make the decoder ready to decode the frame from the io::Read

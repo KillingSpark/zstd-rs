@@ -1,9 +1,10 @@
-//! This module contains the [decompress_literals] function, used to take a
+//! This module contains the decompress_literals function, used to take a
 //! parsed literals header and a source and decompress it.
 
 use super::super::blocks::literals_section::{LiteralsSection, LiteralsSectionType};
-use super::bit_reader_reverse::{BitReaderReversed, GetBitsError};
+use super::bit_reader_reverse::BitReaderReversed;
 use super::scratch::HuffmanScratch;
+use super::GetBitsError;
 use crate::huff0::{HuffmanDecoder, HuffmanDecoderError, HuffmanTableError};
 use alloc::vec::Vec;
 

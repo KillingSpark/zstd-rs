@@ -1,7 +1,8 @@
 #![no_main]
-#[macro_use] extern crate libfuzzer_sys;
+#[macro_use]
+extern crate libfuzzer_sys;
 extern crate ruzstd;
-use ruzstd::encoding::{FrameCompressor, CompressionLevel};
+use ruzstd::encoding::frame_compressor::{CompressionLevel, FrameCompressor};
 
 fuzz_target!(|data: &[u8]| {
     let mut output = Vec::new();
@@ -9,7 +10,7 @@ fuzz_target!(|data: &[u8]| {
     compressor.compress();
 
     let mut decoded = Vec::with_capacity(data.len());
-    let mut decoder = ruzstd::FrameDecoder::new();
+    let mut decoder = ruzstd::decoding::frame_decoder::FrameDecoder::new();
     decoder.decode_all_to_vec(&output, &mut decoded).unwrap();
     assert_eq!(data, &decoded);
 
@@ -18,7 +19,7 @@ fuzz_target!(|data: &[u8]| {
     compressor.compress();
 
     let mut decoded = Vec::with_capacity(data.len());
-    let mut decoder = ruzstd::FrameDecoder::new();
+    let mut decoder = ruzstd::decoding::frame_decoder::FrameDecoder::new();
     decoder.decode_all_to_vec(&output, &mut decoded).unwrap();
     assert_eq!(data, &decoded);
 });
