@@ -6,6 +6,7 @@ pub enum BlockType {
     /// An uncompressed block.
     Raw,
     /// A single byte, repeated `Block_Size` times (Run Length Encoding).
+    #[allow(clippy::upper_case_acronyms)]
     RLE,
     /// A Zstandard compressed block. `Block_Size` is the length of the compressed data.
     Compressed,

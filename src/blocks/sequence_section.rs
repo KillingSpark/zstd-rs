@@ -51,6 +51,7 @@ pub enum ModeType {
     /// will be present.
     Predefined,
     /// The table consists of a single byte, which contains the symbol's value.
+    #[allow(clippy::upper_case_acronyms)]
     RLE,
     /// Standard FSE compression, a distribution table will be present. This
     /// mode should not be used when only one symbol is present.

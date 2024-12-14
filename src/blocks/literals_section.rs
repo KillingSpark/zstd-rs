@@ -32,6 +32,7 @@ pub enum LiteralsSectionType {
     /// Literals are stored uncompressed.
     Raw,
     /// Literals consist of a single byte value repeated [LiteralsSection::regenerated_size] times.
+    #[allow(clippy::upper_case_acronyms)]
     RLE,
     /// This is a standard Huffman-compressed block, starting with a Huffman tree description.
     /// In this mode, there are at least *2* different literals represented in the Huffman tree
