@@ -1,5 +1,4 @@
-//! Structures and utilities used for reading from data, decoding that data
-//! and storing the output.
+//! Structures and utilities used for decoding zstd formatted data
 
 pub mod errors;
 pub mod frame_decoder;

@@ -1,3 +1,5 @@
+//! Errors that might occur while decoding zstd formatted data
+
 use crate::blocks::block::BlockType;
 use crate::blocks::literals_section::LiteralsSectionType;
 use crate::io::Error;

@@ -1,4 +1,4 @@
-//! Framedecoder is the man struct users interact with to decode zstd frames
+//! Framedecoder is the main low-level struct users interact with to decode zstd frames
 //!
 //! Zstandard compressed data is made of one or more frames. Each frame is independent and can be
 //! decompressed independently of other frames. This module contains structures

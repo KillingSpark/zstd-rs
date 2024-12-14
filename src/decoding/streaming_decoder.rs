@@ -1,3 +1,5 @@
+//! The [StreamingDecoder] wraps a [FrameDecoder] and provides a Read impl that decodes data when necessary
+
 use core::borrow::BorrowMut;
 
 use crate::decoding::errors::FrameDecoderError;
