@@ -34,3 +34,4 @@ This document records the changes made between versions, starting with version 0
 
 # After 0.7.3
 * Add initial compression support
+* **Breaking** Refactor modules to reflect that this is now also a compression library
