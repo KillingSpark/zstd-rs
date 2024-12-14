@@ -1,6 +1,6 @@
 //! Framedecoder is the man struct users interact with to decode zstd frames
 //!
-//! Zstandard compressed data is made of one or more [crate::decoding::frame::Frame]s. Each frame is independent and can be
+//! Zstandard compressed data is made of one or more frames. Each frame is independent and can be
 //! decompressed independently of other frames. This module contains structures
 //! and utilities that can be used to decode a frame.
 
@@ -21,7 +21,7 @@ use core::convert::TryInto;
 /// It reads bytes as needed from a provided source and can be read from to collect partial results.
 ///
 /// If you want to just read the whole frame with an `io::Read` without having to deal with manually calling [FrameDecoder::decode_blocks]
-/// you can use the provided StreamingDecoder with wraps this FrameDecoder
+/// you can use the provided [crate::decoding::streaming_decoder::StreamingDecoder] wich wraps this FrameDecoder.
 ///
 /// Workflow is as follows:
 /// ```
@@ -497,7 +497,7 @@ impl FrameDecoder {
     }
 
     /// Decode multiple frames into the output slice.
-    ///GetBitsError,
+    ///
     /// `input` must contain an exact number of frames.
     ///
     /// `output` must be large enough to hold the decompressed data. If you don't know

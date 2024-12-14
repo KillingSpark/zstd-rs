@@ -20,7 +20,7 @@ use crate::io::{Error, ErrorKind, Read};
 ///
 /// To decode all the frames in a finite stream, the calling code needs to recreate
 /// the instance of the decoder and handle
-/// [crate::decoding::frame::ReadFrameHeaderError::SkipFrame]
+/// [crate::decoding::errors::ReadFrameHeaderError::SkipFrame]
 /// errors by skipping forward the `length` amount of bytes, see <https://github.com/KillingSpark/zstd-rs/issues/57>
 ///
 /// ```no_run
