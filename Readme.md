@@ -39,7 +39,7 @@ Measuring with the 'time' utility the original zstd and my decoder both decoding
 
 The easiest is to use the provided `compress`/`compress_to_vec` functions
 
-```rust
+```rust, no_run
 use ruzstd::encoding::{compress, compress_to_vec, frame_compressor::CompressionLevel};
 let data: &[u8] = todo!();
 // Either
@@ -59,8 +59,11 @@ Additionally to the descriptions and the docs you can have a look at the zstd / 
 
 The easiest is to wrap the io::Read into a StreamingDecoder which itself implements io::Read. It will decode blocks as necessary to fulfill the read requests
 
-```rust
-let mut f = File::open(path).unwrap();
+```rust, no_run
+use ruzstd::decoding::streaming_decoder::StreamingDecoder;
+use std::io::Read;
+
+let mut f = std::fs::File::open("/path/to/file").unwrap();
 let mut decoder = StreamingDecoder::new(&mut f).unwrap();
 
 let mut result = Vec::new();
