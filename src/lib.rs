@@ -9,6 +9,8 @@
 //! The [encoding] module contains the code for compression.
 //! Decompression can be achieved by using the [`encoding::compress`]/[`encoding::compress_to_vec`]
 //! functions or the [`encoding::frame_compressor::FrameCompressor`]
+//!
+#![doc = include_str!("../Readme.md")]
 #![no_std]
 #![deny(trivial_casts, trivial_numeric_casts, rust_2018_idioms)]
 
