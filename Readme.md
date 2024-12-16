@@ -61,10 +61,10 @@ The easiest is to wrap the io::Read into a StreamingDecoder which itself impleme
 
 ```rust, no_run
 use ruzstd::decoding::streaming_decoder::StreamingDecoder;
-use std::io::Read;
+use ruzstd::io::Read;
 
-let mut f = std::fs::File::open("/path/to/file").unwrap();
-let mut decoder = StreamingDecoder::new(&mut f).unwrap();
+let mut source: &[u8] = todo!("Get a reader from a File or any other source");
+let mut decoder = StreamingDecoder::new(&mut source).unwrap();
 
 let mut result = Vec::new();
 decoder.read_to_end(&mut result).unwrap();
