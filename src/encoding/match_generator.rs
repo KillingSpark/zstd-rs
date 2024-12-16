@@ -1,3 +1,10 @@
+//! Matching algorithm used find repeated parts in the original data
+//!
+//! The Zstd format relies on finden repeated sequences of data and compressing these sequences as instructions to the decoder.
+//! A sequence basically tells the decoder "Go back X bytes and copy Y bytes to the end of your decode buffer".
+//!
+//! The task here is to efficiently find matches in the already encoded data for the current suffix of the not yet encoded data.
+
 use alloc::vec::Vec;
 use core::num::NonZeroUsize;
 

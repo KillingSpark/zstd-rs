@@ -38,6 +38,20 @@ pub fn compress_to_vec<R: Read>(source: R, level: CompressionLevel) -> Vec<u8> {
     vec
 }
 
+/// This will be a public trait in the future so users can extend the matching facilities which are pretty generic with their own algorithms
+/// making their own tradeoffs between runtime, memory usage and compression ratio
+///
+/// This trait operates on buffers that represent the chunks of data the matching algorithm wants to work on.
+/// One or more of these buffers represent the window the decoder will need to decode the data again.
+///
+/// This library asks the Matcher for a new buffer using `get_next_space` to allow reusing of allocated buffers when they are no longer part of the
+/// window of data that is being used for matching.
+///
+/// The library fills the buffer with data that is to be compressed and commits them back to the matcher using `commit_space`.
+///
+/// Then it will either call `start_matching` or, if the space is deemed not worth compressing, `skip_matching` is called.
+///
+/// This is repeated until no more data is left to be compressed.
 pub(crate) trait Matcher {
     /// Get a space where we can put data to be matched on
     fn get_next_space(&mut self) -> alloc::vec::Vec<u8>;
