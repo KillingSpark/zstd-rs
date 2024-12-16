@@ -27,8 +27,6 @@ impl BitWriter<Vec<u8>> {
     }
 }
 
-impl BitWriter<&mut Vec<u8>> {}
-
 impl<V: AsMut<Vec<u8>>> BitWriter<V> {
     /// Initialize a new writer.
     pub fn from(mut output: V) -> BitWriter<V> {
@@ -40,10 +38,12 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
         }
     }
 
+    /// Get the current index. Can be used to reset to this index or to later change the bits at this index
     pub fn index(&self) -> usize {
         self.bit_idx + self.bits_in_partial
     }
 
+    /// Reset to an index. Currently only supports resetting to a byte aligned index
     pub fn reset_to(&mut self, index: usize) {
         assert!(index % 8 == 0);
         self.partial = 0;
@@ -52,28 +52,41 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
         self.output.as_mut().resize(index / 8, 0);
     }
 
+    /// Change the bits at the index. `bits` contains the ǹum_bits` new bits that should be written
+    /// Instead of the current content. `bits` *MUST* only contain zeroes in the upper bits outside of the `0..num_bits` range.
     pub fn change_bits(&mut self, idx: usize, bits: impl Into<u64>, num_bits: usize) {
         self.change_bits_64(idx, bits.into(), num_bits);
     }
 
+    /// Monomorphized version of `change_bits`
     pub fn change_bits_64(&mut self, mut idx: usize, mut bits: u64, mut num_bits: usize) {
         self.flush();
         assert!(idx + num_bits < self.index());
         assert!(self.index() - (idx + num_bits) > self.bits_in_partial);
 
+        // We might be changing bits unaligned to byte borders.
+        // This means the lower bits of the first byte we are touching must stay the same
         if idx % 8 != 0 {
+            // How many (upper) bits will change in the first byte?
             let bits_in_first_byte = 8 - (idx % 8);
+            // We don't support only changing a few bits in the middle of a byte
             assert!(bits_in_first_byte <= num_bits);
+            // Zero out the upper bits that will be changed while keeping the lower bits intact
             self.output.as_mut()[idx / 8] &= 0xFFu8 >> bits_in_first_byte;
+            // Shift the bits up and put them in the now zeroed out bits
             let new_bits = (bits << (8 - bits_in_first_byte)) as u8;
             self.output.as_mut()[idx / 8] |= new_bits;
+            // Update the state. Note that we are now definitely working byte aligned
             num_bits -= bits_in_first_byte;
             bits >>= bits_in_first_byte;
             idx += bits_in_first_byte;
         }
 
+        assert!(idx % 8 == 0);
+        // We are now byte aligned, change idx to byte resolution
         let mut idx = idx / 8;
 
+        // Update full bytes by just shifting and extracting bytes from the bits
         while num_bits >= 8 {
             self.output.as_mut()[idx] = bits as u8;
             num_bits -= 8;
@@ -81,12 +94,14 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
             idx += 1;
         }
 
+        // Deal with leftover bits that wont fill a full byte, keeping the upper bits of the original byte intact
         if num_bits > 0 {
             self.output.as_mut()[idx] &= 0xFFu8 << num_bits;
             self.output.as_mut()[idx] |= bits as u8;
         }
     }
 
+    /// Simply append bytes to the buffer. Only works if the buffer was already byte aligned
     pub fn append_bytes(&mut self, data: &[u8]) {
         if self.misaligned() != 0 {
             panic!("Don't append bytes when writer is misaligned")
@@ -96,7 +111,9 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
         self.bit_idx += data.len() * 8;
     }
 
+    /// Flush temporary internal buffers to the output buffer. Only works if this is currently byte aligned
     pub fn flush(&mut self) {
+        assert!(self.bits_in_partial % 8 == 0);
         let full_bytes = self.bits_in_partial / 8;
         self.output
             .as_mut()
@@ -106,16 +123,21 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
         self.bit_idx += full_bytes * 8;
     }
 
-    /// Write the lower `num_bits` from `bits` into the writer
+    /// Write the lower `num_bits` from `bits` into the writer. `bits` *MUST* only contain zeroes in the upper bits outside of the `0..num_bits` range.
     pub fn write_bits(&mut self, bits: impl Into<u64>, num_bits: usize) {
         self.write_bits_64(bits.into(), num_bits);
     }
 
+    /// This is the special case where we need to flush the partial buffer to the output.
+    /// Marked as cold and in a separate function so the optimizer has more information.
     #[cold]
     fn write_bits_64_cold(&mut self, bits: u64, num_bits: usize) {
+        assert!(self.bits_in_partial + num_bits >= 64);
+        // Fill the partial buffer so it contains 64 bits
         let bits_free_in_partial = 64 - self.bits_in_partial;
         let part = bits << (64 - bits_free_in_partial);
         let merged = self.partial | part;
+        // Put the 8 bytes into the output buffer
         self.output
             .as_mut()
             .extend_from_slice(&merged.to_le_bytes());
@@ -126,6 +148,7 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
         let mut num_bits = num_bits - bits_free_in_partial;
         let mut bits = bits >> bits_free_in_partial;
 
+        // While we are at it push full bytes into the output buffer instead of polluting the partial buffer
         while num_bits / 8 > 0 {
             let byte = bits as u8;
             self.output.as_mut().push(byte);
@@ -134,7 +157,8 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
             bits >>= 8;
         }
 
-        debug_assert!(num_bits < 8);
+        // The last few bits belong into the partial buffer
+        assert!(num_bits < 8);
         if num_bits > 0 {
             let mask = (1 << num_bits) - 1;
             self.partial = bits & mask;
@@ -142,6 +166,7 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
         }
     }
 
+    /// Monomorphized version of `change_bits`
     pub fn write_bits_64(&mut self, bits: u64, num_bits: usize) {
         if num_bits == 0 {
             return;
@@ -158,6 +183,7 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
             self.partial = merged;
             self.bits_in_partial += num_bits;
         } else {
+            // If the partial buffer can't hold the num_bits we need to make space
             self.write_bits_64_cold(bits, num_bits);
         }
     }
