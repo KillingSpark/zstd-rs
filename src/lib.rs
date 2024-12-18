@@ -1,3 +1,5 @@
+// For SIMD impl of reverse
+#![feature(stdarch_x86_avx512)]
 //! A pure Rust implementation of the [Zstandard compression algorithm](https://facebook.github.io/zstd/).
 //!
 //! # Getting Started
