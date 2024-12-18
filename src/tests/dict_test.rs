@@ -77,7 +77,7 @@ fn test_dict_parsing() {
 #[test]
 fn test_dict_decoding() {
     extern crate std;
-    use crate::frame_decoder;
+    use crate::decoding::frame_decoder;
     use alloc::borrow::ToOwned;
     use alloc::string::{String, ToString};
     use alloc::vec::Vec;

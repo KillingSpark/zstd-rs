@@ -1,12 +1,16 @@
 extern crate ruzstd;
 use std::fs::File;
+use std::io::BufReader;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
+use std::time::Instant;
 
-use ruzstd::frame::ReadFrameHeaderError;
-use ruzstd::frame_decoder::FrameDecoderError;
+use ruzstd::decoding::errors::FrameDecoderError;
+use ruzstd::decoding::errors::ReadFrameHeaderError;
+use ruzstd::encoding::frame_compressor::CompressionLevel;
+use ruzstd::encoding::frame_compressor::FrameCompressor;
 
 struct StateTracker {
     bytes_used: u64,
@@ -18,11 +22,7 @@ struct StateTracker {
     old_percentage: i8,
 }
 
-fn main() {
-    let mut file_paths: Vec<_> = std::env::args().filter(|f| !f.starts_with('-')).collect();
-    let flags: Vec<_> = std::env::args().filter(|f| f.starts_with('-')).collect();
-    file_paths.remove(0);
-
+fn decompress(flags: &[String], file_paths: &[String]) {
     if !flags.contains(&"-d".to_owned()) {
         eprintln!("This zstd implementation only supports decompression. Please add a \"-d\" flag");
         return;
@@ -41,7 +41,7 @@ fn main() {
         return;
     }
 
-    let mut frame_dec = ruzstd::FrameDecoder::new();
+    let mut frame_dec = ruzstd::decoding::frame_decoder::FrameDecoder::new();
 
     for path in file_paths {
         eprintln!("File: {}", path);
@@ -79,7 +79,12 @@ fn main() {
 
             while !frame_dec.is_finished() {
                 frame_dec
-                    .decode_blocks(&mut f, ruzstd::BlockDecodingStrategy::UptoBytes(batch_size))
+                    .decode_blocks(
+                        &mut f,
+                        ruzstd::decoding::frame_decoder::BlockDecodingStrategy::UptoBytes(
+                            batch_size,
+                        ),
+                    )
                     .unwrap();
 
                 if frame_dec.can_collect() > batch_size {
@@ -125,6 +130,63 @@ fn main() {
                 tracker.valid_checksums + tracker.invalid_checksums,
             );
         }
+    }
+}
+
+struct PercentPrintReader<R: Read> {
+    total: usize,
+    counter: usize,
+    last_percent: usize,
+    reader: R,
+}
+
+impl<R: Read> Read for PercentPrintReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let new_bytes = self.reader.read(buf)?;
+        self.counter += new_bytes;
+        let progress = self.counter * 100 / self.total;
+        if progress > self.last_percent {
+            self.last_percent = progress;
+            eprint!("\r");
+            eprint!("{} % done", progress);
+        }
+        Ok(new_bytes)
+    }
+}
+
+fn main() {
+    let mut file_paths: Vec<_> = std::env::args().filter(|f| !f.starts_with('-')).collect();
+    let flags: Vec<_> = std::env::args().filter(|f| f.starts_with('-')).collect();
+    file_paths.remove(0);
+
+    if flags.is_empty() {
+        for path in file_paths {
+            let start_instant = Instant::now();
+            let file = std::fs::File::open(&path).unwrap();
+            let input_len = file.metadata().unwrap().len() as usize;
+            let file = PercentPrintReader {
+                reader: BufReader::new(file),
+                total: input_len,
+                counter: 0,
+                last_percent: 0,
+            };
+            let mut output = Vec::new();
+            let mut encoder = FrameCompressor::new(file, &mut output, CompressionLevel::Fastest);
+            encoder.compress();
+            println!(
+                "Compressed {path:} from {} to {} ({}%) took {}ms",
+                input_len,
+                output.len(),
+                if input_len == 0 {
+                    0
+                } else {
+                    output.len() * 100 / input_len
+                },
+                start_instant.elapsed().as_millis()
+            );
+        }
+    } else {
+        decompress(&flags, &file_paths);
     }
 }
 

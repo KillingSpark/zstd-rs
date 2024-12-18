@@ -1,7 +1,5 @@
-use core::convert::TryInto;
-
-pub use super::bit_reader::GetBitsError;
 use crate::io::Read;
+use core::convert::TryInto;
 
 /// Zstandard encodes some types of data in a way that the data must be read
 /// back to front to decode it properly. `BitReaderReversed` provides a
@@ -221,12 +219,5 @@ impl<'s> BitReaderReversed<'s> {
         debug_assert!(value_masked < (1 << n));
 
         value_masked
-    }
-
-    pub fn reset(&mut self, new_source: &'s [u8]) {
-        self.idx = new_source.len() as isize * 8;
-        self.source = new_source;
-        self.bit_container = 0;
-        self.bits_in_container = 0;
     }
 }

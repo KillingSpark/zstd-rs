@@ -1,6 +1,6 @@
 [package]
 name = "ruzstd"
-version = "0.7.2"
+version = "0.7.3"
 authors = ["Moritz Borcherding <moritz.borcherding@web.de>"]
 edition = "2018"
 license = "MIT"
@@ -13,7 +13,7 @@ keywords = ["zstd", "zstandard", "decompression"]
 categories = ["compression"]
 
 [dependencies]
-twox-hash = { version = "1.6", default-features = false, optional = true }
+twox-hash = { version = "2.0", default-features = false, features = ["xxhash64"], optional = true }
 
 # Internal feature, only used when building as part of libstd, not part of the
 # stable interface of this crate.
@@ -29,15 +29,12 @@ zstd = "0.13.2"
 [features]
 default = ["hash", "std"]
 hash = ["dep:twox-hash"]
+fuzz_exports = []
 std = []
 
 # Internal feature, only used when building as part of libstd, not part of the
 # stable interface of this crate.
 rustc-dep-of-std = ["dep:compiler_builtins", "dep:core", "dep:alloc"]
-
-[[bench]]
-name = "reversedbitreader_bench"
-harness = false
 
 [[bench]]
 name = "decode_all"

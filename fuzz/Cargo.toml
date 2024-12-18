@@ -13,6 +13,7 @@ zstd = "0.5.1+zstd.1.4.4"
 
 [dependencies.ruzstd]
 path = ".."
+features = ["fuzz_exports"]
 [dependencies.libfuzzer-sys]
 git = "https://github.com/rust-fuzz/libfuzzer-sys.git"
 
@@ -31,3 +32,11 @@ path = "fuzz_targets/encode.rs"
 [[bin]]
 name = "interop"
 path = "fuzz_targets/interop.rs"
+
+[[bin]]
+name = "huff0"
+path = "fuzz_targets/huff0.rs"
+
+[[bin]]
+name = "fse"
+path = "fuzz_targets/fse.rs"

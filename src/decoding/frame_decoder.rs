@@ -1,19 +1,18 @@
-//! Framedecoder is the man struct users interact with to decode zstd frames
+//! Framedecoder is the main low-level struct users interact with to decode zstd frames
 //!
-//! Zstandard compressed data is made of one or more [Frame]s. Each frame is independent and can be
+//! Zstandard compressed data is made of one or more frames. Each frame is independent and can be
 //! decompressed independently of other frames. This module contains structures
 //! and utilities that can be used to decode a frame.
 
 use super::frame;
+use crate::decoding;
 use crate::decoding::dictionary::Dictionary;
+use crate::decoding::errors::FrameDecoderError;
 use crate::decoding::scratch::DecoderScratch;
-use crate::decoding::{self, dictionary};
 use crate::io::{Error, Read, Write};
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use core::convert::TryInto;
-#[cfg(feature = "std")]
-use std::error::Error as StdError;
 
 /// This implements a decoder for zstd frames.
 ///
@@ -22,11 +21,11 @@ use std::error::Error as StdError;
 /// It reads bytes as needed from a provided source and can be read from to collect partial results.
 ///
 /// If you want to just read the whole frame with an `io::Read` without having to deal with manually calling [FrameDecoder::decode_blocks]
-/// you can use the provided StreamingDecoder with wraps this FrameDecoder
+/// you can use the provided [crate::decoding::streaming_decoder::StreamingDecoder] wich wraps this FrameDecoder.
 ///
 /// Workflow is as follows:
 /// ```
-/// use ruzstd::frame_decoder::BlockDecodingStrategy;
+/// use ruzstd::decoding::frame_decoder::BlockDecodingStrategy;
 ///
 /// # #[cfg(feature = "std")]
 /// use std::io::{Read, Write};
@@ -37,7 +36,7 @@ use std::error::Error as StdError;
 ///
 /// fn decode_this(mut file: impl Read) {
 ///     //Create a new decoder
-///     let mut frame_dec = ruzstd::FrameDecoder::new();
+///     let mut frame_dec = ruzstd::decoding::frame_decoder::FrameDecoder::new();
 ///     let mut result = Vec::new();
 ///
 ///     // Use reset or init to make the decoder ready to decode the frame from the io::Read
@@ -87,122 +86,6 @@ pub enum BlockDecodingStrategy {
     All,
     UptoBlocks(usize),
     UptoBytes(usize),
-}
-
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum FrameDecoderError {
-    ReadFrameHeaderError(frame::ReadFrameHeaderError),
-    FrameHeaderError(frame::FrameHeaderError),
-    WindowSizeTooBig { requested: u64 },
-    DictionaryDecodeError(dictionary::DictionaryDecodeError),
-    FailedToReadBlockHeader(decoding::block_decoder::BlockHeaderReadError),
-    FailedToReadBlockBody(decoding::block_decoder::DecodeBlockContentError),
-    FailedToReadChecksum(Error),
-    NotYetInitialized,
-    FailedToInitialize(frame::FrameHeaderError),
-    FailedToDrainDecodebuffer(Error),
-    FailedToSkipFrame,
-    TargetTooSmall,
-    DictNotProvided { dict_id: u32 },
-}
-
-#[cfg(feature = "std")]
-impl StdError for FrameDecoderError {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        match self {
-            FrameDecoderError::ReadFrameHeaderError(source) => Some(source),
-            FrameDecoderError::FrameHeaderError(source) => Some(source),
-            FrameDecoderError::DictionaryDecodeError(source) => Some(source),
-            FrameDecoderError::FailedToReadBlockHeader(source) => Some(source),
-            FrameDecoderError::FailedToReadBlockBody(source) => Some(source),
-            FrameDecoderError::FailedToReadChecksum(source) => Some(source),
-            FrameDecoderError::FailedToInitialize(source) => Some(source),
-            FrameDecoderError::FailedToDrainDecodebuffer(source) => Some(source),
-            _ => None,
-        }
-    }
-}
-
-impl core::fmt::Display for FrameDecoderError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        match self {
-            FrameDecoderError::ReadFrameHeaderError(e) => {
-                write!(f, "{:?}", e)
-            }
-            FrameDecoderError::FrameHeaderError(e) => {
-                write!(f, "{:?}", e)
-            }
-            FrameDecoderError::WindowSizeTooBig { requested } => {
-                write!(
-                    f,
-                    "Specified window_size is too big; Requested: {}, Max: {}",
-                    requested, MAX_WINDOW_SIZE,
-                )
-            }
-            FrameDecoderError::DictionaryDecodeError(e) => {
-                write!(f, "{:?}", e)
-            }
-            FrameDecoderError::FailedToReadBlockHeader(e) => {
-                write!(f, "Failed to parse/decode block body: {}", e)
-            }
-            FrameDecoderError::FailedToReadBlockBody(e) => {
-                write!(f, "Failed to parse block header: {}", e)
-            }
-            FrameDecoderError::FailedToReadChecksum(e) => {
-                write!(f, "Failed to read checksum: {}", e)
-            }
-            FrameDecoderError::NotYetInitialized => {
-                write!(f, "Decoder must initialized or reset before using it",)
-            }
-            FrameDecoderError::FailedToInitialize(e) => {
-                write!(f, "Decoder encountered error while initializing: {}", e)
-            }
-            FrameDecoderError::FailedToDrainDecodebuffer(e) => {
-                write!(
-                    f,
-                    "Decoder encountered error while draining the decodebuffer: {}",
-                    e,
-                )
-            }
-            FrameDecoderError::FailedToSkipFrame => {
-                write!(
-                    f,
-                    "Failed to skip bytes for the length given in the frame header"
-                )
-            }
-            FrameDecoderError::TargetTooSmall => {
-                write!(f, "Target must have at least as many bytes as the contentsize of the frame reports")
-            }
-            FrameDecoderError::DictNotProvided { dict_id } => {
-                write!(f, "Frame header specified dictionary id 0x{:X} that wasnt provided by add_dict() or reset_with_dict()", dict_id)
-            }
-        }
-    }
-}
-
-impl From<dictionary::DictionaryDecodeError> for FrameDecoderError {
-    fn from(val: dictionary::DictionaryDecodeError) -> Self {
-        Self::DictionaryDecodeError(val)
-    }
-}
-
-impl From<decoding::block_decoder::BlockHeaderReadError> for FrameDecoderError {
-    fn from(val: decoding::block_decoder::BlockHeaderReadError) -> Self {
-        Self::FailedToReadBlockHeader(val)
-    }
-}
-
-impl From<frame::FrameHeaderError> for FrameDecoderError {
-    fn from(val: frame::FrameHeaderError) -> Self {
-        Self::FrameHeaderError(val)
-    }
-}
-
-impl From<frame::ReadFrameHeaderError> for FrameDecoderError {
-    fn from(val: frame::ReadFrameHeaderError) -> Self {
-        Self::ReadFrameHeaderError(val)
-    }
 }
 
 const MAX_WINDOW_SIZE: u64 = 1024 * 1024 * 100;
@@ -633,7 +516,7 @@ impl FrameDecoder {
             match self.init(&mut input) {
                 Ok(_) => {}
                 Err(FrameDecoderError::ReadFrameHeaderError(
-                    frame::ReadFrameHeaderError::SkipFrame { length, .. },
+                    crate::decoding::errors::ReadFrameHeaderError::SkipFrame { length, .. },
                 )) => {
                     input = input
                         .get(length as usize..)

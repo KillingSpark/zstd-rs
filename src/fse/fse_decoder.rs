@@ -1,11 +1,13 @@
 use crate::decoding::bit_reader::BitReader;
-use crate::decoding::bit_reader_reverse::{BitReaderReversed, GetBitsError};
+use crate::decoding::bit_reader_reverse::BitReaderReversed;
+use crate::decoding::errors::{FSEDecoderError, FSETableError};
 use alloc::vec::Vec;
 
 /// FSE decoding involves a decoding table that describes the probabilities of
 /// all literals from 0 to the highest present one
 ///
 /// <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#fse-table-description>
+#[derive(Debug)]
 pub struct FSETable {
     /// The maximum symbol in the table (inclusive). Limits the probabilities length to max_symbol + 1.
     max_symbol: u8,
@@ -32,76 +34,6 @@ pub struct FSETable {
     symbol_counter: Vec<u32>,
 }
 
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum FSETableError {
-    AccLogIsZero,
-    AccLogTooBig {
-        got: u8,
-        max: u8,
-    },
-    GetBitsError(GetBitsError),
-    ProbabilityCounterMismatch {
-        got: u32,
-        expected_sum: u32,
-        symbol_probabilities: Vec<i32>,
-    },
-    TooManySymbols {
-        got: usize,
-    },
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for FSETableError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            FSETableError::GetBitsError(source) => Some(source),
-            _ => None,
-        }
-    }
-}
-
-impl core::fmt::Display for FSETableError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            FSETableError::AccLogIsZero => write!(f, "Acclog must be at least 1"),
-            FSETableError::AccLogTooBig { got, max } => {
-                write!(
-                    f,
-                    "Found FSE acc_log: {0} bigger than allowed maximum in this case: {1}",
-                    got, max
-                )
-            }
-            FSETableError::GetBitsError(e) => write!(f, "{:?}", e),
-            FSETableError::ProbabilityCounterMismatch {
-                got,
-                expected_sum,
-                symbol_probabilities,
-            } => {
-                write!(f,
-                    "The counter ({}) exceeded the expected sum: {}. This means an error or corrupted data \n {:?}",
-                    got,
-                    expected_sum,
-                    symbol_probabilities,
-                )
-            }
-            FSETableError::TooManySymbols { got } => {
-                write!(
-                    f,
-                    "There are too many symbols in this distribution: {}. Max: 256",
-                    got,
-                )
-            }
-        }
-    }
-}
-
-impl From<GetBitsError> for FSETableError {
-    fn from(val: GetBitsError) -> Self {
-        Self::GetBitsError(val)
-    }
-}
-
 pub struct FSEDecoder<'table> {
     /// An FSE state value represents an index in the FSE table.
     pub state: Entry,
@@ -109,42 +41,8 @@ pub struct FSEDecoder<'table> {
     table: &'table FSETable,
 }
 
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum FSEDecoderError {
-    GetBitsError(GetBitsError),
-    TableIsUninitialized,
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for FSEDecoderError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            FSEDecoderError::GetBitsError(source) => Some(source),
-            _ => None,
-        }
-    }
-}
-
-impl core::fmt::Display for FSEDecoderError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            FSEDecoderError::GetBitsError(e) => write!(f, "{:?}", e),
-            FSEDecoderError::TableIsUninitialized => {
-                write!(f, "Tried to use an uninitialized table!")
-            }
-        }
-    }
-}
-
-impl From<GetBitsError> for FSEDecoderError {
-    fn from(val: GetBitsError) -> Self {
-        Self::GetBitsError(val)
-    }
-}
-
 /// A single entry in an FSE table.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Entry {
     /// This value is used as an offset value, and it is added
     /// to a value read from the stream to determine the next state value.
@@ -188,7 +86,8 @@ impl<'t> FSEDecoder<'t> {
         if self.table.accuracy_log == 0 {
             return Err(FSEDecoderError::TableIsUninitialized);
         }
-        self.state = self.table.decode[bits.get_bits(self.table.accuracy_log) as usize];
+        let new_state = bits.get_bits(self.table.accuracy_log);
+        self.state = self.table.decode[new_state as usize];
 
         Ok(())
     }
@@ -444,6 +343,9 @@ fn calc_baseline_and_numbits(
     num_states_symbol: u32,
     state_number: u32,
 ) -> (u32, u8) {
+    if num_states_symbol == 0 {
+        return (0, 0);
+    }
     let num_state_slices = if 1 << (highest_bit_set(num_states_symbol) - 1) == num_states_symbol {
         num_states_symbol
     } else {

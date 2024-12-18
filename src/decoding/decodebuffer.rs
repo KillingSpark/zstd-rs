@@ -4,6 +4,7 @@ use alloc::vec::Vec;
 use core::hash::Hasher;
 
 use super::ringbuffer::RingBuffer;
+use crate::decoding::errors::DecodeBufferError;
 
 pub struct DecodeBuffer {
     buffer: RingBuffer,
@@ -13,33 +14,6 @@ pub struct DecodeBuffer {
     total_output_counter: u64,
     #[cfg(feature = "hash")]
     pub hash: twox_hash::XxHash64,
-}
-
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum DecodeBufferError {
-    NotEnoughBytesInDictionary { got: usize, need: usize },
-    OffsetTooBig { offset: usize, buf_len: usize },
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for DecodeBufferError {}
-
-impl core::fmt::Display for DecodeBufferError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            DecodeBufferError::NotEnoughBytesInDictionary { got, need } => {
-                write!(
-                    f,
-                    "Need {} bytes from the dictionary but it is only {} bytes long",
-                    need, got,
-                )
-            }
-            DecodeBufferError::OffsetTooBig { offset, buf_len } => {
-                write!(f, "offset: {} bigger than buffer: {}", offset, buf_len,)
-            }
-        }
-    }
 }
 
 impl Read for DecodeBuffer {
@@ -83,10 +57,6 @@ impl DecodeBuffer {
 
     pub fn len(&self) -> usize {
         self.buffer.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.buffer.is_empty()
     }
 
     pub fn push(&mut self, data: &[u8]) {
@@ -285,7 +255,7 @@ impl DecodeBuffer {
             amount: usize,
         }
 
-        impl<'a> Drop for DrainGuard<'a> {
+        impl Drop for DrainGuard<'_> {
             fn drop(&mut self) {
                 if self.amount != 0 {
                     self.buffer.drop_first_n(self.amount);

@@ -1,17 +1,16 @@
-//! A pure Rust implementation of the [Zstandard compression algorithm](https://facebook.github.io/zstd/).
+//! A pure Rust implementation of the [Zstandard compression format](https://www.rfc-editor.org/rfc/rfc8878.pdf).
 //!
-//! # Getting Started
 //! ## Decompression
-//! The [decoding] module contains the internals for decompression.
-//! Decompression can be achieved by using the [`StreamingDecoder`] interface.
+//! The [decoding] module contains the code for decompression.
+//! Decompression can be achieved by using the [`decoding::streaming_decoder::StreamingDecoder`]
+//! or the more low-level [`decoding::frame_decoder::FrameDecoder`]
 //!
 //! ## Compression
-//! Although functionality has not yet been implemented past raw frames, refer to the
-//! [encoding] module for more info.
+//! The [encoding] module contains the code for compression.
+//! Decompression can be achieved by using the [`encoding::compress`]/[`encoding::compress_to_vec`]
+//! functions or the [`encoding::frame_compressor::FrameCompressor`]
 //!
-//! # Speed
-//! The decoder has been measured to be roughly between 3.5 to 1.4 times slower
-//! than the original implementation.
+#![doc = include_str!("../Readme.md")]
 #![no_std]
 #![deny(trivial_casts, trivial_numeric_casts, rust_2018_idioms)]
 
@@ -22,7 +21,7 @@ extern crate std;
 extern crate alloc;
 
 #[cfg(feature = "std")]
-pub const VERBOSE: bool = false;
+pub(crate) const VERBOSE: bool = false;
 
 macro_rules! vprintln {
     ($($x:expr),*) => {
@@ -33,15 +32,21 @@ macro_rules! vprintln {
     }
 }
 
-pub mod blocks;
 pub mod decoding;
-#[cfg(feature = "std")]
 pub mod encoding;
-pub mod frame;
-pub mod frame_decoder;
+
+pub(crate) mod blocks;
+
+#[cfg(feature = "fuzz_exports")]
 pub mod fse;
+#[cfg(feature = "fuzz_exports")]
 pub mod huff0;
-pub mod streaming_decoder;
+
+#[cfg(not(feature = "fuzz_exports"))]
+pub(crate) mod fse;
+#[cfg(not(feature = "fuzz_exports"))]
+pub(crate) mod huff0;
+
 mod tests;
 
 #[cfg(feature = "std")]
@@ -52,7 +57,3 @@ pub mod io_nostd;
 
 #[cfg(not(feature = "std"))]
 pub use io_nostd as io;
-
-pub use frame_decoder::BlockDecodingStrategy;
-pub use frame_decoder::FrameDecoder;
-pub use streaming_decoder::StreamingDecoder;

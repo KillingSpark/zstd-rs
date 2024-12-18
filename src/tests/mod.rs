@@ -28,7 +28,7 @@ impl crate::io_nostd::Read for std::fs::File {
 fn assure_error_impl() {
     // not a real test just there to throw an compiler error if Error is not derived correctly
 
-    use crate::frame_decoder::FrameDecoderError;
+    use crate::decoding::errors::FrameDecoderError;
     let _err: &dyn std::error::Error = &FrameDecoderError::NotYetInitialized;
 }
 
@@ -37,7 +37,7 @@ fn assure_error_impl() {
 fn assure_decoder_send_sync() {
     // not a real test just there to throw an compiler error if FrameDecoder is Send + Sync
 
-    use crate::frame_decoder::FrameDecoder;
+    use crate::decoding::frame_decoder::FrameDecoder;
     let decoder = FrameDecoder::new();
     std::thread::spawn(move || {
         drop(decoder);
@@ -46,7 +46,8 @@ fn assure_decoder_send_sync() {
 
 #[test]
 fn skippable_frame() {
-    use crate::frame;
+    use crate::decoding::errors;
+    use crate::decoding::frame;
 
     let mut content = vec![];
     content.extend_from_slice(&0x184D2A50u32.to_le_bytes());
@@ -55,7 +56,7 @@ fn skippable_frame() {
     let err = frame::read_frame_header(content.as_slice());
     assert!(matches!(
         err,
-        Err(frame::ReadFrameHeaderError::SkipFrame {
+        Err(errors::ReadFrameHeaderError::SkipFrame {
             magic_number: 0x184D2A50u32,
             length: 300
         })
@@ -68,7 +69,7 @@ fn skippable_frame() {
     let err = frame::read_frame_header(content.as_slice());
     assert!(matches!(
         err,
-        Err(frame::ReadFrameHeaderError::SkipFrame {
+        Err(errors::ReadFrameHeaderError::SkipFrame {
             magic_number: 0x184D2A5Fu32,
             length: 0xFFFFFFFF
         })
@@ -78,7 +79,7 @@ fn skippable_frame() {
 #[cfg(test)]
 #[test]
 fn test_frame_header_reading() {
-    use crate::frame;
+    use crate::decoding::frame;
     use std::fs;
 
     let mut content = fs::File::open("./decodecorpus_files/z000088.zst").unwrap();
@@ -88,7 +89,7 @@ fn test_frame_header_reading() {
 #[test]
 fn test_block_header_reading() {
     use crate::decoding;
-    use crate::frame;
+    use crate::decoding::frame;
     use std::fs;
 
     let mut content = fs::File::open("./decodecorpus_files/z000088.zst").unwrap();
@@ -101,7 +102,7 @@ fn test_block_header_reading() {
 
 #[test]
 fn test_frame_decoder() {
-    use crate::frame_decoder;
+    use crate::decoding::frame_decoder;
     use std::fs;
 
     let mut content = fs::File::open("./decodecorpus_files/z000088.zst").unwrap();
@@ -126,7 +127,7 @@ fn test_frame_decoder() {
 
 #[test]
 fn test_decode_from_to() {
-    use crate::frame_decoder;
+    use crate::decoding::frame_decoder;
     use std::fs::File;
     use std::io::Read;
     let f = File::open("./decodecorpus_files/z000088.zst").unwrap();
@@ -228,7 +229,7 @@ fn test_decode_from_to() {
 
 #[test]
 fn test_specific_file() {
-    use crate::frame_decoder;
+    use crate::decoding::frame_decoder;
     use std::fs;
     use std::io::Read;
 
@@ -293,7 +294,8 @@ fn test_streaming() {
     use std::io::Read;
 
     let mut content = fs::File::open("./decodecorpus_files/z000088.zst").unwrap();
-    let mut stream = crate::streaming_decoder::StreamingDecoder::new(&mut content).unwrap();
+    let mut stream =
+        crate::decoding::streaming_decoder::StreamingDecoder::new(&mut content).unwrap();
 
     let mut result = Vec::new();
     Read::read_to_end(&mut stream, &mut result).unwrap();
@@ -331,7 +333,7 @@ fn test_streaming() {
     // Test resetting to a new file while keeping the old decoder
 
     let mut content = fs::File::open("./decodecorpus_files/z000068.zst").unwrap();
-    let mut stream = crate::streaming_decoder::StreamingDecoder::new_with_decoder(
+    let mut stream = crate::decoding::streaming_decoder::StreamingDecoder::new_with_decoder(
         &mut content,
         stream.into_frame_decoder(),
     )
@@ -375,7 +377,7 @@ fn test_streaming() {
 
 #[test]
 fn test_incremental_read() {
-    use crate::frame_decoder::FrameDecoder;
+    use crate::decoding::frame_decoder::FrameDecoder;
 
     let mut unread_compressed_content =
         include_bytes!("../../decodecorpus_files/abc.txt.zst").as_slice();
@@ -404,7 +406,8 @@ fn test_streaming_no_std() {
 
     let content = include_bytes!("../../decodecorpus_files/z000088.zst");
     let mut content = content.as_slice();
-    let mut stream = crate::streaming_decoder::StreamingDecoder::new(&mut content).unwrap();
+    let mut stream =
+        crate::decoding::streaming_decoder::StreamingDecoder::new(&mut content).unwrap();
 
     let original = include_bytes!("../../decodecorpus_files/z000088");
     let mut result = vec![0; original.len()];
@@ -441,7 +444,7 @@ fn test_streaming_no_std() {
 
     let content = include_bytes!("../../decodecorpus_files/z000068.zst");
     let mut content = content.as_slice();
-    let mut stream = crate::streaming_decoder::StreamingDecoder::new_with_decoder(
+    let mut stream = crate::decoding::streaming_decoder::StreamingDecoder::new_with_decoder(
         &mut content,
         stream.into_frame_decoder(),
     )
@@ -483,7 +486,8 @@ fn test_streaming_no_std() {
 
 #[test]
 fn test_decode_all() {
-    use crate::frame_decoder::{FrameDecoder, FrameDecoderError};
+    use crate::decoding::errors::FrameDecoderError;
+    use crate::decoding::frame_decoder::FrameDecoder;
 
     let skip_frame = |input: &mut Vec<u8>, length: usize| {
         input.extend_from_slice(&0x184D2A50u32.to_le_bytes());

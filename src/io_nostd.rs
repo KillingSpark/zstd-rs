@@ -9,6 +9,7 @@ pub enum ErrorKind {
     UnexpectedEof,
     WouldBlock,
     Other,
+    WriteAllEof,
 }
 
 impl ErrorKind {
@@ -19,6 +20,7 @@ impl ErrorKind {
             UnexpectedEof => "unexpected end of file",
             WouldBlock => "operation would block",
             Other => "other error",
+            WriteAllEof => "write_all hit EOF",
         }
     }
 }
@@ -59,6 +61,10 @@ impl Error {
 
     pub fn kind(&self) -> ErrorKind {
         self.kind
+    }
+
+    pub fn is_interrupted(&self) -> bool {
+        matches!(self.kind, ErrorKind::Interrupted)
     }
 
     pub fn get_ref(&self) -> Option<&(dyn core::fmt::Display + Send + Sync)> {
@@ -109,6 +115,18 @@ pub trait Read {
             Ok(())
         }
     }
+
+    fn read_to_end(&mut self, output: &mut alloc::vec::Vec<u8>) -> Result<(), Error> {
+        let mut buf = [0u8; 1024 * 16];
+        loop {
+            let bytes = self.read(&mut buf)?;
+            if bytes == 0 {
+                break;
+            }
+            output.extend_from_slice(&buf[..bytes]);
+        }
+        Ok(())
+    }
 }
 
 impl Read for &[u8] {
@@ -127,7 +145,7 @@ impl Read for &[u8] {
     }
 }
 
-impl<'a, T> Read for &'a mut T
+impl<T> Read for &mut T
 where
     T: Read,
 {
@@ -139,9 +157,22 @@ where
 pub trait Write {
     fn write(&mut self, buf: &[u8]) -> Result<usize, Error>;
     fn flush(&mut self) -> Result<(), Error>;
+    fn write_all(&mut self, mut buf: &[u8]) -> Result<(), Error> {
+        while !buf.is_empty() {
+            match self.write(buf) {
+                Ok(0) => {
+                    return Err(Error::from(ErrorKind::WriteAllEof));
+                }
+                Ok(n) => buf = &buf[n..],
+                Err(ref e) if e.is_interrupted() => {}
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(())
+    }
 }
 
-impl<'a, T> Write for &'a mut T
+impl<T> Write for &mut T
 where
     T: Write,
 {
@@ -162,6 +193,18 @@ impl Write for &mut [u8] {
         a.copy_from_slice(&data[..amt]);
         *self = b;
         Ok(amt)
+    }
+
+    fn flush(&mut self) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+impl Write for alloc::vec::Vec<u8> {
+    #[inline]
+    fn write(&mut self, data: &[u8]) -> Result<usize, Error> {
+        self.extend_from_slice(data);
+        Ok(data.len())
     }
 
     fn flush(&mut self) -> Result<(), Error> {

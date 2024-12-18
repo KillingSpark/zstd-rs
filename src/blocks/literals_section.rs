@@ -1,6 +1,7 @@
 //! Utilities and representations for the first half of a block, the literals section.
 //! It contains data that is then copied from by the sequences section.
-use super::super::decoding::bit_reader::{BitReader, GetBitsError};
+use crate::decoding::bit_reader::BitReader;
+use crate::decoding::errors::LiteralsSectionParseError;
 
 /// A compressed block consists of two sections, a literals section, and a sequences section.
 ///
@@ -31,6 +32,7 @@ pub enum LiteralsSectionType {
     /// Literals are stored uncompressed.
     Raw,
     /// Literals consist of a single byte value repeated [LiteralsSection::regenerated_size] times.
+    #[allow(clippy::upper_case_acronyms)]
     RLE,
     /// This is a standard Huffman-compressed block, starting with a Huffman tree description.
     /// In this mode, there are at least *2* different literals represented in the Huffman tree
@@ -41,62 +43,6 @@ pub enum LiteralsSectionType {
     /// in the sequence. If this mode is triggered without any previous Huffman-tables in the
     /// frame (or dictionary), it should be treated as data corruption.
     Treeless,
-}
-
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum LiteralsSectionParseError {
-    IllegalLiteralSectionType { got: u8 },
-    GetBitsError(GetBitsError),
-    NotEnoughBytes { have: usize, need: u8 },
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for LiteralsSectionParseError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            LiteralsSectionParseError::GetBitsError(source) => Some(source),
-            _ => None,
-        }
-    }
-}
-impl core::fmt::Display for LiteralsSectionParseError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            LiteralsSectionParseError::IllegalLiteralSectionType { got } => {
-                write!(
-                    f,
-                    "Illegal literalssectiontype. Is: {}, must be in: 0, 1, 2, 3",
-                    got
-                )
-            }
-            LiteralsSectionParseError::GetBitsError(e) => write!(f, "{:?}", e),
-            LiteralsSectionParseError::NotEnoughBytes { have, need } => {
-                write!(
-                    f,
-                    "Not enough byte to parse the literals section header. Have: {}, Need: {}",
-                    have, need,
-                )
-            }
-        }
-    }
-}
-
-impl From<GetBitsError> for LiteralsSectionParseError {
-    fn from(val: GetBitsError) -> Self {
-        Self::GetBitsError(val)
-    }
-}
-
-impl core::fmt::Display for LiteralsSectionType {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> Result<(), core::fmt::Error> {
-        match self {
-            LiteralsSectionType::Compressed => write!(f, "Compressed"),
-            LiteralsSectionType::Raw => write!(f, "Raw"),
-            LiteralsSectionType::RLE => write!(f, "RLE"),
-            LiteralsSectionType::Treeless => write!(f, "Treeless"),
-        }
-    }
 }
 
 impl Default for LiteralsSection {

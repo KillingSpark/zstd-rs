@@ -1,7 +1,7 @@
 #[test]
 fn test_decode_corpus_files() {
     extern crate std;
-    use crate::frame_decoder;
+    use crate::decoding::frame_decoder;
     use alloc::borrow::ToOwned;
     use alloc::string::{String, ToString};
     use alloc::vec::Vec;

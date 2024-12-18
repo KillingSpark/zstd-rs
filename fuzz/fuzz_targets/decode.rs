@@ -1,16 +1,12 @@
 #![no_main]
-#[macro_use] extern crate libfuzzer_sys;
+#[macro_use]
+extern crate libfuzzer_sys;
 extern crate ruzstd;
-use ruzstd::frame_decoder;
+use std::io::Read;
 
 fuzz_target!(|data: &[u8]| {
-    let mut content = data;
-    let mut frame_dec = frame_decoder::FrameDecoder::new();
-
-    match frame_dec.reset(&mut content){
-        Ok(_) => {
-            let _ = frame_dec.decode_blocks(&mut content,frame_decoder::BlockDecodingStrategy::All);
-        }
-        Err(_) => {/* nothing */}
+    if let Ok(mut decoder) = ruzstd::decoding::streaming_decoder::StreamingDecoder::new(data) {
+        let mut output = Vec::new();
+        _ = decoder.read_to_end(&mut output);
     }
 });

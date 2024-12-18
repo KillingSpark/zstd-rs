@@ -1,6 +1,8 @@
 //! Utilities and representations for the second half of a block, the sequence section.
 //! This section copies literals from the literals section into the decompressed output.
 
+use crate::decoding::errors::SequencesHeaderParseError;
+
 pub(crate) const MAX_LITERAL_LENGTH_CODE: u8 = 35;
 pub(crate) const MAX_MATCH_LENGTH_CODE: u8 = 52;
 pub(crate) const MAX_OFFSET_CODE: u8 = 31;
@@ -49,6 +51,7 @@ pub enum ModeType {
     /// will be present.
     Predefined,
     /// The table consists of a single byte, which contains the symbol's value.
+    #[allow(clippy::upper_case_acronyms)]
     RLE,
     /// Standard FSE compression, a distribution table will be present. This
     /// mode should not be used when only one symbol is present.
@@ -89,29 +92,6 @@ impl CompressionModes {
 impl Default for SequencesHeader {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum SequencesHeaderParseError {
-    NotEnoughBytes { need_at_least: u8, got: usize },
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for SequencesHeaderParseError {}
-
-impl core::fmt::Display for SequencesHeaderParseError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            SequencesHeaderParseError::NotEnoughBytes { need_at_least, got } => {
-                write!(
-                    f,
-                    "source must have at least {} bytes to parse header; got {} bytes",
-                    need_at_least, got,
-                )
-            }
-        }
     }
 }
 

@@ -1,7 +1,7 @@
 #[test]
 fn test_all_artifacts() {
     extern crate std;
-    use crate::frame_decoder;
+    use crate::decoding::frame_decoder;
     use std::borrow::ToOwned;
     use std::fs;
     use std::fs::File;
