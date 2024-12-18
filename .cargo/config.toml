@@ -1,0 +1,11 @@
+[target.x86_64-unknown-linux-gnu]
+rustflags=["-Ctarget-feature=+gfni,+sse3,+avx512"]
+
+[target.x86_64-apple-darwin]
+rustflags=["-Ctarget-feature=+gfni,+sse3,+avx512"]
+
+[target.x86_64-windows-msvc]
+rustflags=["-Ctarget-feature=+gfni,+sse3,+avx512"]
+
+[target.x86_64-windows-gnu]
+rustflags=["-Ctarget-feature=+gfni,+sse3,+avx512"]
