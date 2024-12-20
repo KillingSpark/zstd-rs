@@ -21,11 +21,11 @@ use core::convert::TryInto;
 /// It reads bytes as needed from a provided source and can be read from to collect partial results.
 ///
 /// If you want to just read the whole frame with an `io::Read` without having to deal with manually calling [FrameDecoder::decode_blocks]
-/// you can use the provided [crate::decoding::streaming_decoder::StreamingDecoder] wich wraps this FrameDecoder.
+/// you can use the provided [crate::decoding::StreamingDecoder] wich wraps this FrameDecoder.
 ///
 /// Workflow is as follows:
 /// ```
-/// use ruzstd::decoding::frame_decoder::BlockDecodingStrategy;
+/// use ruzstd::decoding::BlockDecodingStrategy;
 ///
 /// # #[cfg(feature = "std")]
 /// use std::io::{Read, Write};
@@ -36,7 +36,7 @@ use core::convert::TryInto;
 ///
 /// fn decode_this(mut file: impl Read) {
 ///     //Create a new decoder
-///     let mut frame_dec = ruzstd::decoding::frame_decoder::FrameDecoder::new();
+///     let mut frame_dec = ruzstd::decoding::FrameDecoder::new();
 ///     let mut result = Vec::new();
 ///
 ///     // Use reset or init to make the decoder ready to decode the frame from the io::Read

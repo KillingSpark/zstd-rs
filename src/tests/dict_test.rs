@@ -77,7 +77,8 @@ fn test_dict_parsing() {
 #[test]
 fn test_dict_decoding() {
     extern crate std;
-    use crate::decoding::frame_decoder;
+    use crate::decoding::BlockDecodingStrategy;
+    use crate::decoding::FrameDecoder;
     use alloc::borrow::ToOwned;
     use alloc::string::{String, ToString};
     use alloc::vec::Vec;
@@ -104,7 +105,7 @@ fn test_dict_decoding() {
         Ok(entry) => entry.path().to_str().unwrap().to_owned(),
     });
 
-    let mut frame_dec = frame_decoder::FrameDecoder::new();
+    let mut frame_dec = FrameDecoder::new();
     let dict = crate::decoding::dictionary::Dictionary::decode_dict(&dict).unwrap();
     frame_dec.add_dict(dict).unwrap();
 
@@ -126,7 +127,7 @@ fn test_dict_decoding() {
         let start_time = std::time::Instant::now();
         /////DECODING
         frame_dec
-            .decode_blocks(&mut content, frame_decoder::BlockDecodingStrategy::All)
+            .decode_blocks(&mut content, BlockDecodingStrategy::All)
             .unwrap();
         let result = frame_dec.collect().unwrap();
         let end_time = start_time.elapsed();

@@ -5,21 +5,21 @@ extern crate ruzstd;
 use std::io::Read;
 
 fn decode_ruzstd(data: &mut dyn std::io::Read) -> Vec<u8> {
-    let mut decoder = ruzstd::decoding::streaming_decoder::StreamingDecoder::new(data).unwrap();
+    let mut decoder = ruzstd::decoding::StreamingDecoder::new(data).unwrap();
     let mut result: Vec<u8> = Vec::new();
     decoder.read_to_end(&mut result).expect("Decoding failed");
     result
 }
 
 fn decode_ruzstd_writer(mut data: impl Read) -> Vec<u8> {
-    let mut decoder = ruzstd::decoding::frame_decoder::FrameDecoder::new();
+    let mut decoder = ruzstd::decoding::FrameDecoder::new();
     decoder.reset(&mut data).unwrap();
     let mut result = vec![];
     while !decoder.is_finished() || decoder.can_collect() > 0 {
         decoder
             .decode_blocks(
                 &mut data,
-                ruzstd::decoding::frame_decoder::BlockDecodingStrategy::UptoBytes(1024 * 1024),
+                ruzstd::decoding::BlockDecodingStrategy::UptoBytes(1024 * 1024),
             )
             .unwrap();
         decoder.collect_to_writer(&mut result).unwrap();
@@ -35,10 +35,10 @@ fn encode_ruzstd_uncompressed(data: &mut dyn std::io::Read) -> Vec<u8> {
     let mut input = Vec::new();
     let mut output = Vec::new();
     data.read_to_end(&mut input).unwrap();
-    let mut compressor = ruzstd::encoding::frame_compressor::FrameCompressor::new(
+    let mut compressor = ruzstd::encoding::FrameCompressor::new(
         input.as_slice(),
         &mut output,
-        ruzstd::encoding::frame_compressor::CompressionLevel::Uncompressed,
+        ruzstd::encoding::CompressionLevel::Uncompressed,
     );
     compressor.compress();
     output
@@ -48,10 +48,10 @@ fn encode_ruzstd_compressed(data: &mut dyn std::io::Read) -> Vec<u8> {
     let mut input = Vec::new();
     let mut output = Vec::new();
     data.read_to_end(&mut input).unwrap();
-    let mut compressor = ruzstd::encoding::frame_compressor::FrameCompressor::new(
+    let mut compressor = ruzstd::encoding::FrameCompressor::new(
         input.as_slice(),
         &mut output,
-        ruzstd::encoding::frame_compressor::CompressionLevel::Fastest,
+        ruzstd::encoding::CompressionLevel::Fastest,
     );
     compressor.compress();
     output

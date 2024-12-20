@@ -45,7 +45,7 @@ pub enum CompressionLevel {
 ///
 /// # Examples
 /// ```
-/// use ruzstd::encoding::frame_compressor::{FrameCompressor, CompressionLevel};
+/// use ruzstd::encoding::{FrameCompressor, CompressionLevel};
 /// let mock_data: &[_] = &[0x1, 0x2, 0x3, 0x4];
 /// let mut output = std::vec::Vec::new();
 /// // Initialize a compressor.
@@ -190,7 +190,7 @@ mod tests {
     use alloc::vec;
 
     use super::FrameCompressor;
-    use crate::decoding::{frame::MAGIC_NUM, frame_decoder::FrameDecoder};
+    use crate::decoding::{frame::MAGIC_NUM, FrameDecoder};
     use alloc::vec::Vec;
 
     #[test]
@@ -286,24 +286,21 @@ mod tests {
     fn fuzz_targets() {
         use std::io::Read;
         fn decode_ruzstd(data: &mut dyn std::io::Read) -> Vec<u8> {
-            let mut decoder =
-                crate::decoding::streaming_decoder::StreamingDecoder::new(data).unwrap();
+            let mut decoder = crate::decoding::StreamingDecoder::new(data).unwrap();
             let mut result: Vec<u8> = Vec::new();
             decoder.read_to_end(&mut result).expect("Decoding failed");
             result
         }
 
         fn decode_ruzstd_writer(mut data: impl Read) -> Vec<u8> {
-            let mut decoder = crate::decoding::frame_decoder::FrameDecoder::new();
+            let mut decoder = crate::decoding::FrameDecoder::new();
             decoder.reset(&mut data).unwrap();
             let mut result = vec![];
             while !decoder.is_finished() || decoder.can_collect() > 0 {
                 decoder
                     .decode_blocks(
                         &mut data,
-                        crate::decoding::frame_decoder::BlockDecodingStrategy::UptoBytes(
-                            1024 * 1024,
-                        ),
+                        crate::decoding::BlockDecodingStrategy::UptoBytes(1024 * 1024),
                     )
                     .unwrap();
                 decoder.collect_to_writer(&mut result).unwrap();

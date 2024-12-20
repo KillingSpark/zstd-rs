@@ -7,16 +7,16 @@ pub(crate) mod frame_header;
 pub(crate) mod match_generator;
 pub(crate) mod util;
 
-pub mod frame_compressor;
+mod frame_compressor;
+pub use frame_compressor::{CompressionLevel, FrameCompressor};
 
 use crate::io::{Read, Write};
 use alloc::vec::Vec;
-use frame_compressor::{CompressionLevel, FrameCompressor};
 use match_generator::Sequence;
 
 /// Convenience function to compress some source into a target without reusing any resources of the compressor
 /// ```rust
-/// use ruzstd::encoding::{compress, frame_compressor::CompressionLevel};
+/// use ruzstd::encoding::{compress, CompressionLevel};
 /// let data: &[u8] = &[0,0,0,0,0,0,0,0,0,0,0,0];
 /// let mut target = Vec::new();
 /// compress(data, &mut target, CompressionLevel::Fastest);
@@ -28,7 +28,7 @@ pub fn compress<R: Read, W: Write>(source: R, target: W, level: CompressionLevel
 
 /// Convenience function to compress some source into a target without reusing any resources of the compressor into a Vec
 /// ```rust
-/// use ruzstd::encoding::{compress_to_vec, frame_compressor::CompressionLevel};
+/// use ruzstd::encoding::{compress_to_vec, CompressionLevel};
 /// let data: &[u8] = &[0,0,0,0,0,0,0,0,0,0,0,0];
 /// let compressed = compress_to_vec(data, CompressionLevel::Fastest);
 /// ```

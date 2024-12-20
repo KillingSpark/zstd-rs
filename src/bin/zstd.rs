@@ -9,8 +9,8 @@ use std::time::Instant;
 
 use ruzstd::decoding::errors::FrameDecoderError;
 use ruzstd::decoding::errors::ReadFrameHeaderError;
-use ruzstd::encoding::frame_compressor::CompressionLevel;
-use ruzstd::encoding::frame_compressor::FrameCompressor;
+use ruzstd::encoding::CompressionLevel;
+use ruzstd::encoding::FrameCompressor;
 
 struct StateTracker {
     bytes_used: u64,
@@ -41,7 +41,7 @@ fn decompress(flags: &[String], file_paths: &[String]) {
         return;
     }
 
-    let mut frame_dec = ruzstd::decoding::frame_decoder::FrameDecoder::new();
+    let mut frame_dec = ruzstd::decoding::FrameDecoder::new();
 
     for path in file_paths {
         eprintln!("File: {}", path);
@@ -81,9 +81,7 @@ fn decompress(flags: &[String], file_paths: &[String]) {
                 frame_dec
                     .decode_blocks(
                         &mut f,
-                        ruzstd::decoding::frame_decoder::BlockDecodingStrategy::UptoBytes(
-                            batch_size,
-                        ),
+                        ruzstd::decoding::BlockDecodingStrategy::UptoBytes(batch_size),
                     )
                     .unwrap();
 
