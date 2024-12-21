@@ -72,51 +72,6 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
         self.compressed_data.replace(compressed_data)
     }
 
-    /// Retrieve a mutable reference to the source
-    pub fn source_mut(&mut self) -> Option<&mut R> {
-        self.uncompressed_data.as_mut()
-    }
-
-    /// Retrieve a mutable reference to the drain
-    pub fn drain_mut(&mut self) -> Option<&mut W> {
-        self.compressed_data.as_mut()
-    }
-
-    /// Retrieve a reference to the source
-    pub fn source(&self) -> Option<&R> {
-        self.uncompressed_data.as_ref()
-    }
-
-    /// Retrieve a reference to the drain
-    pub fn drain(&self) -> Option<&W> {
-        self.compressed_data.as_ref()
-    }
-
-    /// Retrieve the source
-    pub fn take_source(&mut self) -> Option<R> {
-        self.uncompressed_data.take()
-    }
-
-    /// Retrieve the drain
-    pub fn take_drain(&mut self) -> Option<&mut W> {
-        self.compressed_data.as_mut()
-    }
-
-    /// Before calling [FrameCompressor::compress] you can replace the matcher
-    pub fn replace_matcher(&mut self, mut match_generator: M) -> M {
-        core::mem::swap(&mut match_generator, &mut self.match_generator);
-        match_generator
-    }
-
-    /// Before calling [FrameCompressor::compress] you can replace the compression level
-    pub fn replace_compression_level(
-        &mut self,
-        mut compression_level: CompressionLevel,
-    ) -> CompressionLevel {
-        core::mem::swap(&mut compression_level, &mut self.compression_level);
-        compression_level
-    }
-
     /// Compress the uncompressed data from the provided source as one Zstd frame and write it to the provided drain
     ///
     /// This will repeatedly call [Read::read] on the source to fill up blocks until the source returns 0 on the read call.
@@ -228,6 +183,57 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                 break;
             }
         }
+    }
+
+    /// Get a mutable reference to the source
+    pub fn source_mut(&mut self) -> Option<&mut R> {
+        self.uncompressed_data.as_mut()
+    }
+
+    /// Get a mutable reference to the drain
+    pub fn drain_mut(&mut self) -> Option<&mut W> {
+        self.compressed_data.as_mut()
+    }
+
+    /// Get a reference to the source
+    pub fn source(&self) -> Option<&R> {
+        self.uncompressed_data.as_ref()
+    }
+
+    /// Get a reference to the drain
+    pub fn drain(&self) -> Option<&W> {
+        self.compressed_data.as_ref()
+    }
+
+    /// Retrieve the source
+    pub fn take_source(&mut self) -> Option<R> {
+        self.uncompressed_data.take()
+    }
+
+    /// Retrieve the drain
+    pub fn take_drain(&mut self) -> Option<&mut W> {
+        self.compressed_data.as_mut()
+    }
+
+    /// Before calling [FrameCompressor::compress] you can replace the matcher
+    pub fn replace_matcher(&mut self, mut match_generator: M) -> M {
+        core::mem::swap(&mut match_generator, &mut self.match_generator);
+        match_generator
+    }
+
+    /// Before calling [FrameCompressor::compress] you can replace the compression level
+    pub fn set_compression_level(
+        &mut self,
+        compression_level: CompressionLevel,
+    ) -> CompressionLevel {
+        let old = self.compression_level;
+        self.compression_level = compression_level;
+        old
+    }
+
+    /// Get the current compression level
+    pub fn compression_level(&self) -> CompressionLevel {
+        self.compression_level
     }
 }
 
