@@ -1,7 +1,7 @@
 use alloc::vec::Vec;
 
 use crate::{
-    encoding::{bit_writer::BitWriter, match_generator::Sequence, Matcher},
+    encoding::{bit_writer::BitWriter, Matcher, Sequence},
     fse::fse_encoder::{default_ll_table, default_ml_table, default_of_table, FSETable, State},
     huff0::huff0_encoder,
 };

@@ -9,11 +9,13 @@ use alloc::vec::Vec;
 use core::num::NonZeroUsize;
 
 use super::Matcher;
+use super::Sequence;
+use super::CompressionLevel;
 
 const MIN_MATCH_LEN: usize = 5;
 
 /// Takes care of allocating and reusing vecs
-pub(crate) struct MatchGeneratorDriver {
+pub struct MatchGeneratorDriver {
     vec_pool: Vec<Vec<u8>>,
     suffix_pool: Vec<SuffixStore>,
     match_generator: MatchGenerator,
@@ -34,6 +36,23 @@ impl MatchGeneratorDriver {
 }
 
 impl Matcher for MatchGeneratorDriver {
+    fn reset(&mut self, _level: CompressionLevel) {
+        let vec_pool = &mut self.vec_pool;
+        let suffix_pool = &mut self.suffix_pool;
+
+        self.match_generator.reset(|mut data, mut suffixes| {
+            data.resize(data.capacity(), 0);
+            vec_pool.push(data);
+            suffixes.slots.clear();
+            suffixes.slots.resize(suffixes.slots.capacity(), None);
+            suffix_pool.push(suffixes);
+        });
+    }
+
+    fn window_size(&self) -> u64 {
+        256 * 1024
+    }
+
     fn get_next_space(&mut self) -> Vec<u8> {
         self.vec_pool.pop().unwrap_or_else(|| {
             let mut space = alloc::vec![0; self.slice_size];
@@ -153,18 +172,6 @@ pub(crate) struct MatchGenerator {
     last_idx_in_sequence: usize,
 }
 
-#[derive(PartialEq, Eq, Debug)]
-pub(crate) enum Sequence<'data> {
-    Triple {
-        literals: &'data [u8],
-        offset: usize,
-        match_len: usize,
-    },
-    Literals {
-        literals: &'data [u8],
-    },
-}
-
 impl MatchGenerator {
     /// max_size defines how many bytes will be used at most in the window used for matching
     fn new(max_size: usize) -> Self {
@@ -177,6 +184,17 @@ impl MatchGenerator {
             suffix_idx: 0,
             last_idx_in_sequence: 0,
         }
+    }
+
+    fn reset(&mut self, mut reuse_space: impl FnMut(Vec<u8>, SuffixStore)) {
+        self.window_size = 0;
+        #[cfg(debug_assertions)]
+        self.concat_window.clear();
+        self.suffix_idx = 0;
+        self.last_idx_in_sequence = 0;
+        self.window.drain(..).for_each(|entry| {
+            reuse_space(entry.data, entry.suffixes);
+        });
     }
 
     /// Processes bytes in the current window until either a match is found or no more matches can be found
