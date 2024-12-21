@@ -104,7 +104,7 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
 
     /// Before calling [FrameCompressor::compress] you can replace the matcher
     pub fn replace_matcher(&mut self, mut match_generator: M) -> M {
-        std::mem::swap(&mut match_generator, &mut self.match_generator);
+        core::mem::swap(&mut match_generator, &mut self.match_generator);
         match_generator
     }
 
@@ -113,7 +113,7 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
         &mut self,
         mut compression_level: CompressionLevel,
     ) -> CompressionLevel {
-        std::mem::swap(&mut compression_level, &mut self.compression_level);
+        core::mem::swap(&mut compression_level, &mut self.compression_level);
         compression_level
     }
 
