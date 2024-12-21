@@ -14,7 +14,7 @@ use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use core::convert::TryInto;
 
-/// This implements a decoder for zstd frames.
+/// Low level Zstandard decoder that can be used to decompress frames with fine control over when and how many bytes are decoded.
 ///
 /// This decoder is able to decode frames only partially and gives control
 /// over how many bytes/blocks will be decoded at a time (so you don't have to decode a 10GB file into memory all at once).
