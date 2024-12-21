@@ -117,7 +117,10 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
         compression_level
     }
 
-    /// Compress the uncompressed data into a valid Zstd frame and write it into the provided buffer
+    /// Compress the uncompressed data from the provided source as one Zstd frame and write it to the provided drain
+    ///
+    /// This will repeatedly call [Read::read] on the source to fill up blocks until the source returns 0 on the read call.
+    /// Also [Write::write_all] will be called on the drain after each block has been encoded.
     pub fn compress(&mut self) {
         self.match_generator.reset(self.compression_level);
         let source = self.uncompressed_data.as_mut().unwrap();
