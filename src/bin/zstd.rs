@@ -158,6 +158,10 @@ fn main() {
     file_paths.remove(0);
 
     if flags.is_empty() {
+        let mut encoder = FrameCompressor::new(CompressionLevel::Fastest);
+        let mut output = Vec::new();
+        encoder.set_drain(&mut output);
+
         for path in file_paths {
             let start_instant = Instant::now();
             let file = std::fs::File::open(&path).unwrap();
@@ -168,9 +172,11 @@ fn main() {
                 counter: 0,
                 last_percent: 0,
             };
-            let mut output = Vec::new();
-            let mut encoder = FrameCompressor::new(file, &mut output, CompressionLevel::Fastest);
+            encoder.set_source(file);
+
+            encoder.drain_mut().unwrap().clear();
             encoder.compress();
+            let output = encoder.drain_mut().unwrap();
             println!(
                 "Compressed {path:} from {} to {} ({}%) took {}ms",
                 input_len,

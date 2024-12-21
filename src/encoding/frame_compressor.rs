@@ -5,7 +5,7 @@ use core::convert::TryInto;
 
 use super::{
     block_header::BlockHeader, blocks::compress_block, frame_header::FrameHeader,
-    match_generator::MatchGeneratorDriver, Matcher, CompressionLevel
+    match_generator::MatchGeneratorDriver, CompressionLevel, Matcher,
 };
 
 use crate::io::{Read, Write};
@@ -25,28 +25,26 @@ const MAX_BLOCK_SIZE: usize = 128 * 1024 - 20;
 /// let mock_data: &[_] = &[0x1, 0x2, 0x3, 0x4];
 /// let mut output = std::vec::Vec::new();
 /// // Initialize a compressor.
-/// let mut compressor = FrameCompressor::new(mock_data, &mut output, CompressionLevel::Uncompressed);
+/// let mut compressor = FrameCompressor::new(CompressionLevel::Uncompressed);
+/// compressor.set_source(mock_data);
+/// compressor.set_drain(&mut output);
 ///
 /// // `compress` writes the compressed output into the provided buffer.
 /// compressor.compress();
 /// ```
 pub struct FrameCompressor<R: Read, W: Write, M: Matcher> {
-    uncompressed_data: R,
-    compressed_data: W,
+    uncompressed_data: Option<R>,
+    compressed_data: Option<W>,
     compression_level: CompressionLevel,
     match_generator: M,
 }
 
 impl<R: Read, W: Write> FrameCompressor<R, W, MatchGeneratorDriver> {
     /// Create a new `FrameCompressor`
-    pub fn new(
-        uncompressed_data: R,
-        compressed_data: W,
-        compression_level: CompressionLevel,
-    ) -> Self {
+    pub fn new(compression_level: CompressionLevel) -> Self {
         Self {
-            uncompressed_data,
-            compressed_data,
+            uncompressed_data: None,
+            compressed_data: None,
             compression_level,
             match_generator: MatchGeneratorDriver::new(1024 * 128, 1),
         }
@@ -55,30 +53,53 @@ impl<R: Read, W: Write> FrameCompressor<R, W, MatchGeneratorDriver> {
 
 impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
     /// Create a new `FrameCompressor` with a custom matching algorithm implementation
-    pub fn new_with_matcher(
-        source: R,
-        drain: W,
-        matcher: M,
-        compression_level: CompressionLevel,
-    ) -> Self {
+    pub fn new_with_matcher(matcher: M, compression_level: CompressionLevel) -> Self {
         Self {
-            uncompressed_data: source,
-            compressed_data: drain,
+            uncompressed_data: None,
+            compressed_data: None,
             match_generator: matcher,
             compression_level,
         }
     }
 
-    /// After calling [FrameCompressor::compress] you can replace the source and call [FrameCompressor::compress] again
-    pub fn replace_source(&mut self, mut uncompressed_data: R) -> R {
-        std::mem::swap(&mut uncompressed_data, &mut self.uncompressed_data);
-        uncompressed_data
+    /// Before calling [FrameCompressor::compress] you need to set the source
+    pub fn set_source(&mut self, uncompressed_data: R) -> Option<R> {
+        self.uncompressed_data.replace(uncompressed_data)
     }
 
-    /// Before calling [FrameCompressor::compress] you can replace the drain
-    pub fn replace_drain(&mut self, mut compressed_data: W) -> W {
-        std::mem::swap(&mut compressed_data, &mut self.compressed_data);
-        compressed_data
+    /// Before calling [FrameCompressor::compress] you need to set the drain
+    pub fn set_drain(&mut self, compressed_data: W) -> Option<W> {
+        self.compressed_data.replace(compressed_data)
+    }
+
+    /// Retrieve a mutable reference to the source
+    pub fn source_mut(&mut self) -> Option<&mut R> {
+        self.uncompressed_data.as_mut()
+    }
+
+    /// Retrieve a mutable reference to the drain
+    pub fn drain_mut(&mut self) -> Option<&mut W> {
+        self.compressed_data.as_mut()
+    }
+
+    /// Retrieve a reference to the source
+    pub fn source(&self) -> Option<&R> {
+        self.uncompressed_data.as_ref()
+    }
+
+    /// Retrieve a reference to the drain
+    pub fn drain(&self) -> Option<&W> {
+        self.compressed_data.as_ref()
+    }
+
+    /// Retrieve the source
+    pub fn take_source(&mut self) -> Option<R> {
+        self.uncompressed_data.take()
+    }
+
+    /// Retrieve the drain
+    pub fn take_drain(&mut self) -> Option<&mut W> {
+        self.compressed_data.as_mut()
     }
 
     /// Before calling [FrameCompressor::compress] you can replace the matcher
@@ -99,6 +120,8 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
     /// Compress the uncompressed data into a valid Zstd frame and write it into the provided buffer
     pub fn compress(&mut self) {
         self.match_generator.reset(self.compression_level);
+        let source = self.uncompressed_data.as_mut().unwrap();
+        let drain = self.compressed_data.as_mut().unwrap();
 
         let mut output = Vec::with_capacity(1024 * 130);
         let output = &mut output;
@@ -116,10 +139,7 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
             let mut read_bytes = 0;
             let last_block;
             'read_loop: loop {
-                let new_bytes = self
-                    .uncompressed_data
-                    .read(&mut uncompressed_data[read_bytes..])
-                    .unwrap();
+                let new_bytes = source.read(&mut uncompressed_data[read_bytes..]).unwrap();
                 if new_bytes == 0 {
                     last_block = true;
                     break 'read_loop;
@@ -141,7 +161,7 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                 };
                 // Write the header, then the block
                 header.serialize(output);
-                self.compressed_data.write_all(output).unwrap();
+                drain.write_all(output).unwrap();
                 output.clear();
                 break;
             }
@@ -199,7 +219,7 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                     unimplemented!();
                 }
             }
-            self.compressed_data.write_all(output).unwrap();
+            drain.write_all(output).unwrap();
             output.clear();
             if last_block {
                 break;
@@ -220,11 +240,10 @@ mod tests {
     fn frame_starts_with_magic_num() {
         let mock_data = [1_u8, 2, 3].as_slice();
         let mut output: Vec<u8> = Vec::new();
-        let mut compressor = FrameCompressor::new(
-            mock_data,
-            &mut output,
-            super::CompressionLevel::Uncompressed,
-        );
+        let mut compressor = FrameCompressor::new(super::CompressionLevel::Uncompressed);
+        compressor.set_source(mock_data);
+        compressor.set_drain(&mut output);
+
         compressor.compress();
         assert!(output.starts_with(&MAGIC_NUM.to_le_bytes()));
     }
@@ -233,11 +252,10 @@ mod tests {
     fn very_simple_raw_compress() {
         let mock_data = [1_u8, 2, 3].as_slice();
         let mut output: Vec<u8> = Vec::new();
-        let mut compressor = FrameCompressor::new(
-            mock_data,
-            &mut output,
-            super::CompressionLevel::Uncompressed,
-        );
+        let mut compressor = FrameCompressor::new(super::CompressionLevel::Uncompressed);
+        compressor.set_source(mock_data);
+        compressor.set_drain(&mut output);
+
         compressor.compress();
     }
 
@@ -249,11 +267,10 @@ mod tests {
         mock_data.extend(vec![2; 1 << 17]);
         mock_data.extend(vec![3; (1 << 17) - 1]);
         let mut output: Vec<u8> = Vec::new();
-        let mut compressor = FrameCompressor::new(
-            mock_data.as_slice(),
-            &mut output,
-            super::CompressionLevel::Uncompressed,
-        );
+        let mut compressor = FrameCompressor::new(super::CompressionLevel::Uncompressed);
+        compressor.set_source(mock_data.as_slice());
+        compressor.set_drain(&mut output);
+
         compressor.compress();
 
         let mut decoder = FrameDecoder::new();
@@ -270,11 +287,10 @@ mod tests {
     fn rle_compress() {
         let mock_data = vec![0; 1 << 19];
         let mut output: Vec<u8> = Vec::new();
-        let mut compressor = FrameCompressor::new(
-            mock_data.as_slice(),
-            &mut output,
-            super::CompressionLevel::Uncompressed,
-        );
+        let mut compressor = FrameCompressor::new(super::CompressionLevel::Uncompressed);
+        compressor.set_source(mock_data.as_slice());
+        compressor.set_drain(&mut output);
+
         compressor.compress();
 
         let mut decoder = FrameDecoder::new();
@@ -287,11 +303,10 @@ mod tests {
     fn aaa_compress() {
         let mock_data = vec![0, 1, 3, 4, 5];
         let mut output: Vec<u8> = Vec::new();
-        let mut compressor = FrameCompressor::new(
-            mock_data.as_slice(),
-            &mut output,
-            super::CompressionLevel::Uncompressed,
-        );
+        let mut compressor = FrameCompressor::new(super::CompressionLevel::Uncompressed);
+        compressor.set_source(mock_data.as_slice());
+        compressor.set_drain(&mut output);
+
         compressor.compress();
 
         let mut decoder = FrameDecoder::new();
@@ -338,29 +353,21 @@ mod tests {
         fn encode_ruzstd_uncompressed(data: &mut dyn std::io::Read) -> Vec<u8> {
             let mut input = Vec::new();
             data.read_to_end(&mut input).unwrap();
-            let mut output = Vec::new();
 
-            let mut compressor = crate::encoding::FrameCompressor::new(
+            crate::encoding::compress_to_vec(
                 input.as_slice(),
-                &mut output,
                 crate::encoding::CompressionLevel::Uncompressed,
-            );
-            compressor.compress();
-            output
+            )
         }
 
         fn encode_ruzstd_compressed(data: &mut dyn std::io::Read) -> Vec<u8> {
             let mut input = Vec::new();
             data.read_to_end(&mut input).unwrap();
-            let mut output = Vec::new();
 
-            let mut compressor = crate::encoding::FrameCompressor::new(
+            crate::encoding::compress_to_vec(
                 input.as_slice(),
-                &mut output,
-                crate::encoding::CompressionLevel::Uncompressed,
-            );
-            compressor.compress();
-            output
+                crate::encoding::CompressionLevel::Fastest,
+            )
         }
 
         fn decode_zstd(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {

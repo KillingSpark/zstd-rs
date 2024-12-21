@@ -3,6 +3,7 @@
 extern crate libfuzzer_sys;
 extern crate ruzstd;
 use std::io::Read;
+use ruzstd::encoding::{CompressionLevel, compress_to_vec};
 
 fn decode_ruzstd(data: &mut dyn std::io::Read) -> Vec<u8> {
     let mut decoder = ruzstd::decoding::StreamingDecoder::new(data).unwrap();
@@ -33,28 +34,14 @@ fn encode_zstd(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
 
 fn encode_ruzstd_uncompressed(data: &mut dyn std::io::Read) -> Vec<u8> {
     let mut input = Vec::new();
-    let mut output = Vec::new();
     data.read_to_end(&mut input).unwrap();
-    let mut compressor = ruzstd::encoding::FrameCompressor::new(
-        input.as_slice(),
-        &mut output,
-        ruzstd::encoding::CompressionLevel::Uncompressed,
-    );
-    compressor.compress();
-    output
+    compress_to_vec(data, CompressionLevel::Uncompressed)
 }
 
 fn encode_ruzstd_compressed(data: &mut dyn std::io::Read) -> Vec<u8> {
     let mut input = Vec::new();
-    let mut output = Vec::new();
     data.read_to_end(&mut input).unwrap();
-    let mut compressor = ruzstd::encoding::FrameCompressor::new(
-        input.as_slice(),
-        &mut output,
-        ruzstd::encoding::CompressionLevel::Fastest,
-    );
-    compressor.compress();
-    output
+    compress_to_vec(data, CompressionLevel::Uncompressed)
 }
 
 fn decode_zstd(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {

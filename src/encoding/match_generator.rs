@@ -8,9 +8,9 @@
 use alloc::vec::Vec;
 use core::num::NonZeroUsize;
 
+use super::CompressionLevel;
 use super::Matcher;
 use super::Sequence;
-use super::CompressionLevel;
 
 const MIN_MATCH_LEN: usize = 5;
 

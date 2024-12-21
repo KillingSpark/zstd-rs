@@ -21,7 +21,9 @@ use alloc::vec::Vec;
 /// compress(data, &mut target, CompressionLevel::Fastest);
 /// ```
 pub fn compress<R: Read, W: Write>(source: R, target: W, level: CompressionLevel) {
-    let mut frame_enc = FrameCompressor::new(source, target, level);
+    let mut frame_enc = FrameCompressor::new(level);
+    frame_enc.set_source(source);
+    frame_enc.set_drain(target);
     frame_enc.compress();
 }
 
