@@ -1,4 +1,4 @@
-//! Utilities and interfaces for encoding an entire frame.
+//! Utilities and interfaces for encoding an entire frame. Allows reusing resources
 
 use alloc::vec::Vec;
 use core::convert::TryInto;
