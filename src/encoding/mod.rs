@@ -27,7 +27,7 @@ pub fn compress<R: Read, W: Write>(source: R, target: W, level: CompressionLevel
     frame_enc.compress();
 }
 
-/// Convenience function to compress some source into a target without reusing any resources of the compressor into a Vec
+/// Convenience function to compress some source into a Vec without reusing any resources of the compressor
 /// ```rust
 /// use ruzstd::encoding::{compress_to_vec, CompressionLevel};
 /// let data: &[u8] = &[0,0,0,0,0,0,0,0,0,0,0,0];
