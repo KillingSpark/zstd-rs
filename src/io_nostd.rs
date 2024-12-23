@@ -128,7 +128,10 @@ pub trait Read {
         Ok(())
     }
 
-    fn take(self, limit: u64) -> Take<Self> where Self: Sized {
+    fn take(self, limit: u64) -> Take<Self>
+    where
+        Self: Sized,
+    {
         Take { inner: self, limit }
     }
 }
