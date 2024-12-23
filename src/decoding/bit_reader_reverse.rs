@@ -56,7 +56,7 @@ impl<'s> BitReaderReversed<'s> {
                 self.bit_container = u64::from_le_bytes((&self.source[..8]).try_into().unwrap());
             } else {
                 let mut value = [0; 8];
-                value[..self.source.len()].copy_from_slice(&self.source);
+                value[..self.source.len()].copy_from_slice(self.source);
                 self.bit_container = u64::from_le_bytes(value);
             }
 
@@ -129,7 +129,7 @@ impl<'s> BitReaderReversed<'s> {
             return (v1, v2, v3);
         }
 
-        return (self.get_bits(n1), self.get_bits(n2), self.get_bits(n3));
+        (self.get_bits(n1), self.get_bits(n2), self.get_bits(n3))
     }
 }
 
