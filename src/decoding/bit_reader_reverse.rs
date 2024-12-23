@@ -4,21 +4,28 @@ use core::convert::TryInto;
 /// back to front to decode it properly. `BitReaderReversed` provides a
 /// convenient interface to do that.
 pub struct BitReaderReversed<'s> {
+    /// The index of the last read byte in the source.
     index: usize,
 
+    /// How many bits have been consumed from `bit_container`.
     bits_consumed: u8,
 
+    /// How many bits have been consumed past the end of the input. Will be zero until all the input
+    /// has been read.
+    extra_bits: usize,
+
+    /// The source data to read from.
     source: &'s [u8],
-    /// The reader doesn't read directly from the source,
-    /// it reads bits from here, and the container is
-    /// "refilled" as it's emptied.
+
+    /// The reader doesn't read directly from the source, it reads bits from here, and the container
+    /// is "refilled" as it's emptied.
     bit_container: u64,
 }
 
 impl<'s> BitReaderReversed<'s> {
     /// How many bits are left to read by the reader.
     pub fn bits_remaining(&self) -> isize {
-        self.index as isize * 8 + (64 - self.bits_consumed as isize)
+        self.index as isize * 8 + (64 - self.bits_consumed as isize) - self.extra_bits as isize
     }
 
     pub fn new(source: &'s [u8]) -> BitReaderReversed<'s> {
@@ -27,12 +34,13 @@ impl<'s> BitReaderReversed<'s> {
             bits_consumed: 64,
             source,
             bit_container: 0,
+            extra_bits: 0,
         }
     }
 
     /// We refill the container in full bytes, shifting the still unread portion to the left, and filling the lower bits with new data
-    #[inline(always)]
-    fn refill_container(&mut self) {
+    #[cold]
+    fn refill(&mut self) {
         let bytes_consumed = self.bits_consumed as usize / 8;
         if bytes_consumed == 0 {
             return;
@@ -43,7 +51,7 @@ impl<'s> BitReaderReversed<'s> {
             self.bits_consumed &= 7;
             self.bit_container =
                 u64::from_le_bytes((&self.source[self.index..][..8]).try_into().unwrap());
-        } else {
+        } else if self.index > 0 {
             if self.source.len() >= 8 {
                 self.bit_container = u64::from_le_bytes((&self.source[..8]).try_into().unwrap());
             } else {
@@ -54,16 +62,30 @@ impl<'s> BitReaderReversed<'s> {
 
             self.bits_consumed -= 8 * self.index as u8;
             self.index = 0;
-        }
-    }
 
+            self.bit_container <<= self.bits_consumed;
+            self.extra_bits += self.bits_consumed as usize;
+            self.bits_consumed = 0;
+        } else if self.bits_consumed < 64 {
+            self.bit_container <<= self.bits_consumed;
+            self.extra_bits += self.bits_consumed as usize;
+            self.bits_consumed = 0;
+        } else {
+            self.extra_bits += self.bits_consumed as usize;
+            self.bits_consumed = 0;
+            self.bit_container = 0;
+        }
+
+        // Assert that at least `56 = 64 - 8` bits are available to read.
+        debug_assert!(self.bits_consumed < 8);
+    }
 
     /// Read `n` number of bits from the source. Will read at most 56 bits.
     /// If there are no more bits to be read from the source zero bits will be returned instead.
     #[inline(always)]
     pub fn get_bits(&mut self, n: u8) -> u64 {
         if self.bits_consumed + n > 64 {
-            self.refill_container();
+            self.refill();
         }
 
         let value = self.peak_bits(n);
@@ -71,36 +93,31 @@ impl<'s> BitReaderReversed<'s> {
         value
     }
 
+    /// Get the next `n` bits from the source without consuming them.
+    #[inline(always)]
     pub fn peak_bits(&mut self, n: u8) -> u64 {
-        if self.bits_consumed >= 64 {
+        if n == 0 {
             return 0;
         }
 
         let mask = (1u64 << n) - 1u64;
-
-        if self.bits_consumed + n > 64 {
-            let shift_by = (self.bits_consumed + n) - 64;
-            return (self.bit_container << shift_by) & mask;
-        }
-
         let shift_by = 64 - self.bits_consumed - n;
         (self.bit_container >> shift_by) & mask
     }
 
+    /// Consume `n` bits from the source.
+    #[inline(always)]
     pub fn consume(&mut self, n: u8) {
         self.bits_consumed += n;
+        debug_assert!(self.bits_consumed <= 64);
     }
 
     /// Same as calling get_bits three times but slightly more performant
     #[inline(always)]
     pub fn get_bits_triple(&mut self, n1: u8, n2: u8, n3: u8) -> (u64, u64, u64) {
-        let sum = n1 as usize + n2 as usize + n3 as usize;
-        if sum == 0 {
-            return (0, 0, 0);
-        }
-
+        let sum = n1 + n2 + n3;
         if sum <= 56 {
-            self.refill_container();
+            self.refill();
 
             let v1 = self.peak_bits(n1);
             self.consume(n1);
@@ -114,9 +131,7 @@ impl<'s> BitReaderReversed<'s> {
 
         return (self.get_bits(n1), self.get_bits(n2), self.get_bits(n3));
     }
-
 }
-
 
 #[cfg(test)]
 mod test {
