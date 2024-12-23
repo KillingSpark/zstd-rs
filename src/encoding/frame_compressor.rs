@@ -76,6 +76,9 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
     ///
     /// This will repeatedly call [Read::read] on the source to fill up blocks until the source returns 0 on the read call.
     /// Also [Write::write_all] will be called on the drain after each block has been encoded.
+    ///
+    /// To avoid endlessly encoding from a potentially endless source (like a network socket) you can use the
+    /// [Read::take] function
     pub fn compress(&mut self) {
         self.match_generator.reset(self.compression_level);
         let source = self.uncompressed_data.as_mut().unwrap();
