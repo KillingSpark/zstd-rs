@@ -159,8 +159,7 @@ fn main() {
 
     if flags.is_empty() {
         let mut encoder = FrameCompressor::new(CompressionLevel::Fastest);
-        let mut output = Vec::new();
-        encoder.set_drain(&mut output);
+        encoder.set_drain(Vec::new());
 
         for path in file_paths {
             let start_instant = Instant::now();
@@ -173,10 +172,8 @@ fn main() {
                 last_percent: 0,
             };
             encoder.set_source(file);
-
-            encoder.drain_mut().unwrap().clear();
             encoder.compress();
-            let output = encoder.drain_mut().unwrap();
+            let mut output: Vec<_> = encoder.take_drain().unwrap();
             println!(
                 "Compressed {path:} from {} to {} ({}%) took {}ms",
                 input_len,
@@ -188,6 +185,8 @@ fn main() {
                 },
                 start_instant.elapsed().as_millis()
             );
+            output.clear();
+            encoder.set_drain(output);
         }
     } else {
         decompress(&flags, &file_paths);

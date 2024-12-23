@@ -211,8 +211,8 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
     }
 
     /// Retrieve the drain
-    pub fn take_drain(&mut self) -> Option<&mut W> {
-        self.compressed_data.as_mut()
+    pub fn take_drain(&mut self) -> Option<W> {
+        self.compressed_data.take()
     }
 
     /// Before calling [FrameCompressor::compress] you can replace the matcher
