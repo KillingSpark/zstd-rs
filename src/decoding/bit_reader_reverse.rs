@@ -88,14 +88,14 @@ impl<'s> BitReaderReversed<'s> {
             self.refill();
         }
 
-        let value = self.peak_bits(n);
+        let value = self.peek_bits(n);
         self.consume(n);
         value
     }
 
     /// Get the next `n` bits from the source without consuming them.
     #[inline(always)]
-    pub fn peak_bits(&mut self, n: u8) -> u64 {
+    pub fn peek_bits(&mut self, n: u8) -> u64 {
         if n == 0 {
             return 0;
         }
@@ -119,11 +119,11 @@ impl<'s> BitReaderReversed<'s> {
         if sum <= 56 {
             self.refill();
 
-            let v1 = self.peak_bits(n1);
+            let v1 = self.peek_bits(n1);
             self.consume(n1);
-            let v2 = self.peak_bits(n2);
+            let v2 = self.peek_bits(n2);
             self.consume(n2);
-            let v3 = self.peak_bits(n3);
+            let v3 = self.peek_bits(n3);
             self.consume(n3);
 
             return (v1, v2, v3);
