@@ -47,11 +47,15 @@ impl<'s> BitReaderReversed<'s> {
         }
 
         if self.index >= bytes_consumed {
+            // We can safely move the window contained in `bit_container` down by `bytes_consumed`
+            // If the reader wasn't byte aligned, the byte that was partially read is now in the highest order bits in the `bit_container`
             self.index -= bytes_consumed;
+            // Some bits of the `bits_container` might have been consumed already because we read the window byte aligned
             self.bits_consumed &= 7;
             self.bit_container =
                 u64::from_le_bytes((&self.source[self.index..][..8]).try_into().unwrap());
         } else if self.index > 0 {
+            // Read the last portion of source into the `bit_container`
             if self.source.len() >= 8 {
                 self.bit_container = u64::from_le_bytes((&self.source[..8]).try_into().unwrap());
             } else {
@@ -67,10 +71,12 @@ impl<'s> BitReaderReversed<'s> {
             self.extra_bits += self.bits_consumed as usize;
             self.bits_consumed = 0;
         } else if self.bits_consumed < 64 {
+            // Shift out already used bits and fill up with zeroes
             self.bit_container <<= self.bits_consumed;
             self.extra_bits += self.bits_consumed as usize;
             self.bits_consumed = 0;
         } else {
+            // All useful bits have already been read and more than 64 bits have been consumed, all we now do is return zeroes
             self.extra_bits += self.bits_consumed as usize;
             self.bits_consumed = 0;
             self.bit_container = 0;
