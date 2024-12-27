@@ -100,6 +100,7 @@ impl<'s> BitReaderReversed<'s> {
     }
 
     /// Get the next `n` bits from the source without consuming them.
+    /// Caller is responsible for making sure that `n` many bits have been refilled.
     #[inline(always)]
     pub fn peek_bits(&mut self, n: u8) -> u64 {
         if n == 0 {
@@ -109,6 +110,33 @@ impl<'s> BitReaderReversed<'s> {
         let mask = (1u64 << n) - 1u64;
         let shift_by = 64 - self.bits_consumed - n;
         (self.bit_container >> shift_by) & mask
+    }
+
+    /// Get the next `n1` `n2` and `n3` bits from the source without consuming them.
+    /// Caller is responsible for making sure that `sum` many bits have been refilled.
+    #[inline(always)]
+    pub fn peek_bits_triple(&mut self, sum: u8, n1: u8, n2: u8, n3: u8) -> (u64, u64, u64) {
+        if sum == 0 {
+            return (0, 0, 0);
+        }
+
+        // all_three contains bits like this: |XXXX..XXX111122223333|
+        // Where XXX are already consumed bytes, 1/2/3 are bits of the respective value
+        // Lower bits are to the right
+        let all_three = self.bit_container >> (64 - self.bits_consumed - sum);
+
+        let mask1 = (1u64 << n1) - 1u64;
+        let shift_by1 = n3 + n2;
+        let val1 = (all_three >> shift_by1) & mask1;
+
+        let mask2 = (1u64 << n2) - 1u64;
+        let shift_by2 = n3;
+        let val2 = (all_three >> shift_by2) & mask2;
+
+        let mask3 = (1u64 << n3) - 1u64;
+        let val3 = all_three & mask3;
+
+        (val1, val2, val3)
     }
 
     /// Consume `n` bits from the source.
@@ -125,14 +153,9 @@ impl<'s> BitReaderReversed<'s> {
         if sum <= 56 {
             self.refill();
 
-            let v1 = self.peek_bits(n1);
-            self.consume(n1);
-            let v2 = self.peek_bits(n2);
-            self.consume(n2);
-            let v3 = self.peek_bits(n3);
-            self.consume(n3);
-
-            return (v1, v2, v3);
+            let triple = self.peek_bits_triple(sum, n1, n2, n3);
+            self.consume(sum);
+            return triple;
         }
 
         (self.get_bits(n1), self.get_bits(n2), self.get_bits(n3))
