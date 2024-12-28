@@ -174,5 +174,11 @@ mod test {
         assert_eq!(br.get_bits(1), 0);
         assert_eq!(br.get_bits(4), 0b1010);
         assert_eq!(br.get_bits(4), 0b1101);
+        assert_eq!(br.get_bits(4), 0b0101);
+        // Last 0 from source, three zeroes filled in
+        assert_eq!(br.get_bits(4), 0b0000);
+        // All zeroes filled in
+        assert_eq!(br.get_bits(4), 0b0000);
+        assert_eq!(br.bits_remaining(), -7);
     }
 }
