@@ -68,8 +68,8 @@ fn decompress(flags: &[String], file_paths: &[String]) {
                 })) => {
                     eprintln!("Found a skippable frame with magic number: {magic_num} and size: {skip_size}");
                     tracker.file_pos = f.stream_position().unwrap();
-                    tracker.file_pos += skip_size as u64;
-                    f.seek(SeekFrom::Current(skip_size as i64)).unwrap();
+                    tracker.file_pos += u64::from(skip_size);
+                    f.seek(SeekFrom::Current(i64::from(skip_size))).unwrap();
                     continue;
                 }
                 other => other.unwrap(),

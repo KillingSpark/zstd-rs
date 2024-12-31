@@ -1,4 +1,4 @@
-//! Use [BitWriter] to write an arbitrary amount of bits into a buffer.
+//! Use [`BitWriter`] to write an arbitrary amount of bits into a buffer.
 use alloc::vec::Vec;
 
 /// An interface for writing an arbitrary number of bits into a buffer. Write new bits into the buffer with `write_bits`, and
@@ -7,7 +7,7 @@ use alloc::vec::Vec;
 pub(crate) struct BitWriter<V: AsMut<Vec<u8>>> {
     /// The buffer that's filled with bits
     output: V,
-    /// holds a partially filled byte which gets put in outpu when it's fill with a write_bits call
+    /// holds a partially filled byte which gets put in outpu when it's fill with a `write_bits` call
     partial: u64,
     bits_in_partial: usize,
     /// The index pointing to the next unoccupied bit. Effectively just
@@ -52,7 +52,7 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
         self.output.as_mut().resize(index / 8, 0);
     }
 
-    /// Change the bits at the index. `bits` contains the ǹum_bits` new bits that should be written
+    /// Change the bits at the index. `bits` contains the `ǹum_bits` new bits that should be written
     /// Instead of the current content. `bits` *MUST* only contain zeroes in the upper bits outside of the `0..num_bits` range.
     pub fn change_bits(&mut self, idx: usize, bits: impl Into<u64>, num_bits: usize) {
         self.change_bits_64(idx, bits.into(), num_bits);
@@ -103,9 +103,11 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
 
     /// Simply append bytes to the buffer. Only works if the buffer was already byte aligned
     pub fn append_bytes(&mut self, data: &[u8]) {
-        if self.misaligned() != 0 {
-            panic!("Don't append bytes when writer is misaligned")
-        }
+        assert!(
+            self.misaligned() == 0,
+            "Don't append bytes when writer is misaligned"
+        );
+
         self.flush();
         self.output.as_mut().extend_from_slice(data);
         self.bit_idx += data.len() * 8;
@@ -193,9 +195,7 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
     /// This function consumes the writer, so it cannot be used after
     /// dumping
     pub fn dump(mut self) -> V {
-        if self.misaligned() != 0 {
-            panic!("`dump` was called on a bit writer but an even number of bytes weren't written into the buffer. Was: {}", self.index())
-        }
+        assert!(self.misaligned()==0,"`dump` was called on a bit writer but an even number of bytes weren't written into the buffer. Was: {}", self.index());
         self.flush();
         debug_assert_eq!(self.partial, 0);
         self.output

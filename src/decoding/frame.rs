@@ -96,7 +96,7 @@ impl FrameDescriptor {
     /// This is a 2 bit flag, specifying if the `Frame_Content_Size` field is present
     /// within the header. It notates the number of bytes used by `Frame_Content_size`
     ///
-    /// When this value is is 0, `FCS_Field_Size` depends on Single_Segment_flag.
+    /// When this value is is 0, `FCS_Field_Size` depends on `Single_Segment_flag`.
     /// If the `Single_Segment_flag` field is set in the frame header descriptor,
     /// the size of the `Frame_Content_Size` field of the header is 1 byte.
     /// Otherwise, `FCS_Field_Size` is 0, and the `Frame_Content_Size` is not provided.
@@ -230,7 +230,7 @@ pub fn read_frame_header(mut r: impl Read) -> Result<(Frame, u8), ReadFrameHeade
 
         #[allow(clippy::needless_range_loop)]
         for i in 0..dict_id_len {
-            dict_id += (buf[i] as u32) << (8 * i);
+            dict_id += u32::from(buf[i]) << (8 * i);
         }
         if dict_id != 0 {
             frame_header.dict_id = Some(dict_id);
@@ -248,7 +248,7 @@ pub fn read_frame_header(mut r: impl Read) -> Result<(Frame, u8), ReadFrameHeade
 
         #[allow(clippy::needless_range_loop)]
         for i in 0..fcs_len {
-            fcs += (fcs_buf[i] as u64) << (8 * i);
+            fcs += u64::from(fcs_buf[i]) << (8 * i);
         }
         if fcs_len == 2 {
             fcs += 256;

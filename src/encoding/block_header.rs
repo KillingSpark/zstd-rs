@@ -31,7 +31,7 @@ impl BlockHeader {
         };
         let mut block_header = self.block_size << 3;
         block_header |= encoded_block_type << 1;
-        block_header |= self.last_block as u32;
+        block_header |= u32::from(self.last_block);
         output.extend_from_slice(&block_header.to_le_bytes()[0..3]);
     }
 }

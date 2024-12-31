@@ -20,8 +20,8 @@ use core::convert::TryInto;
 /// over how many bytes/blocks will be decoded at a time (so you don't have to decode a 10GB file into memory all at once).
 /// It reads bytes as needed from a provided source and can be read from to collect partial results.
 ///
-/// If you want to just read the whole frame with an `io::Read` without having to deal with manually calling [FrameDecoder::decode_blocks]
-/// you can use the provided [crate::decoding::StreamingDecoder] wich wraps this FrameDecoder.
+/// If you want to just read the whole frame with an `io::Read` without having to deal with manually calling [`FrameDecoder::decode_blocks`]
+/// you can use the provided [`crate::decoding::StreamingDecoder`] wich wraps this `FrameDecoder`.
 ///
 /// Workflow is as follows:
 /// ```
@@ -134,7 +134,7 @@ impl Default for FrameDecoder {
 
 impl FrameDecoder {
     /// This will create a new decoder without allocating anything yet.
-    /// init()/reset() will allocate all needed buffers if it is the first time this decoder is used
+    /// `init()/reset()` will allocate all needed buffers if it is the first time this decoder is used
     /// else they just reset these buffers with not further allocations
     pub fn new() -> FrameDecoder {
         FrameDecoder {
@@ -143,22 +143,22 @@ impl FrameDecoder {
         }
     }
 
-    /// init() will allocate all needed buffers if it is the first time this decoder is used
+    /// `init()` will allocate all needed buffers if it is the first time this decoder is used
     /// else they just reset these buffers with not further allocations
     ///
-    /// Note that all bytes currently in the decodebuffer from any previous frame will be lost. Collect them with collect()/collect_to_writer()
+    /// Note that all bytes currently in the decodebuffer from any previous frame will be lost. Collect them with `collect()/collect_to_writer()`
     ///
-    /// equivalent to reset()
+    /// equivalent to `reset()`
     pub fn init(&mut self, source: impl Read) -> Result<(), FrameDecoderError> {
         self.reset(source)
     }
 
-    /// reset() will allocate all needed buffers if it is the first time this decoder is used
+    /// `reset()` will allocate all needed buffers if it is the first time this decoder is used
     /// else they just reset these buffers with not further allocations
     ///
-    /// Note that all bytes currently in the decodebuffer from any previous frame will be lost. Collect them with collect()/collect_to_writer()
+    /// Note that all bytes currently in the decodebuffer from any previous frame will be lost. Collect them with `collect()/collect_to_writer()`
     ///
-    /// equivalent to init()
+    /// equivalent to `init()`
     pub fn reset(&mut self, source: impl Read) -> Result<(), FrameDecoderError> {
         use FrameDecoderError as err;
         let state = match &mut self.state {
@@ -166,10 +166,7 @@ impl FrameDecoder {
                 s.reset(source)?;
                 s
             }
-            None => {
-                self.state = Some(FrameDecoderState::new(source)?);
-                self.state.as_mut().unwrap()
-            }
+            None => self.state.insert(FrameDecoderState::new(source)?),
         };
         if let Some(dict_id) = state.frame.header.dictionary_id() {
             let dict = self
@@ -182,7 +179,7 @@ impl FrameDecoder {
         Ok(())
     }
 
-    /// Add a dict to the FrameDecoder that can be used when needed. The FrameDecoder uses the appropriate one dynamically
+    /// Add a dict to the `FrameDecoder` that can be used when needed. The `FrameDecoder` uses the appropriate one dynamically
     pub fn add_dict(&mut self, dict: Dictionary) -> Result<(), FrameDecoderError> {
         self.dicts.insert(dict.id, dict);
         Ok(())
@@ -223,7 +220,7 @@ impl FrameDecoder {
     }
 
     /// Returns the checksum that was calculated while decoding.
-    /// Only a sensible value after all decoded bytes have been collected/read from the FrameDecoder
+    /// Only a sensible value after all decoded bytes have been collected/read from the `FrameDecoder`
     #[cfg(feature = "hash")]
     pub fn get_calculated_checksum(&self) -> Option<u32> {
         use core::hash::Hasher;
@@ -248,7 +245,7 @@ impl FrameDecoder {
 
     /// Whether the current frames last block has been decoded yet
     /// If this returns true you can call the drain* functions to get all content
-    /// (the read() function will drain automatically if this returns true)
+    /// (the `read()` function will drain automatically if this returns true)
     pub fn is_finished(&self) -> bool {
         let state = match &self.state {
             None => return true,
@@ -344,8 +341,8 @@ impl FrameDecoder {
         Ok(state.frame_finished)
     }
 
-    /// Collect bytes and retain window_size bytes while decoding is still going on.
-    /// After decoding of the frame (is_finished() == true) has finished it will collect all remaining bytes
+    /// Collect bytes and retain `window_size` bytes while decoding is still going on.
+    /// After decoding of the frame (`is_finished()` == true) has finished it will collect all remaining bytes
     pub fn collect(&mut self) -> Option<Vec<u8>> {
         let finished = self.is_finished();
         let state = self.state.as_mut()?;
@@ -356,8 +353,8 @@ impl FrameDecoder {
         }
     }
 
-    /// Collect bytes and retain window_size bytes while decoding is still going on.
-    /// After decoding of the frame (is_finished() == true) has finished it will collect all remaining bytes
+    /// Collect bytes and retain `window_size` bytes while decoding is still going on.
+    /// After decoding of the frame (`is_finished()` == true) has finished it will collect all remaining bytes
     pub fn collect_to_writer(&mut self, w: impl Write) -> Result<usize, Error> {
         let finished = self.is_finished();
         let state = match &mut self.state {
@@ -372,8 +369,8 @@ impl FrameDecoder {
     }
 
     /// How many bytes can currently be collected from the decodebuffer, while decoding is going on this will be lower than the actual decodbuffer size
-    /// because window_size bytes need to be retained for decoding.
-    /// After decoding of the frame (is_finished() == true) has finished it will report all remaining bytes
+    /// because `window_size` bytes need to be retained for decoding.
+    /// After decoding of the frame (`is_finished()` == true) has finished it will report all remaining bytes
     pub fn can_collect(&self) -> usize {
         let finished = self.is_finished();
         let state = match &self.state {
@@ -394,14 +391,14 @@ impl FrameDecoder {
     /// Decodes as many blocks as possible from the source slice and reads from the decodebuffer into the target slice
     /// The source slice may contain only parts of a frame but must contain at least one full block to make progress
     ///
-    /// By all means use decode_blocks if you have a io.Reader available. This is just for compatibility with other decompressors
+    /// By all means use `decode_blocks` if you have a io.Reader available. This is just for compatibility with other decompressors
     /// which try to serve an old-style c api
     ///
     /// Returns (read, written), if read == 0 then the source did not contain a full block and further calls with the same
     /// input will not make any progress!
     ///
     /// Note that no kind of block can be bigger than 128kb.
-    /// So to be safe use at least 128*1024 (max block content size) + 3 (block_header size) + 18 (max frame_header size) bytes as your source buffer
+    /// So to be safe use at least 128*1024 (max block content size) + 3 (`block_header` size) + 18 (max `frame_header` size) bytes as your source buffer
     ///
     /// You may call this function with an empty source after all bytes have been decoded. This is equivalent to just call decoder.read(&mut target)
     pub fn decode_from_to(
@@ -424,10 +421,7 @@ impl FrameDecoder {
 
             //pseudo block to scope "state" so we can borrow self again after the block
             {
-                let state = match &mut self.state {
-                    Some(s) => s,
-                    None => panic!("Bug in library"),
-                };
+                let state = self.state.as_mut().unwrap();
                 let mut block_dec = decoding::block_decoder::new();
 
                 if state.frame.header.descriptor.content_checksum_flag()
@@ -514,7 +508,7 @@ impl FrameDecoder {
         let mut total_bytes_written = 0;
         while !input.is_empty() {
             match self.init(&mut input) {
-                Ok(_) => {}
+                Ok(()) => {}
                 Err(FrameDecoderError::ReadFrameHeaderError(
                     crate::decoding::errors::ReadFrameHeaderError::SkipFrame { length, .. },
                 )) => {
@@ -578,8 +572,8 @@ impl FrameDecoder {
     }
 }
 
-/// Read bytes from the decode_buffer that are no longer needed. While the frame is not yet finished
-/// this will retain window_size bytes, else it will drain it completely
+/// Read bytes from the `decode_buffer` that are no longer needed. While the frame is not yet finished
+/// this will retain `window_size` bytes, else it will drain it completely
 impl Read for FrameDecoder {
     fn read(&mut self, target: &mut [u8]) -> Result<usize, Error> {
         let state = match &mut self.state {
