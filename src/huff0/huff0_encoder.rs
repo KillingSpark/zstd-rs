@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use core::cmp::Ordering;
+use core::{cmp::Ordering, convert::TryFrom};
 
 use crate::{
     encoding::bit_writer::BitWriter,
@@ -66,14 +66,14 @@ impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, V> {
         Self::encode_stream(&self.table, self.writer, src4);
 
         // Sanity check, if this doesn't hold we produce a broken stream
-        assert!(size1 <= u16::MAX as usize);
-        assert!(size2 <= u16::MAX as usize);
-        assert!(size3 <= u16::MAX as usize);
+        let size1 = u16::try_from(size1).unwrap();
+        let size2 = u16::try_from(size2).unwrap();
+        let size3 = u16::try_from(size3).unwrap();
 
         // Update the jumptable with the real sizes
-        self.writer.change_bits(size_idx, size1 as u16, 16);
-        self.writer.change_bits(size_idx + 16, size2 as u16, 16);
-        self.writer.change_bits(size_idx + 32, size3 as u16, 16);
+        self.writer.change_bits(size_idx, size1, 16);
+        self.writer.change_bits(size_idx + 16, size2, 16);
+        self.writer.change_bits(size_idx + 32, size3, 16);
     }
 
     /// Encode one stream and pad it to fill the last byte
@@ -128,7 +128,7 @@ impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, V> {
             self.writer.write_bits(weights.len() as u8 + 127, 8);
             let pairs = weights.chunks_exact(2);
             let remainder = pairs.remainder();
-            for pair in pairs.into_iter() {
+            for pair in pairs {
                 let weight1 = pair[0];
                 let weight2 = pair[1];
                 assert!(weight1 < 16);
@@ -218,16 +218,14 @@ impl HuffmanTable {
 
         // Determine the number of bits needed for codes with the lowest weight
         let weight_sum = sorted.iter().map(|e| 1 << (e.weight - 1)).sum::<usize>();
-        if !weight_sum.is_power_of_two() {
-            panic!("This is an internal error");
-        }
+        assert!(weight_sum.is_power_of_two(), "This is an internal error");
         let max_num_bits = highest_bit_set(weight_sum) - 1; // this is a log_2 of a clean power of two
 
         // Starting at the symbols with the lowest weight we update the placeholders in the table
         let mut current_code = 0;
         let mut current_weight = 0;
         let mut current_num_bits = 0;
-        for entry in sorted.iter() {
+        for entry in &sorted {
             // If the entry isn't the same weight as the last one we need to change a few things
             if current_weight != entry.weight {
                 // The code shifts by the difference of the weights to allow for enough unique values
@@ -317,7 +315,7 @@ fn distribute_weights(amount: usize) -> Vec<usize> {
     weights
 }
 
-/// Sometimes distribute_weights generates weights that require too many bits to encode
+/// Sometimes `distribute_weights` generates weights that require too many bits to encode
 /// This redistributes the weights to have less variance by raising the lower weights while still maintaining the
 /// required attributes of the weight distribution
 fn redistribute_weights(weights: &mut [usize], max_num_bits: usize) {

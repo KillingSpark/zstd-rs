@@ -9,7 +9,7 @@ use alloc::vec::Vec;
 /// <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#fse-table-description>
 #[derive(Debug)]
 pub struct FSETable {
-    /// The maximum symbol in the table (inclusive). Limits the probabilities length to max_symbol + 1.
+    /// The maximum symbol in the table (inclusive). Limits the probabilities length to `max_symbol` + 1.
     max_symbol: u8,
     /// The actual table containing the decoded symbol and the compression data
     /// connected to that symbol.

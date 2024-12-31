@@ -146,7 +146,7 @@ impl<'s> BitReaderReversed<'s> {
         debug_assert!(self.bits_consumed <= 64);
     }
 
-    /// Same as calling get_bits three times but slightly more performant
+    /// Same as calling `get_bits` three times but slightly more performant
     #[inline(always)]
     pub fn get_bits_triple(&mut self, n1: u8, n2: u8, n3: u8) -> (u64, u64, u64) {
         let sum = n1 + n2 + n3;

@@ -50,9 +50,7 @@ impl<'s> BitReader<'s> {
     }
 
     pub fn return_bits(&mut self, n: usize) {
-        if n > self.idx {
-            panic!("Cant return this many bits");
-        }
+        assert!(n <= self.idx, "can't return this many bits");
         self.idx -= n;
     }
 

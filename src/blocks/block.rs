@@ -34,10 +34,10 @@ pub struct BlockHeader {
     pub last_block: bool,
     pub block_type: BlockType,
     /// The size of the decompressed data. If the block type
-    /// is [BlockType::Reserved] or [BlockType::Compressed],
+    /// is [`BlockType::Reserved`] or [`BlockType::Compressed`],
     /// this value is set to zero and should not be referenced.
     pub decompressed_size: u32,
-    /// The size of the block. If the block is [BlockType::RLE],
+    /// The size of the block. If the block is [`BlockType::RLE`],
     /// this value will be 1.
     pub content_size: u32,
 }
