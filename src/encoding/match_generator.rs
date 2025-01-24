@@ -50,7 +50,7 @@ impl Matcher for MatchGeneratorDriver {
     }
 
     fn window_size(&self) -> u64 {
-        256 * 1024
+        self.match_generator.max_window_size as u64
     }
 
     fn get_next_space(&mut self) -> Vec<u8> {
