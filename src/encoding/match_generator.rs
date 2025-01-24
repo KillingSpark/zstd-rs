@@ -234,6 +234,7 @@ impl MatchGenerator {
             let key = &data_slice[..MIN_MATCH_LEN];
 
             // Look in each window entry
+            let mut candidate = None;
             for (match_entry_idx, match_entry) in self.window.iter().enumerate() {
                 let is_last = match_entry_idx == self.window.len() - 1;
                 if let Some(match_index) = match_entry.suffixes.get(key) {
@@ -260,26 +261,38 @@ impl MatchGenerator {
                             debug_assert_eq!(check_slice, &match_slice[..match_len]);
                         }
 
-                        // For each index in the match we found we do not need to look for another match
-                        // But we still want them registered in the suffix store
-                        self.add_suffixes_till(self.suffix_idx + match_len);
-
-                        // All literals that were not included between this match and the last are now included here
-                        let last_entry = self.window.last().unwrap();
-                        let literals = &last_entry.data[self.last_idx_in_sequence..self.suffix_idx];
-
-                        // Update the indexes, all indexes upto and including the current index have been included in a sequence now
-                        self.suffix_idx += match_len;
-                        self.last_idx_in_sequence = self.suffix_idx;
-                        handle_sequence(Sequence::Triple {
-                            literals,
-                            offset,
-                            match_len,
-                        });
-
-                        return true;
+                        if let Some((old_offset, old_match_len)) = candidate {
+                            if match_len > old_match_len
+                                || (match_len == old_match_len && offset < old_offset)
+                            {
+                                candidate = Some((offset, match_len));
+                            }
+                        } else {
+                            candidate = Some((offset, match_len));
+                        }
                     }
                 }
+            }
+
+            if let Some((offset, match_len)) = candidate {
+                // For each index in the match we found we do not need to look for another match
+                // But we still want them registered in the suffix store
+                self.add_suffixes_till(self.suffix_idx + match_len);
+
+                // All literals that were not included between this match and the last are now included here
+                let last_entry = self.window.last().unwrap();
+                let literals = &last_entry.data[self.last_idx_in_sequence..self.suffix_idx];
+
+                // Update the indexes, all indexes upto and including the current index have been included in a sequence now
+                self.suffix_idx += match_len;
+                self.last_idx_in_sequence = self.suffix_idx;
+                handle_sequence(Sequence::Triple {
+                    literals,
+                    offset,
+                    match_len,
+                });
+
+                return true;
             }
 
             let last_entry = self.window.last_mut().unwrap();
@@ -495,7 +508,7 @@ fn matches() {
             seq,
             Sequence::Triple {
                 literals: &[7, 8, 9, 10, 11],
-                offset: 44,
+                offset: 16,
                 match_len: 5,
             },
             &mut reconstructed,
@@ -515,7 +528,7 @@ fn matches() {
             seq,
             Sequence::Triple {
                 literals: &[],
-                offset: 49,
+                offset: 5,
                 match_len: 5,
             },
             &mut reconstructed,
