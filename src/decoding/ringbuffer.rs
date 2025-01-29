@@ -264,14 +264,13 @@ impl RingBuffer {
     /// Copies elements from the provided range to the end of the buffer.
     #[allow(dead_code)]
     pub fn extend_from_within(&mut self, start: usize, len: usize) {
-        if start + len > self.len() {
-            panic!(
-                "Calls to this functions must respect start ({}) + len ({}) <= self.len() ({})!",
-                start,
-                len,
-                self.len()
-            );
-        }
+        assert!(
+            start + len <= self.len(),
+            "Calls to this functions must respect start ({}) + len ({}) <= self.len() ({})!",
+            start,
+            len,
+            self.len()
+        );
 
         self.reserve(len);
 
@@ -286,7 +285,7 @@ impl RingBuffer {
     ///
     /// SAFETY:
     /// For this to be safe two requirements need to hold:
-    /// 1. start + len <= self.len() so we do not copy uninitialised memory
+    /// 1. start + len <= `self.len()` so we do not copy uninitialised memory
     /// 2. More then len reserved space so we do not write out-of-bounds
     #[warn(unsafe_op_in_unsafe_fn)]
     pub unsafe fn extend_from_within_unchecked(&mut self, start: usize, len: usize) {
@@ -463,11 +462,11 @@ impl RingBuffer {
     }
 
     #[allow(dead_code)]
-    /// This function is functionally the same as [RingBuffer::extend_from_within_unchecked],
+    /// This function is functionally the same as [`RingBuffer::extend_from_within_unchecked`],
     /// but it does not contain any branching operations.
     ///
     /// SAFETY:
-    /// Needs start + len <= self.len()
+    /// Needs start + len <= `self.len()`
     /// And more then len reserved space
     pub unsafe fn extend_from_within_unchecked_branchless(&mut self, start: usize, len: usize) {
         // data slices in raw parts
@@ -539,7 +538,7 @@ impl Drop for RingBuffer {
     }
 }
 
-/// Similar to ptr::copy_nonoverlapping
+/// Similar to `ptr::copy_nonoverlapping`
 ///
 /// But it might overshoot the desired copy length if deemed useful
 ///
@@ -551,7 +550,7 @@ impl Drop for RingBuffer {
 ///
 /// The chunk size is not part of the contract and may change depending on the target platform.
 ///
-/// If that isn't possible we just fall back to ptr::copy_nonoverlapping
+/// If that isn't possible we just fall back to `ptr::copy_nonoverlapping`
 #[inline(always)]
 unsafe fn copy_bytes_overshooting(
     src: (*const u8, usize),

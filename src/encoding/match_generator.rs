@@ -23,8 +23,8 @@ pub struct MatchGeneratorDriver {
 }
 
 impl MatchGeneratorDriver {
-    /// slice_size says how big the slices should be that are allocated to work with
-    /// max_slices_in_window says how many slices should at most be used while looking for matches
+    /// `slice_size` says how big the slices should be that are allocated to work with
+    /// `max_slices_in_window` says how many slices should at most be used while looking for matches
     pub(crate) fn new(slice_size: usize, max_slices_in_window: usize) -> Self {
         Self {
             vec_pool: Vec::new(),
@@ -128,11 +128,11 @@ impl SuffixStore {
 
     #[inline(always)]
     fn key(&self, suffix: &[u8]) -> usize {
-        let s0 = suffix[0] as u64;
-        let s1 = suffix[1] as u64;
-        let s2 = suffix[2] as u64;
-        let s3 = suffix[3] as u64;
-        let s4 = suffix[4] as u64;
+        let s0 = u64::from(suffix[0]);
+        let s1 = u64::from(suffix[1]);
+        let s2 = u64::from(suffix[2]);
+        let s3 = u64::from(suffix[3]);
+        let s4 = u64::from(suffix[4]);
 
         const POLY: u64 = 0xCF3BCCDCABu64;
 
@@ -173,7 +173,7 @@ pub(crate) struct MatchGenerator {
 }
 
 impl MatchGenerator {
-    /// max_size defines how many bytes will be used at most in the window used for matching
+    /// `max_size` defines how many bytes will be used at most in the window used for matching
     fn new(max_size: usize) -> Self {
         Self {
             max_window_size: max_size,
@@ -198,8 +198,8 @@ impl MatchGenerator {
     }
 
     /// Processes bytes in the current window until either a match is found or no more matches can be found
-    /// * If a match is found handle_sequence is called with the Triple variant
-    /// * If no more matches can be found but there are bytes still left handle_sequence is called with the Literals variant
+    /// * If a match is found `handle_sequence` is called with the Triple variant
+    /// * If no more matches can be found but there are bytes still left `handle_sequence` is called with the Literals variant
     /// * If no more matches can be found and no more bytes are left this returns false
     fn next_sequence(&mut self, mut handle_sequence: impl for<'a> FnMut(Sequence<'a>)) -> bool {
         loop {
@@ -361,7 +361,7 @@ impl MatchGenerator {
         self.concat_window.extend_from_slice(&data);
 
         if let Some(last_len) = self.window.last().map(|last| last.data.len()) {
-            for entry in self.window.iter_mut() {
+            for entry in &mut self.window {
                 entry.base_offset += last_len;
             }
         }

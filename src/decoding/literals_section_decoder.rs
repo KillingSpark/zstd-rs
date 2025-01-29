@@ -1,4 +1,4 @@
-//! This module contains the decompress_literals function, used to take a
+//! This module contains the `decompress_literals` function, used to take a
 //! parsed literals header and a source and decompress it.
 
 use super::super::blocks::literals_section::{LiteralsSection, LiteralsSectionType};

@@ -1,4 +1,6 @@
 //! Utilities and representations for a frame header.
+use core::array;
+
 use crate::decoding::frame;
 use crate::encoding::{
     bit_writer::BitWriter,
@@ -63,7 +65,7 @@ impl FrameHeader {
 
     /// Generate a serialized frame header descriptor for the frame header.
     ///
-    /// https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#frame_header_descriptor
+    /// <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#frame_header_descriptor>
     fn descriptor(&self) -> u8 {
         let mut bw = BitWriter::new();
         // A frame header starts with a frame header descriptor.
@@ -152,14 +154,17 @@ impl FrameHeader {
 ///
 /// > When FCS_Field_Size is 1, 4 or 8 bytes, the value is read directly. When FCS_Field_Size is 2, the offset of 256 is added.
 ///
-/// https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#frame_content_size
-fn minify_val_fcs(val: u64) -> Vec<u8> {
+/// <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#frame_content_size>
+fn minify_val_fcs(val: u64) -> impl Iterator<Item = u8> {
     let new_size = find_min_size(val);
     let mut val = val;
     if new_size == 2 {
         val -= 256;
     }
-    val.to_le_bytes()[0..new_size].to_vec()
+
+    // TODO: switch to `.into_iter()` when switching to 2021 edition
+    #[allow(deprecated)]
+    array::IntoIter::new(val.to_le_bytes()).take(new_size)
 }
 
 #[cfg(test)]

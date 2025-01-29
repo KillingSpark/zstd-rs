@@ -63,7 +63,7 @@ pub enum ModeType {
 }
 
 impl CompressionModes {
-    /// Deserialize a two bit mode value into a [ModeType]
+    /// Deserialize a two bit mode value into a [`ModeType`]
     pub fn decode_mode(m: u8) -> ModeType {
         match m {
             0 => ModeType::Predefined,
@@ -96,7 +96,7 @@ impl Default for SequencesHeader {
 }
 
 impl SequencesHeader {
-    /// Create a new [SequencesHeader].
+    /// Create a new [`SequencesHeader`].
     pub fn new() -> SequencesHeader {
         SequencesHeader {
             num_sequences: 0,

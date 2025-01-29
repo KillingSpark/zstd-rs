@@ -27,7 +27,7 @@ impl<V: AsMut<Vec<u8>>> FSEEncoder<'_, V> {
         self.write_table();
 
         let mut state = self.table.start_state(data[data.len() - 1]);
-        for x in data[0..data.len() - 1].iter().rev().copied() {
+        for &x in data[0..data.len() - 1].iter().rev() {
             let next = self.table.next_state(x, state.index);
             let diff = state.index - next.baseline;
             self.writer.write_bits(diff as u64, next.num_bits as usize);
@@ -165,7 +165,7 @@ impl<V: AsMut<Vec<u8>>> FSEEncoder<'_, V> {
 pub struct FSETable {
     /// Indexed by symbol
     pub(super) states: [SymbolStates; 256],
-    /// Sum of all states.states.len()
+    /// Sum of all `states.states.len()`
     pub(crate) table_size: usize,
 }
 
@@ -237,7 +237,7 @@ fn build_table_from_counts(counts: &[usize], max_log: u8, avoid_0_numbit: bool) 
 
     // shift all probabilities down so that the lowest are 1
     min_count -= 1;
-    for prob in probs.iter_mut() {
+    for prob in &mut probs {
         if *prob > 0 {
             *prob -= min_count as i32;
         }

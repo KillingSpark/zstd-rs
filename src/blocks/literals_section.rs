@@ -7,20 +7,20 @@ use crate::decoding::errors::LiteralsSectionParseError;
 ///
 /// This is the first of those two sections. A literal is just any arbitrary data, and it is copied by the sequences section
 pub struct LiteralsSection {
-    /// - If this block is of type [LiteralsSectionType::Raw], then the data is `regenerated_bytes`
+    /// - If this block is of type [`LiteralsSectionType::Raw`], then the data is `regenerated_bytes`
     ///     bytes long, and it contains the raw literals data to be used during the second section,
     ///     the sequences section.
-    /// - If this block is of type [LiteralsSectionType::RLE],
+    /// - If this block is of type [`LiteralsSectionType::RLE`],
     ///     then the literal consists of a single byte repeated `regenerated_size` times.
-    /// - For types [LiteralsSectionType::Compressed] or [LiteralsSectionType::Treeless],
+    /// - For types [`LiteralsSectionType::Compressed`] or [`LiteralsSectionType::Treeless`],
     ///     then this is the size of the decompressed data.
     pub regenerated_size: u32,
-    /// - For types [LiteralsSectionType::Raw] and [LiteralsSectionType::RLE], this value is not present.
-    /// - For types [LiteralsSectionType::Compressed] and [LiteralsSectionType::Treeless], this value will
+    /// - For types [`LiteralsSectionType::Raw`] and [`LiteralsSectionType::RLE`], this value is not present.
+    /// - For types [`LiteralsSectionType::Compressed`] and [`LiteralsSectionType::Treeless`], this value will
     ///     be set to the size of the compressed data.
     pub compressed_size: Option<u32>,
     /// This value will be either 1 stream or 4 streams if the literal is of type
-    /// [LiteralsSectionType::Compressed] or [LiteralsSectionType::Treeless], and it
+    /// [`LiteralsSectionType::Compressed`] or [`LiteralsSectionType::Treeless`], and it
     /// is not used for RLE or uncompressed literals.
     pub num_streams: Option<u8>,
     /// The type of the literal section.
@@ -31,7 +31,7 @@ pub struct LiteralsSection {
 pub enum LiteralsSectionType {
     /// Literals are stored uncompressed.
     Raw,
-    /// Literals consist of a single byte value repeated [LiteralsSection::regenerated_size] times.
+    /// Literals consist of a single byte value repeated [`LiteralsSection::regenerated_size`] times.
     #[allow(clippy::upper_case_acronyms)]
     RLE,
     /// This is a standard Huffman-compressed block, starting with a Huffman tree description.
@@ -39,7 +39,7 @@ pub enum LiteralsSectionType {
     /// description.
     Compressed,
     /// This is a Huffman-compressed block,
-    /// using the Huffman tree from the previous [LiteralsSectionType::Compressed] block
+    /// using the Huffman tree from the previous [`LiteralsSectionType::Compressed`] block
     /// in the sequence. If this mode is triggered without any previous Huffman-tables in the
     /// frame (or dictionary), it should be treated as data corruption.
     Treeless,
@@ -52,7 +52,7 @@ impl Default for LiteralsSection {
 }
 
 impl LiteralsSection {
-    /// Create a new [LiteralsSection].
+    /// Create a new [`LiteralsSection`].
     pub fn new() -> LiteralsSection {
         LiteralsSection {
             regenerated_size: 0,
@@ -63,7 +63,7 @@ impl LiteralsSection {
     }
 
     /// Given the first byte of a header, determine the size of the whole header, from 1 to 5 bytes.
-    pub fn header_bytes_needed(&self, first_byte: u8) -> Result<u8, LiteralsSectionParseError> {
+    pub fn header_bytes_needed(first_byte: u8) -> Result<u8, LiteralsSectionParseError> {
         let ls_type: LiteralsSectionType = Self::section_type(first_byte)?;
         let size_format = (first_byte >> 2) & 0x3;
         match ls_type {
@@ -84,7 +84,7 @@ impl LiteralsSection {
                         // regenerated_size uses 20 bits
                         Ok(3)
                     }
-                    _ => panic!(
+                    _ => unreachable!(
                         "This is a bug in the program. There should only be values between 0..3"
                     ),
                 }
@@ -105,7 +105,7 @@ impl LiteralsSection {
                         Ok(5)
                     }
 
-                    _ => panic!(
+                    _ => unreachable!(
                         "This is a bug in the program. There should only be values between 0..3"
                     ),
                 }
@@ -120,7 +120,7 @@ impl LiteralsSection {
         self.ls_type = Self::section_type(block_type)?;
         let size_format = br.get_bits(2)? as u8;
 
-        let byte_needed = self.header_bytes_needed(raw[0])?;
+        let byte_needed = Self::header_bytes_needed(raw[0])?;
         if raw.len() < byte_needed as usize {
             return Err(LiteralsSectionParseError::NotEnoughBytes {
                 have: raw.len(),

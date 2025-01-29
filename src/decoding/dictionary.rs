@@ -23,10 +23,10 @@ pub struct Dictionary {
     /// to compress or decompress,
     /// so it can be referenced in sequence commands.
     /// As long as the amount of data decoded from this frame is less than or
-    /// equal to Window_Size, sequence commands may specify offsets longer than
+    /// equal to `Window_Size`, sequence commands may specify offsets longer than
     /// the total length of decoded output so far to reference back to the
-    /// dictionary, even parts of the dictionary with offsets larger than Window_Size.
-    /// After the total output has surpassed Window_Size however,
+    /// dictionary, even parts of the dictionary with offsets larger than `Window_Size`.
+    /// After the total output has surpassed `Window_Size` however,
     /// this is no longer allowed and the dictionary is no longer accessible
     pub dict_content: Vec<u8>,
     /// The 3 most recent offsets are stored so that they can be used
@@ -41,7 +41,7 @@ pub const MAGIC_NUM: [u8; 4] = [0x37, 0xA4, 0x30, 0xEC];
 
 impl Dictionary {
     /// Parses the dictionary from `raw` and set the tables
-    /// it returns the dict_id for checking with the frame's `dict_id``
+    /// it returns the `dict_id` for checking with the frame's `dict_id`
     pub fn decode_dict(raw: &[u8]) -> Result<Dictionary, DictionaryDecodeError> {
         let mut new_dict = Dictionary {
             id: 0,

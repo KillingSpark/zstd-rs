@@ -13,7 +13,7 @@ use crate::io::{Read, Write};
 /// Blocks cannot be larger than 128KB in size.
 const MAX_BLOCK_SIZE: usize = 128 * 1024 - 20;
 
-/// An interface for compressing arbitrary data with the ZStandard compression algorithm.
+/// An interface for compressing arbitrary data with the `ZStandard` compression algorithm.
 ///
 /// `FrameCompressor` will generally be used by:
 /// 1. Initializing a compressor by providing a buffer of data using `FrameCompressor::new()`
@@ -62,30 +62,29 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
         }
     }
 
-    /// Before calling [FrameCompressor::compress] you need to set the source
+    /// Before calling [`FrameCompressor::compress`] you need to set the source
     pub fn set_source(&mut self, uncompressed_data: R) -> Option<R> {
         self.uncompressed_data.replace(uncompressed_data)
     }
 
-    /// Before calling [FrameCompressor::compress] you need to set the drain
+    /// Before calling [`FrameCompressor::compress`] you need to set the drain
     pub fn set_drain(&mut self, compressed_data: W) -> Option<W> {
         self.compressed_data.replace(compressed_data)
     }
 
     /// Compress the uncompressed data from the provided source as one Zstd frame and write it to the provided drain
     ///
-    /// This will repeatedly call [Read::read] on the source to fill up blocks until the source returns 0 on the read call.
-    /// Also [Write::write_all] will be called on the drain after each block has been encoded.
+    /// This will repeatedly call [`Read::read`] on the source to fill up blocks until the source returns 0 on the read call.
+    /// Also [`Write::write_all`] will be called on the drain after each block has been encoded.
     ///
     /// To avoid endlessly encoding from a potentially endless source (like a network socket) you can use the
-    /// [Read::take] function
+    /// [`Read::take`] function
     pub fn compress(&mut self) {
         self.match_generator.reset(self.compression_level);
         let source = self.uncompressed_data.as_mut().unwrap();
         let drain = self.compressed_data.as_mut().unwrap();
 
         let mut output = Vec::with_capacity(1024 * 130);
-        let output = &mut output;
         let header = FrameHeader {
             frame_content_size: None,
             single_segment: false,
@@ -93,7 +92,7 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
             dictionary_id: None,
             window_size: Some(self.match_generator.window_size()),
         };
-        header.serialize(output);
+        header.serialize(&mut output);
 
         loop {
             let mut uncompressed_data = self.match_generator.get_next_space();
@@ -111,7 +110,7 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                     break 'read_loop;
                 }
             }
-            uncompressed_data.resize(read_bytes, 0);
+            uncompressed_data.truncate(read_bytes);
 
             // Special handling is needed for compression of a totally empty file (why you'd want to do that, I don't know)
             if uncompressed_data.is_empty() {
@@ -121,8 +120,8 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                     block_size: 0,
                 };
                 // Write the header, then the block
-                header.serialize(output);
-                drain.write_all(output).unwrap();
+                header.serialize(&mut output);
+                drain.write_all(&output).unwrap();
                 output.clear();
                 break;
             }
@@ -135,7 +134,7 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                         block_size: read_bytes.try_into().unwrap(),
                     };
                     // Write the header, then the block
-                    header.serialize(output);
+                    header.serialize(&mut output);
                     output.extend_from_slice(&uncompressed_data);
                 }
                 CompressionLevel::Fastest => {
@@ -149,7 +148,7 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                             block_size: read_bytes.try_into().unwrap(),
                         };
                         // Write the header, then the block
-                        header.serialize(output);
+                        header.serialize(&mut output);
                         output.push(rle_byte);
                     } else {
                         let mut compressed = Vec::new();
@@ -162,7 +161,7 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                                 block_size: read_bytes.try_into().unwrap(),
                             };
                             // Write the header, then the block
-                            header.serialize(output);
+                            header.serialize(&mut output);
                             output.extend_from_slice(self.match_generator.get_last_space());
                         } else {
                             let header = BlockHeader {
@@ -171,7 +170,7 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                                 block_size: (compressed.len()).try_into().unwrap(),
                             };
                             // Write the header, then the block
-                            header.serialize(output);
+                            header.serialize(&mut output);
                             output.extend(compressed);
                         }
                     }
@@ -180,7 +179,7 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                     unimplemented!();
                 }
             }
-            drain.write_all(output).unwrap();
+            drain.write_all(&output).unwrap();
             output.clear();
             if last_block {
                 break;
@@ -218,13 +217,13 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
         self.compressed_data.take()
     }
 
-    /// Before calling [FrameCompressor::compress] you can replace the matcher
+    /// Before calling [`FrameCompressor::compress`] you can replace the matcher
     pub fn replace_matcher(&mut self, mut match_generator: M) -> M {
         core::mem::swap(&mut match_generator, &mut self.match_generator);
         match_generator
     }
 
-    /// Before calling [FrameCompressor::compress] you can replace the compression level
+    /// Before calling [`FrameCompressor::compress`] you can replace the compression level
     pub fn set_compression_level(
         &mut self,
         compression_level: CompressionLevel,

@@ -1,4 +1,4 @@
-//! The [StreamingDecoder] wraps a [FrameDecoder] and provides a Read impl that decodes data when necessary
+//! The [`StreamingDecoder`] wraps a [`FrameDecoder`] and provides a Read impl that decodes data when necessary
 
 use core::borrow::BorrowMut;
 
@@ -12,17 +12,17 @@ use crate::io::{Error, ErrorKind, Read};
 /// `io::Read::read_to_end` / `io::Read::read_exact` or passing this to another library / module as a source for the decoded content
 ///
 /// If you need more control over how decompression takes place, you can use
-/// the lower level [FrameDecoder], which allows for greater control over how
+/// the lower level [`FrameDecoder`], which allows for greater control over how
 /// decompression takes place but the implementor must call
-/// [FrameDecoder::decode_blocks] repeatedly to decode the entire frame.
+/// [`FrameDecoder::decode_blocks`] repeatedly to decode the entire frame.
 ///
 /// ## Caveat
-/// [StreamingDecoder] expects the underlying stream to only contain a single frame,
+/// [`StreamingDecoder`] expects the underlying stream to only contain a single frame,
 /// yet the specification states that a single archive may contain multiple frames.
 ///
 /// To decode all the frames in a finite stream, the calling code needs to recreate
 /// the instance of the decoder and handle
-/// [crate::decoding::errors::ReadFrameHeaderError::SkipFrame]
+/// [`crate::decoding::errors::ReadFrameHeaderError::SkipFrame`]
 /// errors by skipping forward the `length` amount of bytes, see <https://github.com/KillingSpark/zstd-rs/issues/57>
 ///
 /// ```no_run
@@ -86,7 +86,7 @@ impl<READ: Read, DEC: BorrowMut<FrameDecoder>> StreamingDecoder<READ, DEC> {
         self.source
     }
 
-    /// Destructures this object into both the inner reader and [FrameDecoder].
+    /// Destructures this object into both the inner reader and [`FrameDecoder`].
     pub fn into_parts(self) -> (READ, DEC)
     where
         READ: Sized,
@@ -94,7 +94,7 @@ impl<READ: Read, DEC: BorrowMut<FrameDecoder>> StreamingDecoder<READ, DEC> {
         (self.source, self.decoder)
     }
 
-    /// Destructures this object into the inner [FrameDecoder].
+    /// Destructures this object into the inner [`FrameDecoder`].
     pub fn into_frame_decoder(self) -> DEC {
         self.decoder
     }

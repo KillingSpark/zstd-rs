@@ -180,8 +180,8 @@ impl DecodeBuffer {
         self.buffer.len()
     }
 
-    /// Drain as much as possible while retaining enough so that decoding si still possible with the required window_size
-    /// At best call only if can_drain_to_window_size reports a 'high' number of bytes to reduce allocations
+    /// Drain as much as possible while retaining enough so that decoding si still possible with the required `window_size`
+    /// At best call only if `can_drain_to_window_size` reports a 'high' number of bytes to reduce allocations
     pub fn drain_to_window_size(&mut self) -> Option<Vec<u8>> {
         //TODO investigate if it is possible to return the std::vec::Drain iterator directly without collecting here
         match self.can_drain_to_window_size() {
@@ -238,7 +238,7 @@ impl DecodeBuffer {
         Ok(amount)
     }
 
-    /// Semantics of write_bytes:
+    /// Semantics of `write_bytes`:
     /// Should dump as many of the provided bytes as possible to whatever sink until no bytes are left or an error is encountered
     /// Return how many bytes have actually been dumped to the sink.
     fn drain_to(
@@ -302,7 +302,7 @@ impl DecodeBuffer {
     }
 }
 
-/// Like Write::write_all but returns partial write length even on error
+/// Like `Write::write_all` but returns partial write length even on error
 fn write_all_bytes(mut sink: impl Write, buf: &[u8]) -> (usize, Result<(), Error>) {
     let mut written = 0;
     while written < buf.len() {
