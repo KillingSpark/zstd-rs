@@ -36,7 +36,12 @@ pub struct FrameCompressor<R: Read, W: Write, M: Matcher> {
     uncompressed_data: Option<R>,
     compressed_data: Option<W>,
     compression_level: CompressionLevel,
-    match_generator: M,
+    state: CompressState<M>,
+}
+
+pub(crate) struct CompressState<M: Matcher> {
+    pub(crate) matcher: M,
+    pub(crate) last_huff_table: Option<crate::huff0::huff0_encoder::HuffmanTable>,
 }
 
 impl<R: Read, W: Write> FrameCompressor<R, W, MatchGeneratorDriver> {
@@ -46,7 +51,10 @@ impl<R: Read, W: Write> FrameCompressor<R, W, MatchGeneratorDriver> {
             uncompressed_data: None,
             compressed_data: None,
             compression_level,
-            match_generator: MatchGeneratorDriver::new(1024 * 128, 1),
+            state: CompressState {
+                matcher: MatchGeneratorDriver::new(1024 * 128, 1),
+                last_huff_table: None,
+            },
         }
     }
 }
@@ -57,7 +65,10 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
         Self {
             uncompressed_data: None,
             compressed_data: None,
-            match_generator: matcher,
+            state: CompressState {
+                matcher,
+                last_huff_table: None,
+            },
             compression_level,
         }
     }
@@ -80,7 +91,8 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
     /// To avoid endlessly encoding from a potentially endless source (like a network socket) you can use the
     /// [Read::take] function
     pub fn compress(&mut self) {
-        self.match_generator.reset(self.compression_level);
+        self.state.matcher.reset(self.compression_level);
+        self.state.last_huff_table = None;
         let source = self.uncompressed_data.as_mut().unwrap();
         let drain = self.compressed_data.as_mut().unwrap();
 
@@ -91,12 +103,12 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
             single_segment: false,
             content_checksum: false,
             dictionary_id: None,
-            window_size: Some(self.match_generator.window_size()),
+            window_size: Some(self.state.matcher.window_size()),
         };
         header.serialize(output);
 
         loop {
-            let mut uncompressed_data = self.match_generator.get_next_space();
+            let mut uncompressed_data = self.state.matcher.get_next_space();
             let mut read_bytes = 0;
             let last_block;
             'read_loop: loop {
@@ -141,8 +153,8 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                 CompressionLevel::Fastest => {
                     if uncompressed_data.iter().all(|x| uncompressed_data[0].eq(x)) {
                         let rle_byte = uncompressed_data[0];
-                        self.match_generator.commit_space(uncompressed_data);
-                        self.match_generator.skip_matching();
+                        self.state.matcher.commit_space(uncompressed_data);
+                        self.state.matcher.skip_matching();
                         let header = BlockHeader {
                             last_block,
                             block_type: crate::blocks::block::BlockType::RLE,
@@ -153,8 +165,8 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                         output.push(rle_byte);
                     } else {
                         let mut compressed = Vec::new();
-                        self.match_generator.commit_space(uncompressed_data);
-                        compress_block(&mut self.match_generator, &mut compressed);
+                        self.state.matcher.commit_space(uncompressed_data);
+                        compress_block(&mut self.state, &mut compressed);
                         if compressed.len() >= MAX_BLOCK_SIZE {
                             let header = BlockHeader {
                                 last_block,
@@ -163,7 +175,7 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                             };
                             // Write the header, then the block
                             header.serialize(output);
-                            output.extend_from_slice(self.match_generator.get_last_space());
+                            output.extend_from_slice(self.state.matcher.get_last_space());
                         } else {
                             let header = BlockHeader {
                                 last_block,
@@ -220,7 +232,7 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
 
     /// Before calling [FrameCompressor::compress] you can replace the matcher
     pub fn replace_matcher(&mut self, mut match_generator: M) -> M {
-        core::mem::swap(&mut match_generator, &mut self.match_generator);
+        core::mem::swap(&mut match_generator, &mut self.state.matcher);
         match_generator
     }
 

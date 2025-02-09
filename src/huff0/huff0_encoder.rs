@@ -6,13 +6,16 @@ use crate::{
     fse::fse_encoder::{self, FSEEncoder},
 };
 
-pub(crate) struct HuffmanEncoder<'output, V: AsMut<Vec<u8>>> {
-    table: HuffmanTable,
+pub(crate) struct HuffmanEncoder<'output, 'table, V: AsMut<Vec<u8>>> {
+    table: &'table HuffmanTable,
     writer: &'output mut BitWriter<V>,
 }
 
-impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, V> {
-    pub fn new(table: HuffmanTable, writer: &mut BitWriter<V>) -> HuffmanEncoder<'_, V> {
+impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, '_, V> {
+    pub fn new<'o, 't>(
+        table: &'t HuffmanTable,
+        writer: &'o mut BitWriter<V>,
+    ) -> HuffmanEncoder<'o, 't, V> {
         HuffmanEncoder { table, writer }
     }
 
@@ -21,8 +24,10 @@ impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, V> {
     /// * Table description
     /// * Encoded data
     /// * Padding bits to fill up last byte
-    pub fn encode(&mut self, data: &[u8]) {
-        self.write_table();
+    pub fn encode(&mut self, data: &[u8], with_table: bool) {
+        if with_table {
+            self.write_table();
+        }
         Self::encode_stream(&self.table, self.writer, data);
     }
 
@@ -31,7 +36,7 @@ impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, V> {
     /// * Table description
     /// * Jumptable
     /// * Encoded data in 4 streams, each padded to fill the last byte
-    pub fn encode4x(&mut self, data: &[u8]) {
+    pub fn encode4x(&mut self, data: &[u8], with_table: bool) {
         assert!(data.len() >= 4);
 
         // Split data in 4 equally sized parts (the last one might be a bit smaller than the rest)
@@ -42,7 +47,9 @@ impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, V> {
         let src4 = &data[split_size * 3..];
 
         // Write table description
-        self.write_table();
+        if with_table {
+            self.write_table();
+        }
 
         // Reserve space for the jump table, will be changed later
         let size_idx = self.writer.index();

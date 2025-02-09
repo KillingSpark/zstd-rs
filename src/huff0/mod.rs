@@ -24,9 +24,9 @@ pub fn round_trip(data: &[u8]) {
     }
     let mut writer = BitWriter::new();
     let encoder_table = huff0_encoder::HuffmanTable::build_from_data(data);
-    let mut encoder = huff0_encoder::HuffmanEncoder::new(encoder_table, &mut writer);
+    let mut encoder = huff0_encoder::HuffmanEncoder::new(&encoder_table, &mut writer);
 
-    encoder.encode(data);
+    encoder.encode(data, true);
     let encoded = writer.dump();
     let mut decoder_table = HuffmanTable::new();
     let table_bytes = decoder_table.build_decoder(&encoded).unwrap();

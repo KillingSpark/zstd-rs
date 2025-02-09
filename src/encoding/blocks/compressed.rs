@@ -1,15 +1,16 @@
 use alloc::vec::Vec;
 
 use crate::{
+    encoding::frame_compressor::CompressState,
     encoding::{bit_writer::BitWriter, Matcher, Sequence},
     fse::fse_encoder::{default_ll_table, default_ml_table, default_of_table, FSETable, State},
     huff0::huff0_encoder,
 };
 
-pub fn compress_block<M: Matcher>(matcher: &mut M, output: &mut Vec<u8>) {
+pub fn compress_block<M: Matcher>(state: &mut CompressState<M>, output: &mut Vec<u8>) {
     let mut literals_vec = Vec::new();
     let mut sequences = Vec::new();
-    matcher.start_matching(|seq| {
+    state.matcher.start_matching(|seq| {
         match seq {
             Sequence::Literals { literals } => literals_vec.extend_from_slice(literals),
             Sequence::Triple {
@@ -31,7 +32,11 @@ pub fn compress_block<M: Matcher>(matcher: &mut M, output: &mut Vec<u8>) {
 
     let mut writer = BitWriter::from(output);
     if literals_vec.len() > 1024 {
-        compress_literals(&literals_vec, &mut writer);
+        if let Some(table) =
+            compress_literals(&literals_vec, state.last_huff_table.as_ref(), &mut writer)
+        {
+            state.last_huff_table.replace(table);
+        }
     } else {
         raw_literals(&literals_vec, &mut writer);
     }
@@ -199,11 +204,27 @@ fn raw_literals(literals: &[u8], writer: &mut BitWriter<&mut Vec<u8>>) {
     writer.append_bytes(literals);
 }
 
-fn compress_literals(literals: &[u8], writer: &mut BitWriter<&mut Vec<u8>>) {
+fn compress_literals(
+    literals: &[u8],
+    last_table: Option<&huff0_encoder::HuffmanTable>,
+    writer: &mut BitWriter<&mut Vec<u8>>,
+) -> Option<huff0_encoder::HuffmanTable> {
     let reset_idx = writer.index();
-    writer.write_bits(2u8, 2); // compressed literals type
 
-    let encoder_table = huff0_encoder::HuffmanTable::build_from_data(literals);
+    let new_encoder_table = huff0_encoder::HuffmanTable::build_from_data(literals);
+    let (encoder_table, new_table) = if let Some(_table) = last_table {
+        // TODO check if the old table is good enough to justify not using the new one
+        // Using a new table means encoding the weights again, so using a worse table might still be worth it
+        (&new_encoder_table, true)
+    } else {
+        (&new_encoder_table, true)
+    };
+
+    if new_table {
+        writer.write_bits(2u8, 2); // compressed literals type
+    } else {
+        writer.write_bits(3u8, 2); // treeless compressed literals type
+    }
 
     let (size_format, size_bits) = match literals.len() {
         0..6 => (0b00u8, 10),
@@ -220,9 +241,9 @@ fn compress_literals(literals: &[u8], writer: &mut BitWriter<&mut Vec<u8>>) {
     let index_before = writer.index();
     let mut encoder = huff0_encoder::HuffmanEncoder::new(encoder_table, writer);
     if size_format == 0 {
-        encoder.encode(literals)
+        encoder.encode(literals, new_table)
     } else {
-        encoder.encode4x(literals)
+        encoder.encode4x(literals, new_table)
     };
     let encoded_len = (writer.index() - index_before) / 8;
     writer.change_bits(size_index, encoded_len as u64, size_bits);
@@ -232,5 +253,12 @@ fn compress_literals(literals: &[u8], writer: &mut BitWriter<&mut Vec<u8>>) {
     if total_len >= literals.len() {
         writer.reset_to(reset_idx);
         raw_literals(literals, writer);
+        None
+    } else {
+        if new_table {
+            Some(new_encoder_table)
+        } else {
+            None
+        }
     }
 }
