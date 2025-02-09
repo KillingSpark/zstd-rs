@@ -1,0 +1,6 @@
+QSocketNotifier: Can only be used with threads started with QThread
+qt.qpa.wayland: Wayland does not support QWindow::requestActivate()
+Hspell: can't open /usr/share/hspell/hebrew.wgz.sizes.
+kf.sonnet.clients.hspell: HSpellDict::HSpellDict: Init failed
+kf.kio.widgets.kdirmodel: No node found for item that was just removed: QUrl("file:///home/moritz/projects/rust/ruzstd/src/huff0/.huff0_encoder.rs.kate-swp")
+kf.kio.widgets.kdirmodel: No node found for item that was just removed: QUrl("file:///home/moritz/projects/rust/ruzstd/src/huff0/.huff0_encoder.rs.kate-swp")

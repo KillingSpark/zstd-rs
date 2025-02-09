@@ -254,11 +254,9 @@ fn compress_literals(
         writer.reset_to(reset_idx);
         raw_literals(literals, writer);
         None
+    } else if new_table {
+        Some(new_encoder_table)
     } else {
-        if new_table {
-            Some(new_encoder_table)
-        } else {
-            None
-        }
+        None
     }
 }

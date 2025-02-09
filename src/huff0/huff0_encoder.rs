@@ -28,7 +28,7 @@ impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, '_, V> {
         if with_table {
             self.write_table();
         }
-        Self::encode_stream(&self.table, self.writer, data);
+        Self::encode_stream(self.table, self.writer, data);
     }
 
     /// Encodes the data using the provided table in 4 concatenated streams
@@ -59,18 +59,18 @@ impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, '_, V> {
 
         // Write the 4 streams, noting the sizes of the encoded streams
         let index_before = self.writer.index();
-        Self::encode_stream(&self.table, self.writer, src1);
+        Self::encode_stream(self.table, self.writer, src1);
         let size1 = (self.writer.index() - index_before) / 8;
 
         let index_before = self.writer.index();
-        Self::encode_stream(&self.table, self.writer, src2);
+        Self::encode_stream(self.table, self.writer, src2);
         let size2 = (self.writer.index() - index_before) / 8;
 
         let index_before = self.writer.index();
-        Self::encode_stream(&self.table, self.writer, src3);
+        Self::encode_stream(self.table, self.writer, src3);
         let size3 = (self.writer.index() - index_before) / 8;
 
-        Self::encode_stream(&self.table, self.writer, src4);
+        Self::encode_stream(self.table, self.writer, src4);
 
         // Sanity check, if this doesn't hold we produce a broken stream
         assert!(size1 <= u16::MAX as usize);
