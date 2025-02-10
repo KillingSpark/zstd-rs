@@ -8,7 +8,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     c.bench_function("decode_all_slice", |b| {
         b.iter(|| {
-            fr.decode_all(src, &mut target_slice).unwrap();
+            fr.decode_all(src, target_slice).unwrap();
         })
     });
 }

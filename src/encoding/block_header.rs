@@ -9,11 +9,11 @@ pub struct BlockHeader {
     /// Influences the meaning of `block_size`.
     pub block_type: BlockType,
     /// - For `Raw` blocks, this is the size of the block's
-    ///     content in bytes.
+    ///   content in bytes.
     /// - For `RLE` blocks, there will be a single byte follwing
-    ///     the header, repeated `block_size` times.
+    ///   the header, repeated `block_size` times.
     /// - For `Compressed` blocks, this is the length of
-    ///     the compressed data.
+    ///   the compressed data.
     ///
     /// **This value must not be greater than 21 bits in length.**
     pub block_size: u32,

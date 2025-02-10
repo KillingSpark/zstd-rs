@@ -40,7 +40,7 @@ impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, '_, V> {
         assert!(data.len() >= 4);
 
         // Split data in 4 equally sized parts (the last one might be a bit smaller than the rest)
-        let split_size = (data.len() + 3) / 4;
+        let split_size = data.len().div_ceil(4);
         let src1 = &data[..split_size];
         let src2 = &data[split_size..split_size * 2];
         let src3 = &data[split_size * 2..split_size * 3];
