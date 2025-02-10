@@ -212,10 +212,18 @@ fn compress_literals(
     let reset_idx = writer.index();
 
     let new_encoder_table = huff0_encoder::HuffmanTable::build_from_data(literals);
+
     let (encoder_table, new_table) = if let Some(_table) = last_table {
-        // TODO check if the old table is good enough to justify not using the new one
-        // Using a new table means encoding the weights again, so using a worse table might still be worth it
-        (&new_encoder_table, true)
+        if let Some(diff) = _table.can_encode(&new_encoder_table) {
+            // TODO this is a very simple heuristic, maybe we should try to do better
+            if diff > 5 {
+                (&new_encoder_table, true)
+            } else {
+                (_table, false)
+            }
+        } else {
+            (&new_encoder_table, true)
+        }
     } else {
         (&new_encoder_table, true)
     };
