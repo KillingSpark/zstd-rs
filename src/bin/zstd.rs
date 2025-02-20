@@ -9,8 +9,8 @@ use std::time::Instant;
 
 use ruzstd::decoding::errors::FrameDecoderError;
 use ruzstd::decoding::errors::ReadFrameHeaderError;
-use ruzstd::encoding::frame_compressor::CompressionLevel;
-use ruzstd::encoding::frame_compressor::FrameCompressor;
+use ruzstd::encoding::CompressionLevel;
+use ruzstd::encoding::FrameCompressor;
 
 struct StateTracker {
     bytes_used: u64,
@@ -41,7 +41,7 @@ fn decompress(flags: &[String], file_paths: &[String]) {
         return;
     }
 
-    let mut frame_dec = ruzstd::decoding::frame_decoder::FrameDecoder::new();
+    let mut frame_dec = ruzstd::decoding::FrameDecoder::new();
 
     for path in file_paths {
         eprintln!("File: {}", path);
@@ -81,9 +81,7 @@ fn decompress(flags: &[String], file_paths: &[String]) {
                 frame_dec
                     .decode_blocks(
                         &mut f,
-                        ruzstd::decoding::frame_decoder::BlockDecodingStrategy::UptoBytes(
-                            batch_size,
-                        ),
+                        ruzstd::decoding::BlockDecodingStrategy::UptoBytes(batch_size),
                     )
                     .unwrap();
 
@@ -160,6 +158,9 @@ fn main() {
     file_paths.remove(0);
 
     if flags.is_empty() {
+        let mut encoder = FrameCompressor::new(CompressionLevel::Fastest);
+        encoder.set_drain(Vec::new());
+
         for path in file_paths {
             let start_instant = Instant::now();
             let file = std::fs::File::open(&path).unwrap();
@@ -170,9 +171,9 @@ fn main() {
                 counter: 0,
                 last_percent: 0,
             };
-            let mut output = Vec::new();
-            let mut encoder = FrameCompressor::new(file, &mut output, CompressionLevel::Fastest);
+            encoder.set_source(file);
             encoder.compress();
+            let mut output: Vec<_> = encoder.take_drain().unwrap();
             println!(
                 "Compressed {path:} from {} to {} ({}%) took {}ms",
                 input_len,
@@ -184,6 +185,8 @@ fn main() {
                 },
                 start_instant.elapsed().as_millis()
             );
+            output.clear();
+            encoder.set_drain(output);
         }
     } else {
         decompress(&flags, &file_paths);

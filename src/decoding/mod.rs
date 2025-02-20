@@ -1,8 +1,11 @@
 //! Structures and utilities used for decoding zstd formatted data
 
 pub mod errors;
-pub mod frame_decoder;
-pub mod streaming_decoder;
+mod frame_decoder;
+mod streaming_decoder;
+
+pub use frame_decoder::{BlockDecodingStrategy, FrameDecoder};
+pub use streaming_decoder::StreamingDecoder;
 
 pub(crate) mod bit_reader;
 pub(crate) mod bit_reader_reverse;

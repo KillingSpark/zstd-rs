@@ -127,6 +127,13 @@ pub trait Read {
         }
         Ok(())
     }
+
+    fn take(self, limit: u64) -> Take<Self>
+    where
+        Self: Sized,
+    {
+        Take { inner: self, limit }
+    }
 }
 
 impl Read for &[u8] {
@@ -151,6 +158,46 @@ where
 {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
         (*self).read(buf)
+    }
+}
+
+pub struct Take<R: Read> {
+    inner: R,
+    limit: u64,
+}
+
+impl<R: Read> Take<R> {
+    pub fn limit(&self) -> u64 {
+        self.limit
+    }
+
+    pub fn set_limit(&mut self, limit: u64) {
+        self.limit = limit;
+    }
+
+    pub fn get_ref(&self) -> &R {
+        &self.inner
+    }
+
+    pub fn get_mut(&mut self) -> &mut R {
+        &mut self.inner
+    }
+
+    pub fn into_inner(self) -> R {
+        self.inner
+    }
+}
+
+impl<R: Read> Read for Take<R> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
+        if self.limit == 0 {
+            return Ok(0);
+        }
+
+        let at_most = (self.limit as usize).min(buf.len());
+        let bytes = self.inner.read(&mut buf[..at_most])?;
+        self.limit -= bytes as u64;
+        Ok(bytes)
     }
 }
 

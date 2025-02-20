@@ -1,7 +1,7 @@
 #[test]
 fn test_encode_corpus_files_uncompressed_our_decompressor() {
     extern crate std;
-    use crate::encoding::frame_compressor::FrameCompressor;
+    use crate::encoding::FrameCompressor;
     use alloc::borrow::ToOwned;
     use alloc::vec::Vec;
     use std::ffi::OsStr;
@@ -29,18 +29,15 @@ fn test_encode_corpus_files_uncompressed_our_decompressor() {
 
         println!("Trying file: {:?}", path);
         let input = fs::read(entry.path()).unwrap();
-
         let mut compressed_file: Vec<u8> = Vec::new();
-        let mut compressor = FrameCompressor::new(
-            input.as_slice(),
-            &mut compressed_file,
-            crate::encoding::frame_compressor::CompressionLevel::Fastest,
-        );
+        let mut compressor = FrameCompressor::new(crate::encoding::CompressionLevel::Fastest);
+        compressor.set_source(input.as_slice());
+        compressor.set_drain(&mut compressed_file);
+
         compressor.compress();
         let mut decompressed_output = Vec::new();
         let mut decoder =
-            crate::decoding::streaming_decoder::StreamingDecoder::new(compressed_file.as_slice())
-                .unwrap();
+            crate::decoding::StreamingDecoder::new(compressed_file.as_slice()).unwrap();
         decoder.read_to_end(&mut decompressed_output).unwrap();
 
         if input != decompressed_output {
@@ -59,7 +56,7 @@ fn test_encode_corpus_files_uncompressed_our_decompressor() {
 #[test]
 fn test_encode_corpus_files_uncompressed_original_decompressor() {
     extern crate std;
-    use crate::encoding::frame_compressor::FrameCompressor;
+    use crate::encoding::FrameCompressor;
     use alloc::borrow::ToOwned;
     use alloc::format;
     use alloc::vec::Vec;
@@ -89,11 +86,9 @@ fn test_encode_corpus_files_uncompressed_original_decompressor() {
         let input = fs::read(entry.path()).unwrap();
 
         let mut compressed_file: Vec<u8> = Vec::new();
-        let mut compressor = FrameCompressor::new(
-            input.as_slice(),
-            &mut compressed_file,
-            crate::encoding::frame_compressor::CompressionLevel::Fastest,
-        );
+        let mut compressor = FrameCompressor::new(crate::encoding::CompressionLevel::Fastest);
+        compressor.set_source(input.as_slice());
+        compressor.set_drain(&mut compressed_file);
         compressor.compress();
         let mut decompressed_output = Vec::new();
         // zstd::stream::copy_decode(compressed_file.as_slice(), &mut decompressed_output).unwrap();
@@ -123,7 +118,7 @@ fn test_encode_corpus_files_uncompressed_original_decompressor() {
 #[test]
 fn test_encode_corpus_files_compressed_our_decompressor() {
     extern crate std;
-    use crate::encoding::frame_compressor::FrameCompressor;
+    use crate::encoding::FrameCompressor;
     use alloc::borrow::ToOwned;
     use alloc::vec::Vec;
     use std::ffi::OsStr;
@@ -152,16 +147,14 @@ fn test_encode_corpus_files_compressed_our_decompressor() {
         let input = fs::read(entry.path()).unwrap();
 
         let mut compressed_file: Vec<u8> = Vec::new();
-        let mut compressor = FrameCompressor::new(
-            input.as_slice(),
-            &mut compressed_file,
-            crate::encoding::frame_compressor::CompressionLevel::Fastest,
-        );
+        let mut compressor = FrameCompressor::new(crate::encoding::CompressionLevel::Fastest);
+        compressor.set_source(input.as_slice());
+        compressor.set_drain(&mut compressed_file);
+
         compressor.compress();
         let mut decompressed_output = Vec::new();
         let mut decoder =
-            crate::decoding::streaming_decoder::StreamingDecoder::new(compressed_file.as_slice())
-                .unwrap();
+            crate::decoding::StreamingDecoder::new(compressed_file.as_slice()).unwrap();
         decoder.read_to_end(&mut decompressed_output).unwrap();
 
         if input != decompressed_output {
@@ -180,7 +173,7 @@ fn test_encode_corpus_files_compressed_our_decompressor() {
 #[test]
 fn test_encode_corpus_files_compressed_original_decompressor() {
     extern crate std;
-    use crate::encoding::frame_compressor::FrameCompressor;
+    use crate::encoding::FrameCompressor;
     use alloc::borrow::ToOwned;
     use alloc::format;
     use alloc::vec::Vec;
@@ -210,11 +203,9 @@ fn test_encode_corpus_files_compressed_original_decompressor() {
         let input = fs::read(entry.path()).unwrap();
 
         let mut compressed_file: Vec<u8> = Vec::new();
-        let mut compressor = FrameCompressor::new(
-            input.as_slice(),
-            &mut compressed_file,
-            crate::encoding::frame_compressor::CompressionLevel::Fastest,
-        );
+        let mut compressor = FrameCompressor::new(crate::encoding::CompressionLevel::Fastest);
+        compressor.set_source(input.as_slice());
+        compressor.set_drain(&mut compressed_file);
         compressor.compress();
         let mut decompressed_output = Vec::new();
         // zstd::stream::copy_decode(compressed_file.as_slice(), &mut decompressed_output).unwrap();

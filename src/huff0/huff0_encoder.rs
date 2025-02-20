@@ -6,13 +6,16 @@ use crate::{
     fse::fse_encoder::{self, FSEEncoder},
 };
 
-pub(crate) struct HuffmanEncoder<'output, V: AsMut<Vec<u8>>> {
-    table: HuffmanTable,
+pub(crate) struct HuffmanEncoder<'output, 'table, V: AsMut<Vec<u8>>> {
+    table: &'table HuffmanTable,
     writer: &'output mut BitWriter<V>,
 }
 
-impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, V> {
-    pub fn new(table: HuffmanTable, writer: &mut BitWriter<V>) -> HuffmanEncoder<'_, V> {
+impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, '_, V> {
+    pub fn new<'o, 't>(
+        table: &'t HuffmanTable,
+        writer: &'o mut BitWriter<V>,
+    ) -> HuffmanEncoder<'o, 't, V> {
         HuffmanEncoder { table, writer }
     }
 
@@ -21,9 +24,11 @@ impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, V> {
     /// * Table description
     /// * Encoded data
     /// * Padding bits to fill up last byte
-    pub fn encode(&mut self, data: &[u8]) {
-        self.write_table();
-        Self::encode_stream(&self.table, self.writer, data);
+    pub fn encode(&mut self, data: &[u8], with_table: bool) {
+        if with_table {
+            self.write_table();
+        }
+        Self::encode_stream(self.table, self.writer, data);
     }
 
     /// Encodes the data using the provided table in 4 concatenated streams
@@ -31,18 +36,20 @@ impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, V> {
     /// * Table description
     /// * Jumptable
     /// * Encoded data in 4 streams, each padded to fill the last byte
-    pub fn encode4x(&mut self, data: &[u8]) {
+    pub fn encode4x(&mut self, data: &[u8], with_table: bool) {
         assert!(data.len() >= 4);
 
         // Split data in 4 equally sized parts (the last one might be a bit smaller than the rest)
-        let split_size = (data.len() + 3) / 4;
+        let split_size = data.len().div_ceil(4);
         let src1 = &data[..split_size];
         let src2 = &data[split_size..split_size * 2];
         let src3 = &data[split_size * 2..split_size * 3];
         let src4 = &data[split_size * 3..];
 
         // Write table description
-        self.write_table();
+        if with_table {
+            self.write_table();
+        }
 
         // Reserve space for the jump table, will be changed later
         let size_idx = self.writer.index();
@@ -52,18 +59,18 @@ impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, V> {
 
         // Write the 4 streams, noting the sizes of the encoded streams
         let index_before = self.writer.index();
-        Self::encode_stream(&self.table, self.writer, src1);
+        Self::encode_stream(self.table, self.writer, src1);
         let size1 = (self.writer.index() - index_before) / 8;
 
         let index_before = self.writer.index();
-        Self::encode_stream(&self.table, self.writer, src2);
+        Self::encode_stream(self.table, self.writer, src2);
         let size2 = (self.writer.index() - index_before) / 8;
 
         let index_before = self.writer.index();
-        Self::encode_stream(&self.table, self.writer, src3);
+        Self::encode_stream(self.table, self.writer, src3);
         let size3 = (self.writer.index() - index_before) / 8;
 
-        Self::encode_stream(&self.table, self.writer, src4);
+        Self::encode_stream(self.table, self.writer, src4);
 
         // Sanity check, if this doesn't hold we produce a broken stream
         assert!(size1 <= u16::MAX as usize);
@@ -84,6 +91,7 @@ impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, V> {
     ) {
         for symbol in data.iter().rev() {
             let (code, num_bits) = table.codes[*symbol as usize];
+            debug_assert!(num_bits > 0);
             writer.write_bits(code, num_bits as usize);
         }
 
@@ -242,6 +250,20 @@ impl HuffmanTable {
         }
 
         table
+    }
+
+    pub fn can_encode(&self, other: &Self) -> Option<usize> {
+        if other.codes.len() > self.codes.len() {
+            return None;
+        }
+        let mut sum = 0;
+        for ((_, other_num_bits), (_, self_num_bits)) in other.codes.iter().zip(self.codes.iter()) {
+            if *other_num_bits != 0 && *self_num_bits == 0 {
+                return None;
+            }
+            sum += other_num_bits.abs_diff(*self_num_bits) as usize;
+        }
+        Some(sum)
     }
 }
 

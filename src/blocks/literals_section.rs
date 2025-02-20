@@ -8,16 +8,16 @@ use crate::decoding::errors::LiteralsSectionParseError;
 /// This is the first of those two sections. A literal is just any arbitrary data, and it is copied by the sequences section
 pub struct LiteralsSection {
     /// - If this block is of type [LiteralsSectionType::Raw], then the data is `regenerated_bytes`
-    ///     bytes long, and it contains the raw literals data to be used during the second section,
-    ///     the sequences section.
+    ///   bytes long, and it contains the raw literals data to be used during the second section,
+    ///   the sequences section.
     /// - If this block is of type [LiteralsSectionType::RLE],
-    ///     then the literal consists of a single byte repeated `regenerated_size` times.
+    ///   then the literal consists of a single byte repeated `regenerated_size` times.
     /// - For types [LiteralsSectionType::Compressed] or [LiteralsSectionType::Treeless],
-    ///     then this is the size of the decompressed data.
+    ///   then this is the size of the decompressed data.
     pub regenerated_size: u32,
     /// - For types [LiteralsSectionType::Raw] and [LiteralsSectionType::RLE], this value is not present.
     /// - For types [LiteralsSectionType::Compressed] and [LiteralsSectionType::Treeless], this value will
-    ///     be set to the size of the compressed data.
+    ///   be set to the size of the compressed data.
     pub compressed_size: Option<u32>,
     /// This value will be either 1 stream or 4 streams if the literal is of type
     /// [LiteralsSectionType::Compressed] or [LiteralsSectionType::Treeless], and it

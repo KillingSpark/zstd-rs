@@ -1,5 +1,5 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use ruzstd::decoding::frame_decoder::FrameDecoder;
+use ruzstd::decoding::FrameDecoder;
 
 fn criterion_benchmark(c: &mut Criterion) {
     let mut fr = FrameDecoder::new();
@@ -8,7 +8,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     c.bench_function("decode_all_slice", |b| {
         b.iter(|| {
-            fr.decode_all(src, &mut target_slice).unwrap();
+            fr.decode_all(src, target_slice).unwrap();
         })
     });
 }
