@@ -114,10 +114,10 @@ impl SequencesHeader {
             });
         }
 
-        let source = match source[0] {
+        match source[0] {
             0 => {
                 self.num_sequences = 0;
-                return Ok(1);
+                bytes_read += 1;
             }
             1..=127 => {
                 if source.len() < 2 {
@@ -127,19 +127,28 @@ impl SequencesHeader {
                     });
                 }
                 self.num_sequences = u32::from(source[0]);
-                bytes_read += 1;
-                &source[1..]
+                self.modes = Some(CompressionModes(source[1]));
+                bytes_read += 2;
             }
             128..=254 => {
-                if source.len() < 3 {
+                if source.len() < 2 {
                     return Err(SequencesHeaderParseError::NotEnoughBytes {
-                        need_at_least: 3,
+                        need_at_least: 2,
                         got: source.len(),
                     });
                 }
                 self.num_sequences = ((u32::from(source[0]) - 128) << 8) + u32::from(source[1]);
                 bytes_read += 2;
-                &source[2..]
+                if self.num_sequences != 0 {
+                    if source.len() < 3 {
+                        return Err(SequencesHeaderParseError::NotEnoughBytes {
+                            need_at_least: 3,
+                            got: source.len(),
+                        });
+                    }
+                    self.modes = Some(CompressionModes(source[2]));
+                    bytes_read += 1;
+                }
             }
             255 => {
                 if source.len() < 4 {
@@ -149,13 +158,10 @@ impl SequencesHeader {
                     });
                 }
                 self.num_sequences = u32::from(source[1]) + (u32::from(source[2]) << 8) + 0x7F00;
-                bytes_read += 3;
-                &source[3..]
+                self.modes = Some(CompressionModes(source[3]));
+                bytes_read += 4;
             }
-        };
-
-        self.modes = Some(CompressionModes(source[0]));
-        bytes_read += 1;
+        }
 
         Ok(bytes_read)
     }
