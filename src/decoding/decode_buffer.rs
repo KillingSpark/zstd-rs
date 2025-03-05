@@ -318,7 +318,7 @@ fn write_all_bytes(mut sink: impl Write, buf: &[u8]) -> (usize, Result<(), Error
 #[cfg(test)]
 mod tests {
     use super::DecodeBuffer;
-    use crate::io_std::{Error, ErrorKind, Write};
+    use crate::io_traits::{Error, ErrorKind, Write};
 
     extern crate std;
     use alloc::vec;
