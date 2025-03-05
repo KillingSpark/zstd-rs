@@ -32,8 +32,10 @@ macro_rules! vprintln {
     }
 }
 
+mod common;
 pub mod decoding;
 pub mod encoding;
+mod io;
 
 pub(crate) mod blocks;
 
@@ -50,10 +52,13 @@ pub(crate) mod huff0;
 mod tests;
 
 #[cfg(feature = "std")]
-pub mod io;
+pub mod io_std;
+
+#[cfg(feature = "std")]
+pub use io_std as io_traits;
 
 #[cfg(not(feature = "std"))]
 pub mod io_nostd;
 
 #[cfg(not(feature = "std"))]
-pub use io_nostd as io;
+pub use io_nostd as io_traits;
