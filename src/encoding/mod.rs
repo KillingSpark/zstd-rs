@@ -9,7 +9,7 @@ pub(crate) mod util;
 mod frame_compressor;
 pub use frame_compressor::FrameCompressor;
 
-use crate::io_std::{Read, Write};
+use crate::io_traits::{Read, Write};
 use alloc::vec::Vec;
 
 /// Convenience function to compress some source into a target without reusing any resources of the compressor

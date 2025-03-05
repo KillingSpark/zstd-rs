@@ -10,7 +10,7 @@ use super::{
 
 use crate::{
     common::MAX_BLOCK_SIZE,
-    io_std::{Read, Write},
+    io_traits::{Read, Write},
 };
 
 /// An interface for compressing arbitrary data with the ZStandard compression algorithm.

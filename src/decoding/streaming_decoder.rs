@@ -4,7 +4,7 @@ use core::borrow::BorrowMut;
 
 use crate::decoding::errors::FrameDecoderError;
 use crate::decoding::{BlockDecodingStrategy, FrameDecoder};
-use crate::io_std::{Error, ErrorKind, Read};
+use crate::io_traits::{Error, ErrorKind, Read};
 
 /// High level Zstandard frame decoder that can be used to decompress a given Zstandard frame.
 ///

@@ -3,7 +3,7 @@
 use crate::blocks::block::BlockType;
 use crate::blocks::literals_section::LiteralsSectionType;
 use crate::io::GetBitsError;
-use crate::io_std::Error;
+use crate::io_traits::Error;
 use alloc::vec::Vec;
 use core::fmt;
 #[cfg(feature = "std")]

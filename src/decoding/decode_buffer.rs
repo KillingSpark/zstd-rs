@@ -1,4 +1,4 @@
-use crate::io_std::{Error, Read, Write};
+use crate::io_traits::{Error, Read, Write};
 use alloc::vec::Vec;
 #[cfg(feature = "hash")]
 use core::hash::Hasher;
