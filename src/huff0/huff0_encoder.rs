@@ -2,8 +2,8 @@ use alloc::vec::Vec;
 use core::cmp::Ordering;
 
 use crate::{
-    encoding::bit_writer::BitWriter,
     fse::fse_encoder::{self, FSEEncoder},
+    io::BitWriter,
 };
 
 pub(crate) struct HuffmanEncoder<'output, 'table, V: AsMut<Vec<u8>>> {

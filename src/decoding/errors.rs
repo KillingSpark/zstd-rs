@@ -2,24 +2,12 @@
 
 use crate::blocks::block::BlockType;
 use crate::blocks::literals_section::LiteralsSectionType;
-use crate::io::Error;
+use crate::io::GetBitsError;
+use crate::io_std::Error;
 use alloc::vec::Vec;
 use core::fmt;
 #[cfg(feature = "std")]
 use std::error::Error as StdError;
-
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum GetBitsError {
-    TooManyBits {
-        num_requested_bits: usize,
-        limit: u8,
-    },
-    NotEnoughRemainingBits {
-        requested: usize,
-        remaining: usize,
-    },
-}
 
 #[derive(Debug)]
 #[non_exhaustive]
@@ -61,13 +49,13 @@ impl fmt::Display for FrameHeaderError {
                 f,
                 "window_size bigger than allowed maximum. Is: {}, Should be lower than: {}",
                 got,
-                crate::decoding::frame::MAX_WINDOW_SIZE
+                crate::common::MAX_WINDOW_SIZE
             ),
             Self::WindowTooSmall { got } => write!(
                 f,
                 "window_size smaller than allowed minimum. Is: {}, Should be greater than: {}",
                 got,
-                crate::decoding::frame::MIN_WINDOW_SIZE
+                crate::common::MIN_WINDOW_SIZE
             ),
             Self::FrameDescriptorError(e) => write!(f, "{:?}", e),
             Self::DictIdTooSmall { got, expected } => write!(
@@ -261,7 +249,7 @@ impl core::fmt::Display for BlockSizeError {
                 write!(
                     f,
                     "Blocksize was bigger than the absolute maximum {} (128kb). Is: {}",
-                    crate::decoding::block_decoder::ABSOLUTE_MAXIMUM_BLOCK_SIZE,
+                    crate::common::MAX_BLOCK_SIZE,
                     size,
                 )
             }
@@ -532,7 +520,7 @@ impl core::fmt::Display for FrameDecoderError {
                     f,
                     "Specified window_size is too big; Requested: {}, Max: {}",
                     requested,
-                    crate::decoding::frame::MAX_WINDOW_SIZE,
+                    crate::common::MAX_WINDOW_SIZE,
                 )
             }
             FrameDecoderError::DictionaryDecodeError(e) => {

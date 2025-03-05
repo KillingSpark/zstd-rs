@@ -5,11 +5,12 @@
 //! and utilities that can be used to decode a frame.
 
 use super::frame;
+use crate::common::MAX_WINDOW_SIZE;
 use crate::decoding;
 use crate::decoding::dictionary::Dictionary;
 use crate::decoding::errors::FrameDecoderError;
 use crate::decoding::scratch::DecoderScratch;
-use crate::io::{Error, Read, Write};
+use crate::io_std::{Error, Read, Write};
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use core::convert::TryInto;
@@ -87,8 +88,6 @@ pub enum BlockDecodingStrategy {
     UptoBlocks(usize),
     UptoBytes(usize),
 }
-
-const MAX_WINDOW_SIZE: u64 = 1024 * 1024 * 100;
 
 impl FrameDecoderState {
     pub fn new(source: impl Read) -> Result<FrameDecoderState, FrameDecoderError> {

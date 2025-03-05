@@ -1,39 +1,8 @@
-use super::errors::GetBitsError;
-
-/// Interact with a provided source at a bit level.
+/// Wraps a slice and enables reading arbitrary amounts of bits
+/// from that slice.
 pub struct BitReader<'s> {
     idx: usize, //index counts bits already read
     source: &'s [u8],
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for GetBitsError {}
-
-impl core::fmt::Display for GetBitsError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            GetBitsError::TooManyBits {
-                num_requested_bits,
-                limit,
-            } => {
-                write!(
-                    f,
-                    "Cant serve this request. The reader is limited to {} bits, requested {} bits",
-                    limit, num_requested_bits,
-                )
-            }
-            GetBitsError::NotEnoughRemainingBits {
-                requested,
-                remaining,
-            } => {
-                write!(
-                    f,
-                    "Can\'t read {} bits, only have {} bits left",
-                    requested, remaining,
-                )
-            }
-        }
-    }
 }
 
 impl<'s> BitReader<'s> {
@@ -119,5 +88,48 @@ impl<'s> BitReader<'s> {
         assert!(self.idx == old_idx + n);
 
         Ok(value)
+    }
+}
+
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum GetBitsError {
+    TooManyBits {
+        num_requested_bits: usize,
+        limit: u8,
+    },
+    NotEnoughRemainingBits {
+        requested: usize,
+        remaining: usize,
+    },
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for GetBitsError {}
+
+impl core::fmt::Display for GetBitsError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            GetBitsError::TooManyBits {
+                num_requested_bits,
+                limit,
+            } => {
+                write!(
+                    f,
+                    "Cant serve this request. The reader is limited to {} bits, requested {} bits",
+                    limit, num_requested_bits,
+                )
+            }
+            GetBitsError::NotEnoughRemainingBits {
+                requested,
+                remaining,
+            } => {
+                write!(
+                    f,
+                    "Can\'t read {} bits, only have {} bits left",
+                    requested, remaining,
+                )
+            }
+        }
     }
 }

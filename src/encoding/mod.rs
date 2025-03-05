@@ -1,6 +1,5 @@
 //! Structures and utilities used for compressing/encoding data into the Zstd format.
 
-pub(crate) mod bit_writer;
 pub(crate) mod block_header;
 pub(crate) mod blocks;
 pub(crate) mod frame_header;
@@ -10,7 +9,7 @@ pub(crate) mod util;
 mod frame_compressor;
 pub use frame_compressor::FrameCompressor;
 
-use crate::io::{Read, Write};
+use crate::io_std::{Read, Write};
 use alloc::vec::Vec;
 
 /// Convenience function to compress some source into a target without reusing any resources of the compressor

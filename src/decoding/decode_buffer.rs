@@ -1,4 +1,4 @@
-use crate::io::{Error, Read, Write};
+use crate::io_std::{Error, Read, Write};
 use alloc::vec::Vec;
 #[cfg(feature = "hash")]
 use core::hash::Hasher;
@@ -318,7 +318,7 @@ fn write_all_bytes(mut sink: impl Write, buf: &[u8]) -> (usize, Result<(), Error
 #[cfg(test)]
 mod tests {
     use super::DecodeBuffer;
-    use crate::io::{Error, ErrorKind, Write};
+    use crate::io_std::{Error, ErrorKind, Write};
 
     extern crate std;
     use alloc::vec;

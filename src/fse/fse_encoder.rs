@@ -1,4 +1,4 @@
-use crate::encoding::bit_writer::BitWriter;
+use crate::io::BitWriter;
 use alloc::vec::Vec;
 
 pub(crate) struct FSEEncoder<'output, V: AsMut<Vec<u8>>> {

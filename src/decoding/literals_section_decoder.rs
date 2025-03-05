@@ -2,10 +2,10 @@
 //! parsed literals header and a source and decompress it.
 
 use super::super::blocks::literals_section::{LiteralsSection, LiteralsSectionType};
-use super::bit_reader_reverse::BitReaderReversed;
 use super::scratch::HuffmanScratch;
 use crate::decoding::errors::DecompressLiteralsError;
 use crate::huff0::HuffmanDecoder;
+use crate::io::BitReaderReversed;
 use alloc::vec::Vec;
 
 /// Decode and decompress the provided literals section into `target`, returning the number of bytes read.

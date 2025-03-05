@@ -403,7 +403,7 @@ fn test_incremental_read() {
 #[test]
 #[cfg(not(feature = "std"))]
 fn test_streaming_no_std() {
-    use crate::io::Read;
+    use crate::io_std::Read;
 
     let content = include_bytes!("../../decodecorpus_files/z000088.zst");
     let mut content = content.as_slice();
