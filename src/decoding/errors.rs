@@ -1,9 +1,9 @@
 //! Errors that might occur while decoding zstd formatted data
 
+use crate::bit_io::GetBitsError;
 use crate::blocks::block::BlockType;
 use crate::blocks::literals_section::LiteralsSectionType;
-use crate::io::GetBitsError;
-use crate::io_traits::Error;
+use crate::io::Error;
 use alloc::vec::Vec;
 use core::fmt;
 #[cfg(feature = "std")]

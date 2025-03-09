@@ -1,5 +1,5 @@
+use crate::bit_io::{BitReader, BitReaderReversed};
 use crate::decoding::errors::{FSEDecoderError, FSETableError};
-use crate::io::{BitReader, BitReaderReversed};
 use alloc::vec::Vec;
 
 /// FSE decoding involves a decoding table that describes the probabilities of

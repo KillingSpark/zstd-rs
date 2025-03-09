@@ -1,6 +1,6 @@
 use crate::common::{MAGIC_NUM, MAX_WINDOW_SIZE, MIN_WINDOW_SIZE};
 use crate::decoding::errors::{FrameDescriptorError, FrameHeaderError, ReadFrameHeaderError};
-use crate::io_traits::Read;
+use crate::io::Read;
 
 /// Read a single serialized frame from the reader and return a tuple containing the parsed frame and the number of bytes read.
 pub fn read_frame_header(mut r: impl Read) -> Result<(Frame, u8), ReadFrameHeaderError> {

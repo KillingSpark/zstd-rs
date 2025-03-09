@@ -1,7 +1,7 @@
 //! Utilities and representations for a frame header.
+use crate::bit_io::BitWriter;
 use crate::common::MAGIC_NUM;
 use crate::encoding::util::{find_min_size, minify_val};
-use crate::io::BitWriter;
 use alloc::vec::Vec;
 
 /// A header for a single Zstandard frame.

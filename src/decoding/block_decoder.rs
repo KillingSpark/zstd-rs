@@ -13,7 +13,7 @@ use crate::decoding::errors::{
 };
 use crate::decoding::scratch::DecoderScratch;
 use crate::decoding::sequence_execution::execute_sequences;
-use crate::io_traits::Read;
+use crate::io::Read;
 
 pub struct BlockDecoder {
     header_buffer: [u8; 3],

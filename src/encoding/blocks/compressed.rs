@@ -1,11 +1,11 @@
 use alloc::vec::Vec;
 
 use crate::{
+    bit_io::BitWriter,
     encoding::frame_compressor::CompressState,
     encoding::{Matcher, Sequence},
     fse::fse_encoder::{default_ll_table, default_ml_table, default_of_table, FSETable, State},
     huff0::huff0_encoder,
-    io::BitWriter,
 };
 
 pub fn compress_block<M: Matcher>(state: &mut CompressState<M>, output: &mut Vec<u8>) {

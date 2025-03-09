@@ -15,4 +15,4 @@ pub const MAX_WINDOW_SIZE: u64 = (1 << 41) + 7 * (1 << 38);
 
 // --- BLOCKS ---
 /// Blocks cannot be larger than 128KB in size.
-pub const MAX_BLOCK_SIZE: u32 = 128 * 1024 - 20;
+pub const MAX_BLOCK_SIZE: u32 = 128 * 1024;

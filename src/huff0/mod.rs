@@ -13,7 +13,7 @@ pub mod huff0_encoder;
 /// Asserts that the decoded data equals the input
 #[cfg(any(test, feature = "fuzz_exports"))]
 pub fn round_trip(data: &[u8]) {
-    use crate::io::{BitReaderReversed, BitWriter};
+    use crate::bit_io::{BitReaderReversed, BitWriter};
     use alloc::vec::Vec;
 
     if data.len() < 2 {
