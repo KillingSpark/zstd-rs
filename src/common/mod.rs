@@ -10,9 +10,10 @@ pub const MAGIC_NUM: u32 = 0xFD2F_B528;
 pub const MIN_WINDOW_SIZE: u64 = 1024;
 /// Window size refers to the minimum amount of memory needed to decode any given frame.
 ///
-/// The maximum window size is 3.75TB
+/// The maximum window size allowed by the spec is 3.75TB
 pub const MAX_WINDOW_SIZE: u64 = (1 << 41) + 7 * (1 << 38);
 
 // --- BLOCKS ---
-/// Blocks cannot be larger than 128KB in size.
-pub const MAX_BLOCK_SIZE: u32 = 128 * 1024;
+/// Blocks cannot be larger than 128 kilobytes in size.
+pub const MAX_BLOCK_SIZE: u32 = 128_000;
+// pub const MAX_BLOCK_SIZE: u32 = 128 * 1024;

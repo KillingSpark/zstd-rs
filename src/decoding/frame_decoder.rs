@@ -5,7 +5,6 @@
 //! and utilities that can be used to decode a frame.
 
 use super::frame;
-use crate::common::MAX_WINDOW_SIZE;
 use crate::decoding;
 use crate::decoding::dictionary::Dictionary;
 use crate::decoding::errors::FrameDecoderError;
@@ -14,6 +13,10 @@ use crate::io::{Error, Read, Write};
 use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use core::convert::TryInto;
+
+/// While the maximum window size allowed by the spec is significantly larger,
+/// our implementation limits it to 100mb to protect against malformed frames.
+const MAXIMUM_ALLOWED_WINDOW_SIZE: u64 = 1024 * 1024 * 100;
 
 /// Low level Zstandard decoder that can be used to decompress frames with fine control over when and how many bytes are decoded.
 ///
@@ -108,7 +111,7 @@ impl FrameDecoderState {
         let (frame, header_size) = frame::read_frame_header(source)?;
         let window_size = frame.header.window_size()?;
 
-        if window_size > MAX_WINDOW_SIZE {
+        if window_size > MAXIMUM_ALLOWED_WINDOW_SIZE {
             return Err(FrameDecoderError::WindowSizeTooBig {
                 requested: window_size,
             });
