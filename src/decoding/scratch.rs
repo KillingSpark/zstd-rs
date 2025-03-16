@@ -1,7 +1,7 @@
 //! Structures that wrap around various decoders to make decoding easier.
 
 use super::super::blocks::sequence_section::Sequence;
-use super::decodebuffer::DecodeBuffer;
+use super::decode_buffer::DecodeBuffer;
 use crate::decoding::dictionary::Dictionary;
 use crate::fse::FSETable;
 use crate::huff0::HuffmanTable;

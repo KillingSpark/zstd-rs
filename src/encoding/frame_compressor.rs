@@ -8,10 +8,10 @@ use super::{
     match_generator::MatchGeneratorDriver, CompressionLevel, Matcher,
 };
 
-use crate::io::{Read, Write};
-
-/// Blocks cannot be larger than 128KB in size.
-const MAX_BLOCK_SIZE: usize = 128 * 1024 - 20;
+use crate::{
+    common::MAX_BLOCK_SIZE,
+    io::{Read, Write},
+};
 
 /// An interface for compressing arbitrary data with the ZStandard compression algorithm.
 ///
@@ -167,7 +167,7 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                         let mut compressed = Vec::new();
                         self.state.matcher.commit_space(uncompressed_data);
                         compress_block(&mut self.state, &mut compressed);
-                        if compressed.len() >= MAX_BLOCK_SIZE {
+                        if compressed.len() >= MAX_BLOCK_SIZE as usize {
                             let header = BlockHeader {
                                 last_block,
                                 block_type: crate::blocks::block::BlockType::Raw,
@@ -257,7 +257,8 @@ mod tests {
     use alloc::vec;
 
     use super::FrameCompressor;
-    use crate::decoding::{frame::MAGIC_NUM, FrameDecoder};
+    use crate::common::MAGIC_NUM;
+    use crate::decoding::FrameDecoder;
     use alloc::vec::Vec;
 
     #[test]

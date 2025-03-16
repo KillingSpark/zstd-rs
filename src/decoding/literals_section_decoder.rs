@@ -2,8 +2,8 @@
 //! parsed literals header and a source and decompress it.
 
 use super::super::blocks::literals_section::{LiteralsSection, LiteralsSectionType};
-use super::bit_reader_reverse::BitReaderReversed;
 use super::scratch::HuffmanScratch;
+use crate::bit_io::BitReaderReversed;
 use crate::decoding::errors::DecompressLiteralsError;
 use crate::huff0::HuffmanDecoder;
 use alloc::vec::Vec;

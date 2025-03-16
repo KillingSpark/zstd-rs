@@ -4,7 +4,9 @@ use core::borrow::BorrowMut;
 
 use crate::decoding::errors::FrameDecoderError;
 use crate::decoding::{BlockDecodingStrategy, FrameDecoder};
-use crate::io::{Error, ErrorKind, Read};
+#[cfg(not(feature = "std"))]
+use crate::io::ErrorKind;
+use crate::io::{Error, Read};
 
 /// High level Zstandard frame decoder that can be used to decompress a given Zstandard frame.
 ///
@@ -125,7 +127,7 @@ impl<READ: Read, DEC: BorrowMut<FrameDecoder>> Read for StreamingDecoder<READ, D
                     let err;
                     #[cfg(feature = "std")]
                     {
-                        err = Error::new(ErrorKind::Other, e);
+                        err = Error::other(e);
                     }
                     #[cfg(not(feature = "std"))]
                     {

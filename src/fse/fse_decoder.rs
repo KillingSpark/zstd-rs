@@ -1,5 +1,4 @@
-use crate::decoding::bit_reader::BitReader;
-use crate::decoding::bit_reader_reverse::BitReaderReversed;
+use crate::bit_io::{BitReader, BitReaderReversed};
 use crate::decoding::errors::{FSEDecoderError, FSETableError};
 use alloc::vec::Vec;
 

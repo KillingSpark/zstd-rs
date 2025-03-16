@@ -1,6 +1,6 @@
 //! Utilities and representations for the first half of a block, the literals section.
 //! It contains data that is then copied from by the sequences section.
-use crate::decoding::bit_reader::BitReader;
+use crate::bit_io::BitReader;
 use crate::decoding::errors::LiteralsSectionParseError;
 
 /// A compressed block consists of two sections, a literals section, and a sequences section.

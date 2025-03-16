@@ -1,8 +1,9 @@
 use alloc::vec::Vec;
 
 use crate::{
+    bit_io::BitWriter,
     encoding::frame_compressor::CompressState,
-    encoding::{bit_writer::BitWriter, Matcher, Sequence},
+    encoding::{Matcher, Sequence},
     fse::fse_encoder::{default_ll_table, default_ml_table, default_of_table, FSETable, State},
     huff0::huff0_encoder,
 };

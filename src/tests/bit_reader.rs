@@ -1,6 +1,6 @@
 #[test]
 fn test_bitreader_reversed() {
-    use crate::decoding::bit_reader_reverse::BitReaderReversed;
+    use crate::bit_io::BitReaderReversed;
 
     let encoded: [u8; 16] = [
         0xC1, 0x41, 0x08, 0x00, 0x00, 0xEC, 0xC8, 0x96, 0x42, 0x79, 0xD4, 0xBC, 0xF7, 0x2C, 0xD5,
@@ -40,7 +40,7 @@ fn test_bitreader_reversed() {
 
 #[test]
 fn test_bitreader_normal() {
-    use crate::decoding::bit_reader::BitReader;
+    use crate::bit_io::BitReader;
 
     let encoded: [u8; 16] = [
         0xC1, 0x41, 0x08, 0x00, 0x00, 0xEC, 0xC8, 0x96, 0x42, 0x79, 0xD4, 0xBC, 0xF7, 0x2C, 0xD5,

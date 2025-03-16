@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use core::cmp::Ordering;
 
 use crate::{
-    encoding::bit_writer::BitWriter,
+    bit_io::BitWriter,
     fse::fse_encoder::{self, FSEEncoder},
 };
 

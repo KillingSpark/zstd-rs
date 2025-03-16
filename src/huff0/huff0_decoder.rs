@@ -1,6 +1,6 @@
 //! Utilities for decoding Huff0 encoded huffman data.
 
-use crate::decoding::bit_reader_reverse::BitReaderReversed;
+use crate::bit_io::BitReaderReversed;
 use crate::decoding::errors::HuffmanTableError;
 use crate::fse::{FSEDecoder, FSETable};
 use alloc::vec::Vec;

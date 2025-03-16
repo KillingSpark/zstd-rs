@@ -14,6 +14,10 @@ use alloc::collections::BTreeMap;
 use alloc::vec::Vec;
 use core::convert::TryInto;
 
+/// While the maximum window size allowed by the spec is significantly larger,
+/// our implementation limits it to 100mb to protect against malformed frames.
+const MAXIMUM_ALLOWED_WINDOW_SIZE: u64 = 1024 * 1024 * 100;
+
 /// Low level Zstandard decoder that can be used to decompress frames with fine control over when and how many bytes are decoded.
 ///
 /// This decoder is able to decode frames only partially and gives control
@@ -88,8 +92,6 @@ pub enum BlockDecodingStrategy {
     UptoBytes(usize),
 }
 
-const MAX_WINDOW_SIZE: u64 = 1024 * 1024 * 100;
-
 impl FrameDecoderState {
     pub fn new(source: impl Read) -> Result<FrameDecoderState, FrameDecoderError> {
         let (frame, header_size) = frame::read_frame_header(source)?;
@@ -109,7 +111,7 @@ impl FrameDecoderState {
         let (frame, header_size) = frame::read_frame_header(source)?;
         let window_size = frame.header.window_size()?;
 
-        if window_size > MAX_WINDOW_SIZE {
+        if window_size > MAXIMUM_ALLOWED_WINDOW_SIZE {
             return Err(FrameDecoderError::WindowSizeTooBig {
                 requested: window_size,
             });

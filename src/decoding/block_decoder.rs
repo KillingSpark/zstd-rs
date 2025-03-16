@@ -5,6 +5,7 @@ use super::super::blocks::literals_section::LiteralsSectionType;
 use super::super::blocks::sequence_section::SequencesHeader;
 use super::literals_section_decoder::decode_literals;
 use super::sequence_section_decoder::decode_sequences;
+use crate::common::MAX_BLOCK_SIZE;
 use crate::decoding::errors::DecodeSequenceError;
 use crate::decoding::errors::{
     BlockHeaderReadError, BlockSizeError, BlockTypeError, DecodeBlockContentError,
@@ -33,8 +34,6 @@ pub fn new() -> BlockDecoder {
         header_buffer: [0u8; 3],
     }
 }
-
-pub(crate) const ABSOLUTE_MAXIMUM_BLOCK_SIZE: u32 = 128 * 1024;
 
 impl BlockDecoder {
     pub fn decode_block_content(
@@ -296,7 +295,7 @@ impl BlockDecoder {
 
     fn block_content_size(&self) -> Result<u32, BlockSizeError> {
         let val = self.block_content_size_unchecked();
-        if val > ABSOLUTE_MAXIMUM_BLOCK_SIZE {
+        if val > MAX_BLOCK_SIZE {
             Err(BlockSizeError::BlockSizeTooLarge { size: val })
         } else {
             Ok(val)

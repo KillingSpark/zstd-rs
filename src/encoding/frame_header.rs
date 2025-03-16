@@ -1,9 +1,7 @@
 //! Utilities and representations for a frame header.
-use crate::decoding::frame;
-use crate::encoding::{
-    bit_writer::BitWriter,
-    util::{find_min_size, minify_val},
-};
+use crate::bit_io::BitWriter;
+use crate::common::MAGIC_NUM;
+use crate::encoding::util::{find_min_size, minify_val};
 use alloc::vec::Vec;
 
 /// A header for a single Zstandard frame.
@@ -37,7 +35,7 @@ impl FrameHeader {
         vprintln!("Serializing frame with header: {self:?}");
         // https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#frame_header
         // Magic Number:
-        output.extend_from_slice(&frame::MAGIC_NUM.to_le_bytes());
+        output.extend_from_slice(&MAGIC_NUM.to_le_bytes());
 
         // `Frame_Header_Descriptor`:
         output.push(self.descriptor());
