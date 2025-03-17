@@ -8,7 +8,6 @@ use alloc::vec::Vec;
 /// The Zstandard specification limits the maximum length of a code to 11 bits.
 pub(crate) const MAX_MAX_NUM_BITS: u8 = 11;
 
-/// An interface around a huffman table used to decode data.
 pub struct HuffmanDecoder<'table> {
     table: &'table HuffmanTable,
     /// State is used to index into the table.
@@ -54,11 +53,13 @@ impl<'t> HuffmanDecoder<'t> {
     }
 }
 
+/// A Huffman decoding table contains a list of Huffman prefix codes and their associated values
 pub struct HuffmanTable {
     decode: Vec<Entry>,
     /// The weight of a symbol is the number of occurences in a table.
     /// This value is used in constructing a binary tree referred to as
-    /// a huffman tree.
+    /// a Huffman tree. Once this tree is constructed, it can be used to build the
+    /// lookup table
     weights: Vec<u8>,
     /// The maximum size in bits a prefix code in the encoded data can be.
     /// This value is used so that the decoder knows how many bits
@@ -110,7 +111,7 @@ impl HuffmanTable {
         self.fse_table.reset();
     }
 
-    /// Read from `source` and parse it into a huffman table.
+    /// Read from `source` and decode the input, populating the huffman decoding table.
     ///
     /// Returns the number of bytes read.
     pub fn build_decoder(&mut self, source: &[u8]) -> Result<u32, HuffmanTableError> {
@@ -123,9 +124,9 @@ impl HuffmanTable {
 
     /// Read weights from the provided source.
     ///
-    /// The huffman table is represented in the encoded data as a list of weights
-    /// at the most basic level. After the header, weights are read, then the table
-    /// can be built using that list of weights.
+    /// The huffman table is represented in the input data as a list of weights.
+    /// After the header, weights are read, then a Huffman decoding table
+    /// can be constructed using that list of weights.
     ///
     /// Returns the number of bytes read.
     fn read_weights(&mut self, source: &[u8]) -> Result<u32, HuffmanTableError> {

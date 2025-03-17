@@ -1,64 +1,14 @@
+use core::mem;
+
 use crate::bit_io::{BitReader, BitReaderReversed};
 use crate::decoding::errors::{FSEDecoderError, FSETableError};
 use alloc::vec::Vec;
-
-/// FSE decoding involves a decoding table that describes the probabilities of
-/// all literals from 0 to the highest present one
-///
-/// <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#fse-table-description>
-#[derive(Debug)]
-pub struct FSETable {
-    /// The maximum symbol in the table (inclusive). Limits the probabilities length to max_symbol + 1.
-    max_symbol: u8,
-    /// The actual table containing the decoded symbol and the compression data
-    /// connected to that symbol.
-    pub decode: Vec<Entry>, //used to decode symbols, and calculate the next state
-    /// The size of the table is stored in logarithm base 2 format,
-    /// with the **size of the table** being equal to `(1 << accuracy_log)`.
-    /// This value is used so that the decoder knows how many bits to read from the bitstream.
-    pub accuracy_log: u8,
-    /// In this context, probability refers to the likelihood that a symbol occurs in the given data.
-    /// Given this info, the encoder can assign shorter codes to symbols that appear more often,
-    /// and longer codes that appear less often, then the decoder can use the probability
-    /// to determine what code was assigned to what symbol.
-    ///
-    /// The probability of a single symbol is a value representing the proportion of times the symbol
-    /// would fall within the data.
-    ///
-    /// If a symbol probability is set to `-1`, it means that the probability of a symbol
-    /// occurring in the data is less than one.
-    pub symbol_probabilities: Vec<i32>, //used while building the decode Vector
-    /// The number of times each symbol occurs (The first entry being 0x0, the second being 0x1) and so on
-    /// up until the highest possible symbol (255).
-    symbol_counter: Vec<u32>,
-}
 
 pub struct FSEDecoder<'table> {
     /// An FSE state value represents an index in the FSE table.
     pub state: Entry,
     /// A reference to the table used for decoding.
     table: &'table FSETable,
-}
-
-/// A single entry in an FSE table.
-#[derive(Copy, Clone, Debug)]
-pub struct Entry {
-    /// This value is used as an offset value, and it is added
-    /// to a value read from the stream to determine the next state value.
-    pub base_line: u32,
-    /// How many bits should be read from the stream when decoding this entry.
-    pub num_bits: u8,
-    /// The byte that should be put in the decode output when encountering this state.
-    pub symbol: u8,
-}
-
-/// This value is added to the first 4 bits of the stream to determine the
-/// `Accuracy_Log`
-const ACC_LOG_OFFSET: u8 = 5;
-
-fn highest_bit_set(x: u32) -> u32 {
-    assert!(x > 0);
-    u32::BITS - x.leading_zeros()
 }
 
 impl<'t> FSEDecoder<'t> {
@@ -103,6 +53,37 @@ impl<'t> FSEDecoder<'t> {
     }
 }
 
+/// FSE decoding involves a decoding table that describes the probabilities of
+/// all literals from 0 to the highest present one
+///
+/// <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#fse-table-description>
+#[derive(Debug, Clone)]
+pub struct FSETable {
+    /// The maximum symbol in the table (inclusive). Limits the probabilities length to max_symbol + 1.
+    max_symbol: u8,
+    /// The actual table containing the decoded symbol and the compression data
+    /// connected to that symbol.
+    pub decode: Vec<Entry>, //used to decode symbols, and calculate the next state
+    /// The size of the table is stored in logarithm base 2 format,
+    /// with the **size of the table** being equal to `(1 << accuracy_log)`.
+    /// This value is used so that the decoder knows how many bits to read from the bitstream.
+    pub accuracy_log: u8,
+    /// In this context, probability refers to the likelihood that a symbol occurs in the given data.
+    /// Given this info, the encoder can assign shorter codes to symbols that appear more often,
+    /// and longer codes that appear less often, then the decoder can use the probability
+    /// to determine what code was assigned to what symbol.
+    ///
+    /// The probability of a single symbol is a value representing the proportion of times the symbol
+    /// would fall within the data.
+    ///
+    /// If a symbol probability is set to `-1`, it means that the probability of a symbol
+    /// occurring in the data is less than one.
+    pub symbol_probabilities: Vec<i32>, //used while building the decode Vector
+    /// The number of times each symbol occurs (The first entry being 0x0, the second being 0x1) and so on
+    /// up until the highest possible symbol (255).
+    symbol_counter: Vec<u32>,
+}
+
 impl FSETable {
     /// Initialize a new empty Finite State Entropy decoding table.
     pub fn new(max_symbol: u8) -> FSETable {
@@ -117,12 +98,7 @@ impl FSETable {
 
     /// Reset `self` and update `self`'s state to mirror the provided table.
     pub fn reinit_from(&mut self, other: &Self) {
-        self.reset();
-        self.symbol_counter.extend_from_slice(&other.symbol_counter);
-        self.symbol_probabilities
-            .extend_from_slice(&other.symbol_probabilities);
-        self.decode.extend_from_slice(&other.decode);
-        self.accuracy_log = other.accuracy_log;
+        mem::replace(self, other.clone());
     }
 
     /// Empty the table and clear all internal state.
@@ -326,6 +302,28 @@ impl FSETable {
 
         Ok(bytes_read)
     }
+}
+
+
+/// A single entry in an FSE table.
+#[derive(Copy, Clone, Debug)]
+pub struct Entry {
+    /// This value is used as an offset value, and it is added
+    /// to a value read from the stream to determine the next state value.
+    pub base_line: u32,
+    /// How many bits should be read from the stream when decoding this entry.
+    pub num_bits: u8,
+    /// The byte that should be put in the decode output when encountering this state.
+    pub symbol: u8,
+}
+
+/// This value is added to the first 4 bits of the stream to determine the
+/// `Accuracy_Log`
+const ACC_LOG_OFFSET: u8 = 5;
+
+fn highest_bit_set(x: u32) -> u32 {
+    assert!(x > 0);
+    u32::BITS - x.leading_zeros()
 }
 
 //utility functions for building the decoding table from probabilities
