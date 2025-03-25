@@ -3,7 +3,7 @@ use crate::decoding::errors::{FrameDescriptorError, FrameHeaderError, ReadFrameH
 use crate::io::Read;
 
 /// Read a single serialized frame from the reader and return a tuple containing the parsed frame and the number of bytes read.
-pub fn read_frame_header(mut r: impl Read) -> Result<(Frame, u8), ReadFrameHeaderError> {
+pub fn read_frame_header(mut r: impl Read) -> Result<(FrameHeader, u8), ReadFrameHeaderError> {
     use ReadFrameHeaderError as err;
     let mut buf = [0u8; 4];
 
@@ -81,24 +81,7 @@ pub fn read_frame_header(mut r: impl Read) -> Result<(Frame, u8), ReadFrameHeade
         frame_header.frame_content_size = fcs;
     }
 
-    let frame: Frame = Frame {
-        header: frame_header,
-    };
-
-    Ok((frame, bytes_read as u8))
-}
-
-/// Zstandard compressed data is made of one or more [Frame]s. Each frame is independent and can be
-/// decompressed independently of other frames.
-///
-/// There are two frame formats defined by Zstandard: Zstandard frames and Skippable frames.
-/// Zstandard frames contain compressed data, while skippable frames contain custom user metadata.
-///
-/// This structure contains the header of the frame.
-///
-/// <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#frames>
-pub struct Frame {
-    pub header: FrameHeader,
+    Ok((frame_header, bytes_read as u8))
 }
 
 /// A frame header has a variable size, with a minimum of 2 bytes, and a maximum of 14 bytes.

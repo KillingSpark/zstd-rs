@@ -1,5 +1,3 @@
-use core::mem;
-
 use crate::bit_io::{BitReader, BitReaderReversed};
 use crate::decoding::errors::{FSEDecoderError, FSETableError};
 use alloc::vec::Vec;
@@ -98,7 +96,12 @@ impl FSETable {
 
     /// Reset `self` and update `self`'s state to mirror the provided table.
     pub fn reinit_from(&mut self, other: &Self) {
-        mem::replace(self, other.clone());
+        self.reset();
+        self.symbol_counter.extend_from_slice(&other.symbol_counter);
+        self.symbol_probabilities
+            .extend_from_slice(&other.symbol_probabilities);
+        self.decode.extend_from_slice(&other.decode);
+        self.accuracy_log = other.accuracy_log;
     }
 
     /// Empty the table and clear all internal state.
@@ -303,7 +306,6 @@ impl FSETable {
         Ok(bytes_read)
     }
 }
-
 
 /// A single entry in an FSE table.
 #[derive(Copy, Clone, Debug)]
