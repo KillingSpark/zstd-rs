@@ -5,49 +5,13 @@ use crate::decoding::errors::HuffmanTableError;
 use crate::fse::{FSEDecoder, FSETable};
 use alloc::vec::Vec;
 
-pub struct HuffmanTable {
-    decode: Vec<Entry>,
-    /// The weight of a symbol is the number of occurences in a table.
-    /// This value is used in constructing a binary tree referred to as
-    /// a huffman tree.
-    weights: Vec<u8>,
-    /// The maximum size in bits a prefix code in the encoded data can be.
-    /// This value is used so that the decoder knows how many bits
-    /// to read from the bitstream before checking the table. This
-    /// value must be 11 or lower.
-    pub max_num_bits: u8,
-    bits: Vec<u8>,
-    bit_ranks: Vec<u32>,
-    rank_indexes: Vec<usize>,
-    /// In some cases, the list of weights is compressed using FSE compression.
-    fse_table: FSETable,
-}
+/// The Zstandard specification limits the maximum length of a code to 11 bits.
+pub(crate) const MAX_MAX_NUM_BITS: u8 = 11;
 
-/// An interface around a huffman table used to decode data.
 pub struct HuffmanDecoder<'table> {
     table: &'table HuffmanTable,
     /// State is used to index into the table.
     pub state: u64,
-}
-
-/// A single entry in the table contains the decoded symbol/literal and the
-/// size of the prefix code.
-#[derive(Copy, Clone, Debug)]
-pub struct Entry {
-    /// The byte that the prefix code replaces during encoding.
-    symbol: u8,
-    /// The number of bits the prefix code occupies.
-    num_bits: u8,
-}
-
-/// The Zstandard specification limits the maximum length of a code to 11 bits.
-pub(crate) const MAX_MAX_NUM_BITS: u8 = 11;
-
-/// Assert that the provided value is greater than zero, and returns the
-/// 32 - the number of leading zeros
-fn highest_bit_set(x: u32) -> u32 {
-    assert!(x > 0);
-    u32::BITS - x.leading_zeros()
 }
 
 impl<'t> HuffmanDecoder<'t> {
@@ -89,10 +53,24 @@ impl<'t> HuffmanDecoder<'t> {
     }
 }
 
-impl Default for HuffmanTable {
-    fn default() -> Self {
-        Self::new()
-    }
+/// A Huffman decoding table contains a list of Huffman prefix codes and their associated values
+pub struct HuffmanTable {
+    decode: Vec<Entry>,
+    /// The weight of a symbol is the number of occurences in a table.
+    /// This value is used in constructing a binary tree referred to as
+    /// a Huffman tree. Once this tree is constructed, it can be used to build the
+    /// lookup table
+    weights: Vec<u8>,
+    /// The maximum size in bits a prefix code in the encoded data can be.
+    /// This value is used so that the decoder knows how many bits
+    /// to read from the bitstream before checking the table. This
+    /// value must be 11 or lower.
+    pub max_num_bits: u8,
+    bits: Vec<u8>,
+    bit_ranks: Vec<u32>,
+    rank_indexes: Vec<usize>,
+    /// In some cases, the list of weights is compressed using FSE compression.
+    fse_table: FSETable,
 }
 
 impl HuffmanTable {
@@ -133,7 +111,7 @@ impl HuffmanTable {
         self.fse_table.reset();
     }
 
-    /// Read from `source` and parse it into a huffman table.
+    /// Read from `source` and decode the input, populating the huffman decoding table.
     ///
     /// Returns the number of bytes read.
     pub fn build_decoder(&mut self, source: &[u8]) -> Result<u32, HuffmanTableError> {
@@ -146,9 +124,9 @@ impl HuffmanTable {
 
     /// Read weights from the provided source.
     ///
-    /// The huffman table is represented in the encoded data as a list of weights
-    /// at the most basic level. After the header, weights are read, then the table
-    /// can be built using that list of weights.
+    /// The huffman table is represented in the input data as a list of weights.
+    /// After the header, weights are read, then a Huffman decoding table
+    /// can be constructed using that list of weights.
     ///
     /// Returns the number of bytes read.
     fn read_weights(&mut self, source: &[u8]) -> Result<u32, HuffmanTableError> {
@@ -397,4 +375,27 @@ impl HuffmanTable {
 
         Ok(())
     }
+}
+
+impl Default for HuffmanTable {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// A single entry in the table contains the decoded symbol/literal and the
+/// size of the prefix code.
+#[derive(Copy, Clone, Debug)]
+pub struct Entry {
+    /// The byte that the prefix code replaces during encoding.
+    symbol: u8,
+    /// The number of bits the prefix code occupies.
+    num_bits: u8,
+}
+
+/// Assert that the provided value is greater than zero, and returns the
+/// 32 - the number of leading zeros
+fn highest_bit_set(x: u32) -> u32 {
+    assert!(x > 0);
+    u32::BITS - x.leading_zeros()
 }

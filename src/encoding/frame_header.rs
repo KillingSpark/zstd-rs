@@ -194,10 +194,7 @@ mod tests {
 
         let mut serialized_header = Vec::new();
         header.serialize(&mut serialized_header);
-        let parsed_header = read_frame_header(serialized_header.as_slice())
-            .unwrap()
-            .0
-            .header;
+        let parsed_header = read_frame_header(serialized_header.as_slice()).unwrap().0;
         assert!(parsed_header.dictionary_id().is_none());
         assert_eq!(parsed_header.frame_content_size(), 1);
     }

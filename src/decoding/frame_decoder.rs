@@ -77,7 +77,7 @@ pub struct FrameDecoder {
 }
 
 struct FrameDecoderState {
-    pub frame: frame::Frame,
+    pub frame_header: frame::FrameHeader,
     decoder_scratch: DecoderScratch,
     frame_finished: bool,
     block_counter: usize,
@@ -95,9 +95,9 @@ pub enum BlockDecodingStrategy {
 impl FrameDecoderState {
     pub fn new(source: impl Read) -> Result<FrameDecoderState, FrameDecoderError> {
         let (frame, header_size) = frame::read_frame_header(source)?;
-        let window_size = frame.header.window_size()?;
+        let window_size = frame.window_size()?;
         Ok(FrameDecoderState {
-            frame,
+            frame_header: frame,
             frame_finished: false,
             block_counter: 0,
             decoder_scratch: DecoderScratch::new(window_size as usize),
@@ -108,8 +108,8 @@ impl FrameDecoderState {
     }
 
     pub fn reset(&mut self, source: impl Read) -> Result<(), FrameDecoderError> {
-        let (frame, header_size) = frame::read_frame_header(source)?;
-        let window_size = frame.header.window_size()?;
+        let (frame_header, header_size) = frame::read_frame_header(source)?;
+        let window_size = frame_header.window_size()?;
 
         if window_size > MAXIMUM_ALLOWED_WINDOW_SIZE {
             return Err(FrameDecoderError::WindowSizeTooBig {
@@ -117,7 +117,7 @@ impl FrameDecoderState {
             });
         }
 
-        self.frame = frame;
+        self.frame_header = frame_header;
         self.frame_finished = false;
         self.block_counter = 0;
         self.decoder_scratch.reset(window_size as usize);
@@ -173,7 +173,7 @@ impl FrameDecoder {
                 self.state.as_mut().unwrap()
             }
         };
-        if let Some(dict_id) = state.frame.header.dictionary_id() {
+        if let Some(dict_id) = state.frame_header.dictionary_id() {
             let dict = self
                 .dicts
                 .get(&dict_id)
@@ -210,7 +210,7 @@ impl FrameDecoder {
     pub fn content_size(&self) -> u64 {
         match &self.state {
             None => 0,
-            Some(s) => s.frame.header.frame_content_size(),
+            Some(s) => s.frame_header.frame_content_size(),
         }
     }
 
@@ -256,7 +256,7 @@ impl FrameDecoder {
             None => return true,
             Some(s) => s,
         };
-        if state.frame.header.descriptor.content_checksum_flag() {
+        if state.frame_header.descriptor.content_checksum_flag() {
             state.frame_finished && state.check_sum.is_some()
         } else {
             state.frame_finished
@@ -316,7 +316,7 @@ impl FrameDecoder {
 
             if block_header.last_block {
                 state.frame_finished = true;
-                if state.frame.header.descriptor.content_checksum_flag() {
+                if state.frame_header.descriptor.content_checksum_flag() {
                     let mut chksum = [0u8; 4];
                     source
                         .read_exact(&mut chksum)
@@ -432,7 +432,7 @@ impl FrameDecoder {
                 };
                 let mut block_dec = decoding::block_decoder::new();
 
-                if state.frame.header.descriptor.content_checksum_flag()
+                if state.frame_header.descriptor.content_checksum_flag()
                     && state.frame_finished
                     && state.check_sum.is_none()
                 {
@@ -474,7 +474,7 @@ impl FrameDecoder {
 
                     if block_header.last_block {
                         state.frame_finished = true;
-                        if state.frame.header.descriptor.content_checksum_flag() {
+                        if state.frame_header.descriptor.content_checksum_flag() {
                             //if there are enough bytes handle this here. Else the block at the start of this function will handle it at the next call
                             if mt_source.len() >= 4 {
                                 let chksum = mt_source[..4].try_into().expect("optimized away");
