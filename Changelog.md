@@ -3,6 +3,7 @@
 This document records the changes made between versions, starting with version 0.5.0
 
 # After 0.8.0 (Current)
+* The compressor now includes a `content_checksum` when the `hash` feature is enabled
 
 # After 0.7.3
 * Add initial compression support

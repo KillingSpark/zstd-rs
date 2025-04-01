@@ -2,6 +2,11 @@
 
 use alloc::vec::Vec;
 use core::convert::TryInto;
+#[cfg(feature = "hash")]
+use twox_hash::XxHash64;
+
+#[cfg(feature = "hash")]
+use core::hash::Hasher;
 
 use super::{
     block_header::BlockHeader, blocks::compress_block, frame_header::FrameHeader,
@@ -37,6 +42,8 @@ pub struct FrameCompressor<R: Read, W: Write, M: Matcher> {
     compressed_data: Option<W>,
     compression_level: CompressionLevel,
     state: CompressState<M>,
+    #[cfg(feature = "hash")]
+    hasher: XxHash64,
 }
 
 pub(crate) struct CompressState<M: Matcher> {
@@ -55,6 +62,8 @@ impl<R: Read, W: Write> FrameCompressor<R, W, MatchGeneratorDriver> {
                 matcher: MatchGeneratorDriver::new(1024 * 128, 1),
                 last_huff_table: None,
             },
+            #[cfg(feature = "hash")]
+            hasher: XxHash64::with_seed(0),
         }
     }
 }
@@ -70,15 +79,21 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                 last_huff_table: None,
             },
             compression_level,
+            #[cfg(feature = "hash")]
+            hasher: XxHash64::with_seed(0),
         }
     }
 
-    /// Before calling [FrameCompressor::compress] you need to set the source
+    /// Before calling [FrameCompressor::compress] you need to set the source.
+    ///
+    /// This is the data that is compressed and written into the drain.
     pub fn set_source(&mut self, uncompressed_data: R) -> Option<R> {
         self.uncompressed_data.replace(uncompressed_data)
     }
 
-    /// Before calling [FrameCompressor::compress] you need to set the drain
+    /// Before calling [FrameCompressor::compress] you need to set the drain.
+    ///
+    /// As the compressor compresses data, the drain serves as a place for the output to be writte.
     pub fn set_drain(&mut self, compressed_data: W) -> Option<W> {
         self.compressed_data.replace(compressed_data)
     }
@@ -101,10 +116,11 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
         let header = FrameHeader {
             frame_content_size: None,
             single_segment: false,
-            content_checksum: false,
+            content_checksum: cfg!(feature = "hash"),
             dictionary_id: None,
             window_size: Some(self.state.matcher.window_size()),
         };
+
         header.serialize(output);
 
         loop {
@@ -124,7 +140,8 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                 }
             }
             uncompressed_data.resize(read_bytes, 0);
-
+            #[cfg(feature = "hash")]
+            self.hasher.write(&uncompressed_data);
             // Special handling is needed for compression of a totally empty file (why you'd want to do that, I don't know)
             if uncompressed_data.is_empty() {
                 let header = BlockHeader {
@@ -197,6 +214,18 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
             if last_block {
                 break;
             }
+        }
+
+        // If the `hash` feature is enabled, then `content_checksum` is set to true in the header
+        // and a 32 bit hash is written at the end of the data.
+        #[cfg(feature = "hash")]
+        {
+            // Because we only have the data as a reader, we need to read all of it to calculate the checksum
+            // Possible TODO: create a wrapper around self.uncompressed data that hashes the data as it's read?
+            let content_checksum = self.hasher.finish();
+            drain
+                .write_all(&(content_checksum as u32).to_le_bytes())
+                .unwrap();
         }
     }
 
