@@ -7,6 +7,7 @@ pub(crate) mod match_generator;
 pub(crate) mod util;
 
 mod frame_compressor;
+mod levels;
 pub use frame_compressor::FrameCompressor;
 
 use crate::io::{Read, Write};
@@ -68,7 +69,8 @@ pub enum CompressionLevel {
 /// making their own tradeoffs between runtime, memory usage and compression ratio
 ///
 /// This trait operates on buffers that represent the chunks of data the matching algorithm wants to work on.
-/// One or more of these buffers represent the window the decoder will need to decode the data again.
+/// Each one of these buffers is referred to as a *space*. One or more of these buffers represent the window
+/// the decoder will need to decode the data again.
 ///
 /// This library asks the Matcher for a new buffer using `get_next_space` to allow reusing of allocated buffers when they are no longer part of the
 /// window of data that is being used for matching.
