@@ -9,14 +9,11 @@ use twox_hash::XxHash64;
 use core::hash::Hasher;
 
 use super::{
-    block_header::BlockHeader, blocks::compress_block, frame_header::FrameHeader,
+    block_header::BlockHeader, frame_header::FrameHeader, levels::*,
     match_generator::MatchGeneratorDriver, CompressionLevel, Matcher,
 };
 
-use crate::{
-    common::MAX_BLOCK_SIZE,
-    io::{Read, Write},
-};
+use crate::io::{Read, Write};
 
 /// An interface for compressing arbitrary data with the ZStandard compression algorithm.
 ///
@@ -106,13 +103,14 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
     /// To avoid endlessly encoding from a potentially endless source (like a network socket) you can use the
     /// [Read::take] function
     pub fn compress(&mut self) {
+        // Clearing buffers to allow re-using of the compressor
         self.state.matcher.reset(self.compression_level);
         self.state.last_huff_table = None;
         let source = self.uncompressed_data.as_mut().unwrap();
         let drain = self.compressed_data.as_mut().unwrap();
-
-        let mut output = Vec::with_capacity(1024 * 130);
-        let output = &mut output;
+        // As the frame is compressed, it's stored here
+        let output: &mut Vec<u8> = &mut Vec::with_capacity(1024 * 130);
+        // First write the frame header
         let header = FrameHeader {
             frame_content_size: None,
             single_segment: false,
@@ -120,10 +118,10 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
             dictionary_id: None,
             window_size: Some(self.state.matcher.window_size()),
         };
-
         header.serialize(output);
-
+        // Now compress block by block
         loop {
+            // Read a single block's worth of uncompressed data from the input
             let mut uncompressed_data = self.state.matcher.get_next_space();
             let mut read_bytes = 0;
             let last_block;
@@ -140,6 +138,7 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                 }
             }
             uncompressed_data.resize(read_bytes, 0);
+            // As we read, hash that data too
             #[cfg(feature = "hash")]
             self.hasher.write(&uncompressed_data);
             // Special handling is needed for compression of a totally empty file (why you'd want to do that, I don't know)
@@ -168,42 +167,7 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                     output.extend_from_slice(&uncompressed_data);
                 }
                 CompressionLevel::Fastest => {
-                    if uncompressed_data.iter().all(|x| uncompressed_data[0].eq(x)) {
-                        let rle_byte = uncompressed_data[0];
-                        self.state.matcher.commit_space(uncompressed_data);
-                        self.state.matcher.skip_matching();
-                        let header = BlockHeader {
-                            last_block,
-                            block_type: crate::blocks::block::BlockType::RLE,
-                            block_size: read_bytes.try_into().unwrap(),
-                        };
-                        // Write the header, then the block
-                        header.serialize(output);
-                        output.push(rle_byte);
-                    } else {
-                        let mut compressed = Vec::new();
-                        self.state.matcher.commit_space(uncompressed_data);
-                        compress_block(&mut self.state, &mut compressed);
-                        if compressed.len() >= MAX_BLOCK_SIZE as usize {
-                            let header = BlockHeader {
-                                last_block,
-                                block_type: crate::blocks::block::BlockType::Raw,
-                                block_size: read_bytes.try_into().unwrap(),
-                            };
-                            // Write the header, then the block
-                            header.serialize(output);
-                            output.extend_from_slice(self.state.matcher.get_last_space());
-                        } else {
-                            let header = BlockHeader {
-                                last_block,
-                                block_type: crate::blocks::block::BlockType::Compressed,
-                                block_size: (compressed.len()).try_into().unwrap(),
-                            };
-                            // Write the header, then the block
-                            header.serialize(output);
-                            output.extend(compressed);
-                        }
-                    }
+                    compress_fastest(&mut self.state, last_block, uncompressed_data, output)
                 }
                 _ => {
                     unimplemented!();
