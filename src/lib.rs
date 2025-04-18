@@ -36,6 +36,7 @@ mod bit_io;
 mod common;
 pub mod decoding;
 pub mod encoding;
+mod dictionary;
 
 pub(crate) mod blocks;
 

@@ -8,6 +8,7 @@ use crate::{
     huff0::huff0_encoder,
 };
 
+/// A block of [`crate::common::BlockType::Compressed`]
 pub fn compress_block<M: Matcher>(state: &mut CompressState<M>, output: &mut Vec<u8>) {
     let mut literals_vec = Vec::new();
     let mut sequences = Vec::new();
