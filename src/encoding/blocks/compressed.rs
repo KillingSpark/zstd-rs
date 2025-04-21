@@ -51,60 +51,66 @@ pub fn compress_block<M: Matcher>(state: &mut CompressState<M>, output: &mut Vec
 
         // Choose the tables
         // TODO store previously used tables
-        let (ll_mode, ll_table) = choose_table(
+        let ll_mode = choose_table(
             state.fse_tables.ll_previous.as_ref(),
             &state.fse_tables.ll_default,
             sequences.iter().map(|seq| encode_literal_length(seq.ll).0),
             9,
         );
-        let (ml_mode, ml_table) = choose_table(
+        let ml_mode = choose_table(
             state.fse_tables.ml_previous.as_ref(),
             &state.fse_tables.ml_default,
             sequences.iter().map(|seq| encode_match_len(seq.ml).0),
             9,
         );
-        let (of_mode, of_table) = choose_table(
+        let of_mode = choose_table(
             state.fse_tables.of_previous.as_ref(),
             &state.fse_tables.of_default,
             sequences.iter().map(|seq| encode_offset(seq.of).0),
             8,
         );
 
-        writer.write_bits(encode_fse_table_modes(ll_mode, ml_mode, of_mode), 8);
+        writer.write_bits(encode_fse_table_modes(&ll_mode, &ml_mode, &of_mode), 8);
 
-        encode_table(ll_mode, ll_table.as_ref(), &mut writer);
-        encode_table(of_mode, of_table.as_ref(), &mut writer);
-        encode_table(ml_mode, ml_table.as_ref(), &mut writer);
+        encode_table(&ll_mode, &mut writer);
+        encode_table(&of_mode, &mut writer);
+        encode_table(&ml_mode, &mut writer);
 
         encode_sequences(
             &sequences,
             &mut writer,
-            ll_table.as_ref(),
-            ml_table.as_ref(),
-            of_table.as_ref(),
+            ll_mode.as_ref(),
+            ml_mode.as_ref(),
+            of_mode.as_ref(),
         );
+
+        if let FseTableMode::Encoded(table) = ll_mode {
+            state.fse_tables.ll_previous = Some(table)
+        }
+        if let FseTableMode::Encoded(table) = ml_mode {
+            state.fse_tables.ml_previous = Some(table)
+        }
+        if let FseTableMode::Encoded(table) = of_mode {
+            state.fse_tables.of_previous = Some(table)
+        }
     }
     writer.flush();
 }
 
-#[derive(Copy, Clone)]
-enum FseTableMode {
-    Predefined,
-    Encoded,
-    RepeateLast,
+#[derive(Clone)]
+#[allow(clippy::large_enum_variant)]
+enum FseTableMode<'a> {
+    Predefined(&'a FSETable),
+    Encoded(FSETable),
+    RepeateLast(&'a FSETable),
 }
 
-/// Can't use std::borrow::Cow in no_std because it isn't in core
-enum MaybeOwned<'a, T> {
-    Borrowed(&'a T),
-    Owned(T),
-}
-
-impl<T> MaybeOwned<'_, T> {
-    pub fn as_ref(&self) -> &T {
-        match *self {
-            Self::Borrowed(borrowed) => borrowed,
-            Self::Owned(ref owned) => owned,
+impl FseTableMode<'_> {
+    pub fn as_ref(&self) -> &FSETable {
+        match self {
+            Self::Predefined(t) => t,
+            Self::RepeateLast(t) => t,
+            Self::Encoded(t) => t,
         }
     }
 }
@@ -114,46 +120,37 @@ fn choose_table<'a>(
     default_table: &'a FSETable,
     data: impl Iterator<Item = u8>,
     max_log: u8,
-) -> (FseTableMode, MaybeOwned<'a, FSETable>) {
+) -> FseTableMode<'a> {
     // TODO check if the new table is better than the predefined and previous table
     let use_new_table = false;
     let use_previous_table = false;
     if use_previous_table {
-        (
-            FseTableMode::RepeateLast,
-            MaybeOwned::Borrowed(previous.unwrap()),
-        )
+        FseTableMode::RepeateLast(previous.unwrap())
     } else if use_new_table {
-        (
-            FseTableMode::Encoded,
-            MaybeOwned::Owned(build_table_from_data(data, max_log, true)),
-        )
+        FseTableMode::Encoded(build_table_from_data(data, max_log, true))
     } else {
-        (
-            FseTableMode::Predefined,
-            MaybeOwned::Borrowed(default_table),
-        )
+        FseTableMode::Predefined(default_table)
     }
 }
 
-fn encode_table(mode: FseTableMode, table: &FSETable, writer: &mut BitWriter<&mut Vec<u8>>) {
+fn encode_table(mode: &FseTableMode<'_>, writer: &mut BitWriter<&mut Vec<u8>>) {
     match mode {
-        FseTableMode::Predefined => {}
-        FseTableMode::RepeateLast => {}
-        FseTableMode::Encoded => table.write_table(writer),
+        FseTableMode::Predefined(_) => {}
+        FseTableMode::RepeateLast(_) => {}
+        FseTableMode::Encoded(table) => table.write_table(writer),
     }
 }
 
 fn encode_fse_table_modes(
-    ll_mode: FseTableMode,
-    ml_mode: FseTableMode,
-    of_mode: FseTableMode,
+    ll_mode: &FseTableMode<'_>,
+    ml_mode: &FseTableMode<'_>,
+    of_mode: &FseTableMode<'_>,
 ) -> u8 {
-    fn mode_to_bits(mode: FseTableMode) -> u8 {
+    fn mode_to_bits(mode: &FseTableMode<'_>) -> u8 {
         match mode {
-            FseTableMode::Predefined => 0,
-            FseTableMode::Encoded => 2,
-            FseTableMode::RepeateLast => 3,
+            FseTableMode::Predefined(_) => 0,
+            FseTableMode::Encoded(_) => 2,
+            FseTableMode::RepeateLast(_) => 3,
         }
     }
     mode_to_bits(ll_mode) << 6 | mode_to_bits(of_mode) << 4 | mode_to_bits(ml_mode) << 2
