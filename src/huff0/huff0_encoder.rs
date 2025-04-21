@@ -125,7 +125,7 @@ impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, '_, V> {
             self.writer.write_bits(0u8, 8);
             let idx_before = self.writer.index();
             let mut encoder = FSEEncoder::new(
-                fse_encoder::build_table_from_data(weights, 6, true),
+                fse_encoder::build_table_from_data(weights.iter().copied(), 6, true),
                 self.writer,
             );
             encoder.encode_interleaved(weights);

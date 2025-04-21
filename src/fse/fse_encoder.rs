@@ -113,7 +113,7 @@ impl<V: AsMut<Vec<u8>>> FSEEncoder<'_, V> {
     }
 
     fn write_table(&mut self) {
-        self.table.write_table(&mut self.writer);
+        self.table.write_table(self.writer);
     }
 
     pub(super) fn acc_log(&self) -> u8 {
@@ -121,7 +121,7 @@ impl<V: AsMut<Vec<u8>>> FSEEncoder<'_, V> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FSETable {
     /// Indexed by symbol
     pub(super) states: [SymbolStates; 256],
@@ -140,7 +140,7 @@ impl FSETable {
         &states.states[0]
     }
 
-    pub fn acc_log(&self) -> u8{
+    pub fn acc_log(&self) -> u8 {
         self.table_size.ilog2() as u8
     }
 
@@ -162,8 +162,7 @@ impl FSETable {
             if value < low_threshold as u32 {
                 writer.write_bits(value, bits_to_write as usize - 1);
             } else if value > mask {
-                writer
-                    .write_bits(value + low_threshold as u32, bits_to_write as usize);
+                writer.write_bits(value + low_threshold as u32, bits_to_write as usize);
             } else {
                 writer.write_bits(value, bits_to_write as usize);
             }
@@ -189,7 +188,7 @@ impl FSETable {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(super) struct SymbolStates {
     /// Sorted by baseline to allow easy lookup using an index
     pub(super) states: Vec<State>,
@@ -207,7 +206,7 @@ impl SymbolStates {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct State {
     /// How many bits the range of this state needs to be encoded as
     pub(crate) num_bits: u8,
@@ -225,10 +224,14 @@ impl State {
     }
 }
 
-pub fn build_table_from_data(data: &[u8], max_log: u8, avoid_0_numbit: bool) -> FSETable {
+pub fn build_table_from_data(
+    data: impl Iterator<Item = u8>,
+    max_log: u8,
+    avoid_0_numbit: bool,
+) -> FSETable {
     let mut counts = [0; 256];
     for x in data {
-        counts[*x as usize] += 1;
+        counts[x as usize] += 1;
     }
     build_table_from_counts(&counts, max_log, avoid_0_numbit)
 }
