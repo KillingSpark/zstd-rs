@@ -122,7 +122,7 @@ fn choose_table<'a>(
     max_log: u8,
 ) -> FseTableMode<'a> {
     // TODO check if the new table is better than the predefined and previous table
-    let use_new_table = false;
+    let use_new_table = true;
     let use_previous_table = false;
     if use_previous_table {
         FseTableMode::RepeateLast(previous.unwrap())

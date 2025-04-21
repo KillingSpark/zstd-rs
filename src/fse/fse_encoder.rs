@@ -254,9 +254,20 @@ fn build_table_from_counts(counts: &[usize], max_log: u8, avoid_0_numbit: bool) 
 
     // shift all probabilities down so that the lowest are 1
     min_count -= 1;
+    let mut max_prob = 0i32;
     for prob in probs.iter_mut() {
         if *prob > 0 {
             *prob -= min_count as i32;
+        }
+        max_prob = max_prob.max(*prob);
+    }
+
+    if max_prob > 0 && max_prob as usize > probs.len() {
+        let divisor = max_prob / (probs.len() as i32);
+        for prob in probs.iter_mut() {
+            if *prob > 0 {
+                *prob = (*prob / divisor).max(1)
+            }
         }
     }
 
@@ -275,7 +286,7 @@ fn build_table_from_counts(counts: &[usize], max_log: u8, avoid_0_numbit: bool) 
         *max += diff as i32;
     } else {
         // decrease the smallest ones to 1 first
-        let mut diff = sum - (1 << max_log);
+        let mut diff = sum - (1 << acc_log);
         while diff > 0 {
             let min = probs.iter_mut().filter(|prob| **prob > 1).min().unwrap();
             let decrease = usize::min(*min as usize - 1, diff);
