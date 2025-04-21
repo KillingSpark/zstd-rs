@@ -4,7 +4,7 @@ use crate::{
     bit_io::BitWriter,
     encoding::frame_compressor::CompressState,
     encoding::{Matcher, Sequence},
-    fse::fse_encoder::{default_ll_table, default_ml_table, default_of_table, FSETable, State},
+    fse::fse_encoder::{FSETable, State},
     huff0::huff0_encoder,
 };
 
@@ -50,26 +50,22 @@ pub fn compress_block<M: Matcher>(state: &mut CompressState<M>, output: &mut Vec
         encode_seqnum(sequences.len(), &mut writer);
 
         // Choose the tables
-
-        let default_ll_table = &default_ll_table();
-        let default_ml_table = &default_ml_table();
-        let default_of_table = &default_of_table();
-
+        // TODO store previously used tables
         let (ll_mode, ll_table) = choose_table(
-            None,
-            default_ll_table,
+            state.fse_tables.ll_previous.as_ref(),
+            &state.fse_tables.ll_default,
             sequences.iter().map(|seq| encode_literal_length(seq.ll).0),
             9,
         );
         let (ml_mode, ml_table) = choose_table(
-            None,
-            default_ml_table,
+            state.fse_tables.ml_previous.as_ref(),
+            &state.fse_tables.ml_default,
             sequences.iter().map(|seq| encode_match_len(seq.ml).0),
             9,
         );
         let (of_mode, of_table) = choose_table(
-            None,
-            default_of_table,
+            state.fse_tables.of_previous.as_ref(),
+            &state.fse_tables.of_default,
             sequences.iter().map(|seq| encode_offset(seq.of).0),
             8,
         );
@@ -95,13 +91,12 @@ enum FseTableMode {
 }
 
 fn choose_table<'a>(
-    _previous: Option<&'a FSETable>,
+    _previous: Option<&FSETable>,
     default_table: &'a FSETable,
     _data: impl Iterator<Item = u8>,
     _max_log: u8,
 ) -> (FseTableMode, std::borrow::Cow<'a, FSETable>) {
     // TODO check if the new table is better than the predefined and previous table
-    // TODO store previously used tables and pass them to this function
     // let _ = build_table_from_data(data, max_log, true);
     (
         FseTableMode::Predefined,
