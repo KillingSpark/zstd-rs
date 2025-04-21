@@ -4,7 +4,7 @@ use crate::{
     bit_io::BitWriter,
     encoding::frame_compressor::CompressState,
     encoding::{Matcher, Sequence},
-    fse::fse_encoder::{FSETable, State},
+    fse::fse_encoder::{build_table_from_data, FSETable, State},
     huff0::huff0_encoder,
 };
 
@@ -90,16 +90,13 @@ pub fn compress_block<M: Matcher>(state: &mut CompressState<M>, output: &mut Vec
 #[derive(Copy, Clone)]
 enum FseTableMode {
     Predefined,
-    #[expect(dead_code)]
     Encoded,
-    #[expect(dead_code)]
     RepeateLast,
 }
 
 /// Can't use std::borrow::Cow in no_std because it isn't in core
 enum MaybeOwned<'a, T> {
     Borrowed(&'a T),
-    #[expect(dead_code)]
     Owned(T),
 }
 
@@ -113,17 +110,30 @@ impl<T> MaybeOwned<'_, T> {
 }
 
 fn choose_table<'a>(
-    _previous: Option<&FSETable>,
+    previous: Option<&'a FSETable>,
     default_table: &'a FSETable,
-    _data: impl Iterator<Item = u8>,
-    _max_log: u8,
+    data: impl Iterator<Item = u8>,
+    max_log: u8,
 ) -> (FseTableMode, MaybeOwned<'a, FSETable>) {
     // TODO check if the new table is better than the predefined and previous table
-    // let _ = build_table_from_data(data, max_log, true);
-    (
-        FseTableMode::Predefined,
-        MaybeOwned::Borrowed(default_table),
-    )
+    let use_new_table = false;
+    let use_previous_table = false;
+    if use_previous_table {
+        (
+            FseTableMode::RepeateLast,
+            MaybeOwned::Borrowed(previous.unwrap()),
+        )
+    } else if use_new_table {
+        (
+            FseTableMode::Encoded,
+            MaybeOwned::Owned(build_table_from_data(data, max_log, true)),
+        )
+    } else {
+        (
+            FseTableMode::Predefined,
+            MaybeOwned::Borrowed(default_table),
+        )
+    }
 }
 
 fn encode_table(mode: FseTableMode, table: &FSETable, writer: &mut BitWriter<&mut Vec<u8>>) {
