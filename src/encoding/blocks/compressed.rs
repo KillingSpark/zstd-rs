@@ -49,16 +49,40 @@ pub fn compress_block<M: Matcher>(state: &mut CompressState<M>, output: &mut Vec
     } else {
         encode_seqnum(sequences.len(), &mut writer);
 
-        // use standard FSE tables
-        writer.write_bits(0u8, 8);
-
+        // Choose the tables
         let ll_table: FSETable = default_ll_table();
+        let ll_mode = FseTableMode::Predefined;
+
         let ml_table: FSETable = default_ml_table();
+        let ml_mode = FseTableMode::Predefined;
+
         let of_table: FSETable = default_of_table();
+        let of_mode = FseTableMode::Predefined;
+
+        writer.write_bits(encode_fse_table_modes(ll_mode, ml_mode, of_mode), 8);
 
         encode_sequences(&sequences, &mut writer, &ll_table, &ml_table, &of_table);
     }
     writer.flush();
+}
+
+enum FseTableMode {
+    Predefined,
+    #[expect(dead_code)]
+    Encoded,
+    #[expect(dead_code)]
+    RepeateLast
+}
+
+fn encode_fse_table_modes(ll_mode: FseTableMode, ml_mode: FseTableMode, of_mode: FseTableMode) -> u8 {
+    fn mode_to_bits(mode: FseTableMode) -> u8 {
+        match mode {
+            FseTableMode::Predefined => 0,
+            FseTableMode::Encoded => 2,
+            FseTableMode::RepeateLast => 3
+        }
+    }
+    mode_to_bits(ll_mode) << 6 | mode_to_bits(of_mode) << 4 | mode_to_bits(ml_mode) << 2
 }
 
 fn encode_sequences(
