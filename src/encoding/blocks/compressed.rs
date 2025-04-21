@@ -72,11 +72,17 @@ pub fn compress_block<M: Matcher>(state: &mut CompressState<M>, output: &mut Vec
 
         writer.write_bits(encode_fse_table_modes(ll_mode, ml_mode, of_mode), 8);
 
-        encode_table(ll_mode, &ll_table, &mut writer);
-        encode_table(of_mode, &of_table, &mut writer);
-        encode_table(ml_mode, &ml_table, &mut writer);
+        encode_table(ll_mode, ll_table.as_ref(), &mut writer);
+        encode_table(of_mode, of_table.as_ref(), &mut writer);
+        encode_table(ml_mode, ml_table.as_ref(), &mut writer);
 
-        encode_sequences(&sequences, &mut writer, &ll_table, &ml_table, &of_table);
+        encode_sequences(
+            &sequences,
+            &mut writer,
+            ll_table.as_ref(),
+            ml_table.as_ref(),
+            of_table.as_ref(),
+        );
     }
     writer.flush();
 }
@@ -90,17 +96,33 @@ enum FseTableMode {
     RepeateLast,
 }
 
+/// Can't use std::borrow::Cow in no_std because it isn't in core
+enum MaybeOwned<'a, T> {
+    Borrowed(&'a T),
+    #[expect(dead_code)]
+    Owned(T),
+}
+
+impl<T> MaybeOwned<'_, T> {
+    pub fn as_ref(&self) -> &T {
+        match *self {
+            Self::Borrowed(borrowed) => borrowed,
+            Self::Owned(ref owned) => owned,
+        }
+    }
+}
+
 fn choose_table<'a>(
     _previous: Option<&FSETable>,
     default_table: &'a FSETable,
     _data: impl Iterator<Item = u8>,
     _max_log: u8,
-) -> (FseTableMode, std::borrow::Cow<'a, FSETable>) {
+) -> (FseTableMode, MaybeOwned<'a, FSETable>) {
     // TODO check if the new table is better than the predefined and previous table
     // let _ = build_table_from_data(data, max_log, true);
     (
         FseTableMode::Predefined,
-        std::borrow::Cow::Borrowed(default_table),
+        MaybeOwned::Borrowed(default_table),
     )
 }
 
