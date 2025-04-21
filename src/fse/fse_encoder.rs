@@ -198,7 +198,6 @@ pub(super) struct SymbolStates {
 impl SymbolStates {
     fn get(&self, idx: usize, max_idx: usize) -> &State {
         let start_search_at = (idx * self.states.len()) / max_idx;
-
         self.states[start_search_at..]
             .iter()
             .find(|state| state.contains(idx))
@@ -230,14 +229,21 @@ pub fn build_table_from_data(
     avoid_0_numbit: bool,
 ) -> FSETable {
     let mut counts = [0; 256];
+    let mut max_symbol = 0;
     for x in data {
         counts[x as usize] += 1;
     }
-    build_table_from_counts(&counts, max_log, avoid_0_numbit)
+    for (idx, count) in counts.iter().copied().enumerate() {
+        if count > 0 {
+            max_symbol = idx;
+        }
+    }
+    build_table_from_counts(&counts[..=max_symbol], max_log, avoid_0_numbit)
 }
 
 fn build_table_from_counts(counts: &[usize], max_log: u8, avoid_0_numbit: bool) -> FSETable {
     let mut probs = [0; 256];
+    let probs = &mut probs[..counts.len()];
     let mut min_count = 0;
     for (idx, count) in counts.iter().copied().enumerate() {
         probs[idx] = count as i32;
@@ -289,7 +295,8 @@ fn build_table_from_counts(counts: &[usize], max_log: u8, avoid_0_numbit: bool) 
         *second_max += redistribute;
         assert!(*second_max <= max);
     }
-    build_table_from_probabilities(&probs, acc_log)
+
+    build_table_from_probabilities(probs, acc_log)
 }
 
 pub(super) fn build_table_from_probabilities(probs: &[i32], acc_log: u8) -> FSETable {
