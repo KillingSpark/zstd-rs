@@ -113,51 +113,11 @@ impl<V: AsMut<Vec<u8>>> FSEEncoder<'_, V> {
     }
 
     fn write_table(&mut self) {
-        self.writer.write_bits(self.acc_log() - 5, 4);
-        let mut probability_counter = 0usize;
-        let probability_sum = 1 << self.acc_log();
-
-        let mut prob_idx = 0;
-        while probability_counter < probability_sum {
-            let max_remaining_value = probability_sum - probability_counter + 1;
-            let bits_to_write = max_remaining_value.ilog2() + 1;
-            let low_threshold = ((1 << bits_to_write) - 1) - (max_remaining_value);
-            let mask = (1 << (bits_to_write - 1)) - 1;
-
-            let prob = self.table.states[prob_idx].probability;
-            prob_idx += 1;
-            let value = (prob + 1) as u32;
-            if value < low_threshold as u32 {
-                self.writer.write_bits(value, bits_to_write as usize - 1);
-            } else if value > mask {
-                self.writer
-                    .write_bits(value + low_threshold as u32, bits_to_write as usize);
-            } else {
-                self.writer.write_bits(value, bits_to_write as usize);
-            }
-
-            if prob == -1 {
-                probability_counter += 1;
-            } else if prob > 0 {
-                probability_counter += prob as usize;
-            } else {
-                let mut zeros = 0u8;
-                while self.table.states[prob_idx].probability == 0 {
-                    zeros += 1;
-                    prob_idx += 1;
-                    if zeros == 3 {
-                        self.writer.write_bits(3u8, 2);
-                        zeros = 0;
-                    }
-                }
-                self.writer.write_bits(zeros, 2);
-            }
-        }
-        self.writer.write_bits(0u8, self.writer.misaligned());
+        self.table.write_table(&mut self.writer);
     }
 
     pub(super) fn acc_log(&self) -> u8 {
-        self.table.table_size.ilog2() as u8
+        self.table.acc_log()
     }
 }
 
@@ -178,6 +138,54 @@ impl FSETable {
     pub(crate) fn start_state(&self, symbol: u8) -> &State {
         let states = &self.states[symbol as usize];
         &states.states[0]
+    }
+
+    pub fn acc_log(&self) -> u8{
+        self.table_size.ilog2() as u8
+    }
+
+    pub fn write_table<V: AsMut<Vec<u8>>>(&self, writer: &mut BitWriter<V>) {
+        writer.write_bits(self.acc_log() - 5, 4);
+        let mut probability_counter = 0usize;
+        let probability_sum = 1 << self.acc_log();
+
+        let mut prob_idx = 0;
+        while probability_counter < probability_sum {
+            let max_remaining_value = probability_sum - probability_counter + 1;
+            let bits_to_write = max_remaining_value.ilog2() + 1;
+            let low_threshold = ((1 << bits_to_write) - 1) - (max_remaining_value);
+            let mask = (1 << (bits_to_write - 1)) - 1;
+
+            let prob = self.states[prob_idx].probability;
+            prob_idx += 1;
+            let value = (prob + 1) as u32;
+            if value < low_threshold as u32 {
+                writer.write_bits(value, bits_to_write as usize - 1);
+            } else if value > mask {
+                writer
+                    .write_bits(value + low_threshold as u32, bits_to_write as usize);
+            } else {
+                writer.write_bits(value, bits_to_write as usize);
+            }
+
+            if prob == -1 {
+                probability_counter += 1;
+            } else if prob > 0 {
+                probability_counter += prob as usize;
+            } else {
+                let mut zeros = 0u8;
+                while self.states[prob_idx].probability == 0 {
+                    zeros += 1;
+                    prob_idx += 1;
+                    if zeros == 3 {
+                        writer.write_bits(3u8, 2);
+                        zeros = 0;
+                    }
+                }
+                writer.write_bits(zeros, 2);
+            }
+        }
+        writer.write_bits(0u8, writer.misaligned());
     }
 }
 

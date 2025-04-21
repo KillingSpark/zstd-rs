@@ -61,17 +61,32 @@ pub fn compress_block<M: Matcher>(state: &mut CompressState<M>, output: &mut Vec
 
         writer.write_bits(encode_fse_table_modes(ll_mode, ml_mode, of_mode), 8);
 
+        encode_table(ll_mode, &ll_table, &mut writer);
+        encode_table(of_mode, &of_table, &mut writer);
+        encode_table(ml_mode, &ml_table, &mut writer);
+
         encode_sequences(&sequences, &mut writer, &ll_table, &ml_table, &of_table);
     }
     writer.flush();
 }
 
+#[derive(Copy, Clone)]
 enum FseTableMode {
     Predefined,
     #[expect(dead_code)]
     Encoded,
     #[expect(dead_code)]
     RepeateLast
+}
+
+fn encode_table(mode: FseTableMode, table: &FSETable, writer: &mut BitWriter<&mut Vec<u8>>) {
+    match mode {
+            FseTableMode::Predefined => {},
+            FseTableMode::RepeateLast => {}
+            FseTableMode::Encoded => {
+                table.write_table(writer)
+            },
+        }
 }
 
 fn encode_fse_table_modes(ll_mode: FseTableMode, ml_mode: FseTableMode, of_mode: FseTableMode) -> u8 {
