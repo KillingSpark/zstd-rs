@@ -435,8 +435,7 @@ fn weights() {
                         let code2_shifted = code2 >> (num_bits2 - num_bits);
                         assert_ne!(
                             code, code2_shifted,
-                            "{:b},{num_bits:} is prefix of {:b},{num_bits2:}",
-                            code, code2
+                            "{code:b},{num_bits:} is prefix of {code2:b},{num_bits2:}"
                         );
                     }
                 }

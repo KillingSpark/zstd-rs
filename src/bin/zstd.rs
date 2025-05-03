@@ -34,17 +34,14 @@ fn decompress(flags: &[String], file_paths: &[String]) {
     }
 
     if flags.len() != 2 {
-        eprintln!(
-            "No flags other than -d and -c are currently implemented. Flags used: {:?}",
-            flags
-        );
+        eprintln!("No flags other than -d and -c are currently implemented. Flags used: {flags:?}");
         return;
     }
 
     let mut frame_dec = ruzstd::decoding::FrameDecoder::new();
 
     for path in file_paths {
-        eprintln!("File: {}", path);
+        eprintln!("File: {path}");
         let mut f = File::open(path).unwrap();
 
         let mut tracker = StateTracker {
@@ -146,7 +143,7 @@ impl<R: Read> Read for PercentPrintReader<R> {
         if progress > self.last_percent {
             self.last_percent = progress;
             eprint!("\r");
-            eprint!("{} % done", progress);
+            eprint!("{progress} % done");
         }
         Ok(new_bytes)
     }
@@ -215,7 +212,7 @@ fn do_something(data: &[u8], s: &mut StateTracker) {
     let percentage = (s.file_pos * 100) / s.file_size;
     if percentage as i8 != s.old_percentage {
         eprint!("\r");
-        eprint!("{} % done", percentage);
+        eprint!("{percentage} % done");
         s.old_percentage = percentage as i8;
     }
 }

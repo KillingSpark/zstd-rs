@@ -43,7 +43,7 @@ fn test_decode_corpus_files() {
         if !p.ends_with(".zst") {
             continue;
         }
-        println!("Trying file: {}", p);
+        println!("Trying file: {p}");
 
         let mut content = fs::File::open(f.path()).unwrap();
 
@@ -125,7 +125,7 @@ fn test_decode_corpus_files() {
         }
 
         if counter > 0 {
-            println!("Result differs in at least {} bytes from original", counter);
+            println!("Result differs in at least {counter} bytes from original");
             success = false;
             fail_counter_diff += 1;
         }
@@ -140,8 +140,8 @@ fn test_decode_corpus_files() {
         let dur = end_time.as_micros() as usize;
         let speed = result.len() / if dur == 0 { 1 } else { dur };
         let speed_read = file_size as usize / if dur == 0 { 1 } else { dur };
-        println!("SPEED: {}", speed);
-        println!("SPEED_read: {}", speed_read);
+        println!("SPEED: {speed}");
+        println!("SPEED_read: {speed_read}");
         speeds.push(speed);
         speeds_read.push(speed_read);
     }
@@ -150,17 +150,11 @@ fn test_decode_corpus_files() {
     println!("Summary:");
     println!("###################");
     println!(
-        "Total: {}, Success: {}, WrongSize: {}, WrongBytecount: {}, WrongChecksum: {}, Diffs: {}",
-        total_counter,
-        success_counter,
-        fail_counter_size,
-        fail_counter_bytes_read,
-        fail_counter_chksum,
-        fail_counter_diff
+        "Total: {total_counter}, Success: {success_counter}, WrongSize: {fail_counter_size}, WrongBytecount: {fail_counter_bytes_read}, WrongChecksum: {fail_counter_chksum}, Diffs: {fail_counter_diff}"
     );
     println!("Failed files: ");
     for f in &failed {
-        println!("{}", f);
+        println!("{f}");
     }
 
     let speed_len = speeds.len();
@@ -168,7 +162,7 @@ fn test_decode_corpus_files() {
     let avg_speed = sum_speed / speed_len;
     let avg_speed_bps = avg_speed * 1_000_000;
     if avg_speed_bps < 1000 {
-        println!("Average speed: {} B/s", avg_speed_bps);
+        println!("Average speed: {avg_speed_bps} B/s");
     } else if avg_speed_bps < 1_000_000 {
         println!("Average speed: {} KB/s", avg_speed_bps / 1000);
     } else {
@@ -180,7 +174,7 @@ fn test_decode_corpus_files() {
     let avg_speed_read = sum_speed_read / speed_read_len;
     let avg_speed_read_bps = avg_speed_read * 1_000_000;
     if avg_speed_read_bps < 1000 {
-        println!("Average speed reading: {} B/s", avg_speed_read_bps);
+        println!("Average speed reading: {avg_speed_read_bps} B/s");
     } else if avg_speed_bps < 1_000_000 {
         println!("Average speed reading: {} KB/s", avg_speed_read_bps / 1000);
     } else {

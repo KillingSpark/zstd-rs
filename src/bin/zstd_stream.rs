@@ -18,15 +18,12 @@ fn main() {
     }
 
     if flags.len() != 2 {
-        eprintln!(
-            "No flags other than -d and -c are currently implemented. Flags used: {:?}",
-            flags
-        );
+        eprintln!("No flags other than -d and -c are currently implemented. Flags used: {flags:?}");
         return;
     }
 
     for path in file_paths {
-        eprintln!("File: {}", path);
+        eprintln!("File: {path}");
         let f = File::open(path).unwrap();
         let mut buf_read = std::io::BufReader::new(f);
 
