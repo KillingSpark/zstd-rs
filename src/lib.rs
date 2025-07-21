@@ -35,8 +35,8 @@ macro_rules! vprintln {
 mod bit_io;
 mod common;
 pub mod decoding;
-pub mod encoding;
 mod dictionary;
+pub mod encoding;
 
 pub(crate) mod blocks;
 
