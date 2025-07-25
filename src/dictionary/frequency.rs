@@ -5,7 +5,7 @@
 
 /// Computes a best effort guess as to how many times `pattern` occurs within
 /// `body`. While not 100% accurate, it will be accurate the vast majority of time
-pub(super) fn compute_frequency(pattern: [u8; 2], body: &[u8]) -> usize {
+pub(super) fn compute_frequency(pattern: KMer, body: &[u8]) -> usize {
     assert!(body.len() >= pattern.len());
     // A prime number for modulo operations to reduce collisions (q)
     const PRIME: usize = 2654435761;

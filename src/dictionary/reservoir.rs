@@ -1,8 +1,8 @@
+use super::cover::K;
 use crate::io;
-use core::f64::consts::E;
-use std::{dbg, io::ErrorKind};
-use fastrand;
 use alloc::vec::Vec;
+use core::f64::consts::E;
+use fastrand;
 
 /// A reservoir is created from an input stream.
 ///
@@ -23,11 +23,8 @@ impl Reservoir {
         assert!(size >= 16, "Reservoirs cannot be below 16 bytes in size");
         let mut lake = Vec::with_capacity(size);
         lake.resize(size, 0);
-        let k: u16 = 16;
-        Self {
-            lake,
-            k
-        }
+        let k = K as u16;
+        Self { lake, k }
     }
     /// Filling the reservoir is performed using Algorithm L.
     ///
