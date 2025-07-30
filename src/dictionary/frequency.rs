@@ -5,7 +5,7 @@
 
 /// Computes a best effort guess as to how many times `pattern` occurs within
 /// `body`. While not 100% accurate, it will be accurate the vast majority of time
-pub(super) fn compute_frequency(pattern: KMer, body: &[u8]) -> usize {
+pub(super) fn compute_frequency(pattern: &[u8], body: &[u8]) -> usize {
     assert!(body.len() >= pattern.len());
     // A prime number for modulo operations to reduce collisions (q)
     const PRIME: usize = 2654435761;
@@ -51,20 +51,20 @@ mod tests {
     #[test]
     fn dead_beef() {
         assert_eq!(
-            compute_frequency([0xde, 0xad], &[0xde, 0xad, 0xbe, 0xef, 0xde, 0xad]),
+            compute_frequency(&[0xde, 0xad], &[0xde, 0xad, 0xbe, 0xef, 0xde, 0xad]),
             2
         );
     }
 
     #[test]
     fn smallest_body() {
-        assert_eq!(compute_frequency([0x00, 0xff], &[0x00, 0xff]), 1);
+        assert_eq!(compute_frequency(&[0x00, 0xff], &[0x00, 0xff]), 1);
     }
 
     #[test]
     fn no_match() {
         assert_eq!(
-            compute_frequency([0xff, 0xff], &[0xde, 0xad, 0xbe, 0xef, 0xde, 0xad]),
+            compute_frequency(&[0xff, 0xff], &[0xde, 0xad, 0xbe, 0xef, 0xde, 0xad]),
             0
         );
     }

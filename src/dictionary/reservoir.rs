@@ -1,15 +1,24 @@
 use super::cover::K;
-use crate::io;
 use alloc::vec::Vec;
 use core::f64::consts::E;
 use fastrand;
+use std::io;
+
+/// Creates a representative sample of `input` of `size` bytes.
+pub fn create_sample<R: io::Read>(input: &mut R, size: usize) -> Vec<u8> {
+    let reservoir = Reservoir::new(size);
+    reservoir.fill(input)
+}
 
 /// A reservoir is created from an input stream.
 ///
 /// Once filled, it will contain a best effort sample of a dataset,
 /// where each input value has an equivalent probability of being included.
 struct Reservoir {
-    /// Where the sampled data is stored
+    /// Where the sampled data is stored.
+    ///
+    /// Once the lake is filled, then this should contain a representative sample
+    /// of the larger dataset.
     lake: Vec<u8>,
     /// K is the size of each sample.
     ///
@@ -19,6 +28,7 @@ struct Reservoir {
 }
 
 impl Reservoir {
+    /// Initialize a new empty reservoir, creating an allocation of `size`.
     pub fn new(size: usize) -> Self {
         assert!(size >= 16, "Reservoirs cannot be below 16 bytes in size");
         let mut lake = Vec::with_capacity(size);
@@ -26,12 +36,14 @@ impl Reservoir {
         let k = K as u16;
         Self { lake, k }
     }
+
     /// Filling the reservoir is performed using Algorithm L.
     ///
     /// The return value is the populated reservoir.
-    pub fn fill<R: io::Read>(mut self, source: &mut R) -> Result<Vec<u8>, io::Error> {
+    pub fn fill<R: io::Read>(mut self, source: &mut R) -> Vec<u8> {
         // https://en.wikipedia.org/wiki/Reservoir_sampling#:~:text=end%0A%20%20end%0Aend-,Optimal%3A%20Algorithm,-L%5Bedit
         // https://richardstartin.github.io/posts/reservoir-sampling#algorithm-l:~:text=%3B%0A%20%20%20%20%7D%0A%7D-,Algorithm%20L,-Algorithm%20L%20was
+
         // First fill the reservoir with the start of the input stream
         let mut total_bytes_read: usize = 0;
         while let Ok(num_bytes) = source.read(self.lake.as_mut_slice()) {
@@ -55,7 +67,7 @@ impl Reservoir {
             .lake
             .chunks_mut(self.k as usize)
             .collect::<Vec<&mut [u8]>>();
-
+        // Used when discarding chunks
         let end_of_lake = lake_chunks.len();
         let mut counter = end_of_lake / self.k as usize;
         // Algorithm L is considered better than algorithm R because it
@@ -67,13 +79,15 @@ impl Reservoir {
 
         // Items with a weight smaller than the threshold enter the lake,
         // replacing the item in the lake with the largest threshold
+
         let mut dumpster = Vec::with_capacity(self.k as usize);
         loop {
-            let num_bytes_read;
+            // `num_bytes_read` is kept track of to watch for EOD.
+            let num_bytes_read: u64;
             if counter == next {
                 num_bytes_read = source
                     .read(lake_chunks[fastrand::usize(0..end_of_lake)])
-                    .unwrap();
+                    .unwrap() as u64;
                 // Advance at least to the next sample, skipping forward a few samples
                 next += ((fastrand::f64().ln() / f64::ln(1.0 - threshold)).floor() as usize + 1)
                     * self.k as usize;
@@ -81,7 +95,8 @@ impl Reservoir {
                 threshold *= E.powf(fastrand::f64().ln() / f64::from(end_of_lake as u32))
             } else {
                 // Drop the next chunk
-                num_bytes_read = source.read(&mut dumpster).unwrap();
+                num_bytes_read = source.read(&mut dumpster).unwrap() as u64;
+                //source.seek_relative(self.k.into()).unwrap();
             }
             if num_bytes_read == 0 {
                 break;
@@ -89,7 +104,7 @@ impl Reservoir {
             counter += self.k as usize;
         }
 
-        Ok(self.lake)
+        self.lake
     }
 }
 
@@ -104,7 +119,7 @@ mod tests {
         // 16 bytes into it
         let r = Reservoir::new(16);
         let test_data = vec![0_u8; 16];
-        let output = r.fill(&mut test_data.as_slice()).unwrap();
+        let output = r.fill(&mut test_data.as_slice());
         assert_eq!(test_data, output);
     }
 
@@ -114,7 +129,7 @@ mod tests {
         // The output should be smaller.
         let r = Reservoir::new(32);
         let test_data = vec![0_u8; 28];
-        let output = r.fill(&mut test_data.as_slice()).unwrap();
+        let output = r.fill(&mut test_data.as_slice());
         assert!(output.len() == 28);
     }
 
@@ -124,7 +139,7 @@ mod tests {
         // The output should be smaller.
         let r = Reservoir::new(32);
         let test_data = vec![0_u8; 16_000_000];
-        let output = r.fill(&mut test_data.as_slice()).unwrap();
+        let output = r.fill(&mut test_data.as_slice());
         assert!(output.len() == 32);
     }
 }

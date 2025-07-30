@@ -7,10 +7,12 @@
 //! Facebook's implementation was also used as a reference.
 //! https://github.com/facebook/zstd/tree/dev/lib/dictBuilder
 
-use std::collections::HashMap;
-use std::vec::Vec;
-
 use crate::dictionary::frequency::compute_frequency;
+use crate::dictionary::reservoir::create_sample;
+use core::convert::TryInto;
+use std::collections::HashMap;
+use std::io::Cursor;
+use std::vec::Vec;
 
 /// The size of each k-mer
 pub(super) const K: usize = 16;
@@ -96,16 +98,23 @@ fn pick_best_segment<'epoch>(
 ///
 /// `score_segment` modifies ctx.frequencies.
 fn score_segment(ctx: &mut Context, epoch: &[u8], segment: &[u8]) -> usize {
+    // Create a reservoir sample of the entire epoch
+    // so we can estimate frequencies without checking the entire epoch
+    // TODO: epoch size / 10 was chosen randomly, find a better way to determine reservoir size
+    let epoch_sample = create_sample(&mut Cursor::new(epoch), epoch.len() / 10);
+
     let mut segment_score = 0;
     // Determine the score of each overlapping k-mer
     for i in 0..segment.len() - 1 {
-        let kmer: &KMer = &(segment[i..i + K].try_into().expect("Failed to make kmer"));
+        let kmer: &KMer = (&segment[i..i + K])
+            .try_into()
+            .expect("Failed to make kmer");
         // if the kmer is already in the pool, it recieves a score of zero
-        if !ctx.frequencies.contains_key(&kmer) {
+        if !ctx.frequencies.contains_key(kmer) {
             continue;
         }
-        let kmer_score = compute_frequency(kmer, epoch);
-        ctx.frequencies.insert(kmer, kmer_score);
+        let kmer_score = compute_frequency(kmer, &epoch_sample);
+        ctx.frequencies.insert(*kmer, kmer_score);
         segment_score += kmer_score;
     }
 

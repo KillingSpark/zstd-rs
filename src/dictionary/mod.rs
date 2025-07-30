@@ -19,7 +19,13 @@
 //    the frequency of a given k-mer: f(w: k-mer) calculates
 //    the frequency of w in the reservoir using a rolling karp-rabin hash
 //  - The score of a segment is the sum of `f(w)` called on every kmer within the segment
-
 mod cover;
 mod frequency;
 mod reservoir;
+
+use cover::*;
+use std::io::{Read, Write};
+
+/// Read from `source` to create a dictionary of `dict_size`. The completed dictionary is written
+/// to `output`.
+pub fn create_dict_from_reader<R: Read, W: Write>(source: R, &mut output: W, dict_size: usize) {}
