@@ -7,11 +7,12 @@
 //! Facebook's implementation was also used as a reference.
 //! https://github.com/facebook/zstd/tree/dev/lib/dictBuilder
 
+use super::DictParams;
 use crate::dictionary::frequency::compute_frequency;
 use crate::dictionary::reservoir::create_sample;
 use core::convert::TryInto;
 use std::collections::HashMap;
-use std::io::Cursor;
+use std::io::{Cursor, Read};
 use std::vec::Vec;
 
 /// The size of each k-mer
@@ -22,23 +23,7 @@ pub(super) const K: usize = 16;
 /// Reasonable range: [6, 16]
 pub(super) type KMer = [u8; K];
 
-/// A set of values that are used during dictionary construction.
-///
-/// Changing these values can improve the resulting dictionary size for certain datasets.
-struct DictParams {
-    /// Segment size.
-    ///
-    /// As found under "4. Experiments - Varying Segment Size" in the original paper, a
-    /// segment size of 2 kiB was effective.
-    ///
-    /// "We explored a range of [segment_size] values and found the performance of LMC is insensitive
-    /// to [segment_size]. We fix [segment_size] to 2kiB
-    ///
-    /// Reasonable range: [16, 2048+]
-    segment_size: u32,
-}
-
-struct Segment {
+pub struct Segment {
     /// The actual contents of the segment.
     raw: Vec<u8>,
     /// A measure of how "ideal" a given segment would be to include in the dictionary
@@ -72,7 +57,7 @@ impl Context {
 
 /// Returns the highest scoring segment in an epoch
 /// as a slice of that epoch.
-fn pick_best_segment<'epoch>(
+pub fn pick_best_segment<'epoch>(
     params: DictParams,
     ctx: &mut Context,
     epoch: &'epoch [u8],
@@ -97,12 +82,7 @@ fn pick_best_segment<'epoch>(
 /// Given a segment, compute the score (or usefulness) of that segment against the entire epoch.
 ///
 /// `score_segment` modifies ctx.frequencies.
-fn score_segment(ctx: &mut Context, epoch: &[u8], segment: &[u8]) -> usize {
-    // Create a reservoir sample of the entire epoch
-    // so we can estimate frequencies without checking the entire epoch
-    // TODO: epoch size / 10 was chosen randomly, find a better way to determine reservoir size
-    let epoch_sample = create_sample(&mut Cursor::new(epoch), epoch.len() / 10);
-
+fn score_segment(ctx: &mut Context, collection_sample: &[u8], segment: &[u8]) -> usize {
     let mut segment_score = 0;
     // Determine the score of each overlapping k-mer
     for i in 0..segment.len() - 1 {
@@ -113,7 +93,7 @@ fn score_segment(ctx: &mut Context, epoch: &[u8], segment: &[u8]) -> usize {
         if !ctx.frequencies.contains_key(kmer) {
             continue;
         }
-        let kmer_score = compute_frequency(kmer, &epoch_sample);
+        let kmer_score = compute_frequency(kmer, &collection_sample);
         ctx.frequencies.insert(*kmer, kmer_score);
         segment_score += kmer_score;
     }
@@ -126,7 +106,7 @@ fn score_segment(ctx: &mut Context, epoch: &[u8], segment: &[u8]) -> usize {
 /// Returns a (number of epochs, epoch size) tuple.
 ///
 /// A translation of `COVER_epoch_info_t COVER_computeEpochs()` from facebook/zstd.
-fn compute_epoch_info(
+pub fn compute_epoch_info(
     params: DictParams,
     max_dict_size: usize,
     num_kmers: usize,

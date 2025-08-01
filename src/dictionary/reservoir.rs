@@ -103,7 +103,7 @@ impl Reservoir {
             }
             counter += self.k as usize;
         }
-
+        self.lake.shrink_to_fit();
         self.lake
     }
 }
