@@ -6,38 +6,45 @@
 /// Computes a best effort guess as to how many times `pattern` occurs within
 /// `body`. While not 100% accurate, it will be accurate the vast majority of time
 pub(super) fn compute_frequency(pattern: &[u8], body: &[u8]) -> usize {
+    //vprintln!(
+    //    "\tkarp-rabin: searching haystack of size {} for needle of size {} with ident {}",
+    //    pattern.len(),
+    //    body.len(),
+    //    pattern[0] + pattern[1]
+    //);
     assert!(body.len() >= pattern.len());
     // A prime number for modulo operations to reduce collisions (q)
-    const PRIME: usize = 2654435761;
+    const PRIME: isize = 2654435761;
     // Number of characters in the input alphabet (d)
-    const ALPHABET_SIZE: usize = 256;
+    const ALPHABET_SIZE: isize = 256;
     // Hash of input pattern (p)
-    let mut input_hash: usize = 0;
+    let mut input_hash: isize = 0;
     // Hash of the current window of text (t)
-    let mut window_hash: usize = 0;
+    let mut window_hash: isize = 0;
     // High-order digit multiplier (h)
-    let mut h: usize = 1;
+    let mut h: isize = 1;
 
     // Precompute h (?)
     h = (h * ALPHABET_SIZE) % PRIME;
 
     // Compute initial hash values
     for i in 0..pattern.len() {
-        input_hash = (ALPHABET_SIZE * input_hash + pattern[i] as usize) % PRIME;
-        window_hash = (ALPHABET_SIZE * window_hash + body[i] as usize) % PRIME;
+        input_hash = (ALPHABET_SIZE * input_hash + pattern[i] as isize) % PRIME;
+        window_hash = (ALPHABET_SIZE * window_hash + body[i] as isize) % PRIME;
     }
 
     let mut num_occurances = 0;
     for i in 0..=body.len() - pattern.len() {
         // There's *probably* a match if these two match
         if input_hash == window_hash {
+            vprintln!("\t\tkarp-rabin: found occurance in sample");
             num_occurances += 1;
         }
 
         // Compute hash values for next window
         if i < body.len() - pattern.len() {
-            window_hash = (ALPHABET_SIZE * (window_hash - body[i] as usize * h)
-                + body[i + pattern.len()] as usize)
+            window_hash = (ALPHABET_SIZE * (window_hash - body[i] as isize * h)
+                + body[i + pattern.len()] as isize)
                 % PRIME;
         }
     }

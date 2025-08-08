@@ -11,7 +11,7 @@ use super::DictParams;
 use crate::dictionary::frequency::compute_frequency;
 use crate::dictionary::reservoir::create_sample;
 use core::convert::TryInto;
-use std::collections::HashMap;
+use std::collections::{BinaryHeap, HashMap};
 use std::io::{Cursor, Read};
 use std::vec::Vec;
 
@@ -25,32 +25,52 @@ pub(super) type KMer = [u8; K];
 
 pub struct Segment {
     /// The actual contents of the segment.
-    raw: Vec<u8>,
+    pub raw: Vec<u8>,
     /// A measure of how "ideal" a given segment would be to include in the dictionary
     ///
     /// Higher is better, there's no upper limit. This number is determined by
     /// estimating the number of occurances in a given epoch
-    score: usize,
+    pub score: usize,
+}
+
+impl Eq for Segment {}
+
+impl PartialEq for Segment {
+    fn eq(&self, other: &Self) -> bool {
+        // We only really care about score in regards to heap order
+        self.score == other.score
+    }
+}
+
+impl PartialOrd for Segment {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        match self.score.partial_cmp(&other.score) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        self.score.partial_cmp(&other.score)
+    }
+}
+
+impl Ord for Segment {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.score.cmp(&other.score)
+    }
 }
 
 /// A re-usable allocation containing large allocations
 /// that are used multiple times during dictionary construction (once per epoch)
-struct Context {
+pub struct Context {
     /// Keeps track of the number of occurances of a particular k-mer within an epoch.
     ///
     /// Reset for each epoch.
-    frequencies: HashMap<KMer, usize>,
-    /// A collection of segments to be used in the final dictionary.
-    ///
-    /// Contains the best segment from every epoch.
-    pool: Vec<Segment>,
+    pub frequencies: HashMap<KMer, usize>,
 }
 
 impl Context {
     fn new() -> Self {
         Self {
             frequencies: HashMap::new(),
-            pool: Vec::new(),
         }
     }
 }
@@ -58,15 +78,16 @@ impl Context {
 /// Returns the highest scoring segment in an epoch
 /// as a slice of that epoch.
 pub fn pick_best_segment<'epoch>(
-    params: DictParams,
+    params: &DictParams,
     ctx: &mut Context,
-    epoch: &'epoch [u8],
+    collection_sample: &'epoch [u8],
 ) -> Segment {
-    let mut best_segment: &[u8] = &epoch[0..params.segment_size as usize];
+    vprintln!("\tpick_best: picking best segment in epoch");
+    let mut best_segment: &[u8] = &collection_sample[0..params.segment_size as usize];
     let mut top_segment_score: usize = 0;
     // Iterate over segments and score each segment, keeping track of the best segment
-    for segment in epoch.chunks(params.segment_size as usize) {
-        let segment_score = score_segment(ctx, epoch, segment);
+    for segment in collection_sample.chunks(params.segment_size as usize) {
+        let segment_score = score_segment(ctx, collection_sample, segment);
         if segment_score > top_segment_score {
             best_segment = segment;
             top_segment_score = segment_score;
@@ -85,12 +106,12 @@ pub fn pick_best_segment<'epoch>(
 fn score_segment(ctx: &mut Context, collection_sample: &[u8], segment: &[u8]) -> usize {
     let mut segment_score = 0;
     // Determine the score of each overlapping k-mer
-    for i in 0..segment.len() - 1 {
+    for i in 0..segment.len() - K - 1 {
         let kmer: &KMer = (&segment[i..i + K])
             .try_into()
             .expect("Failed to make kmer");
         // if the kmer is already in the pool, it recieves a score of zero
-        if !ctx.frequencies.contains_key(kmer) {
+        if ctx.frequencies.contains_key(kmer) {
             continue;
         }
         let kmer_score = compute_frequency(kmer, &collection_sample);
@@ -107,7 +128,7 @@ fn score_segment(ctx: &mut Context, collection_sample: &[u8], segment: &[u8]) ->
 ///
 /// A translation of `COVER_epoch_info_t COVER_computeEpochs()` from facebook/zstd.
 pub fn compute_epoch_info(
-    params: DictParams,
+    params: &DictParams,
     max_dict_size: usize,
     num_kmers: usize,
 ) -> (usize, usize) {

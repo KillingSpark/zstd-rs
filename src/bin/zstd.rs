@@ -9,6 +9,7 @@ use std::time::Instant;
 
 use ruzstd::decoding::errors::FrameDecoderError;
 use ruzstd::decoding::errors::ReadFrameHeaderError;
+use ruzstd::dictionary::create_dict_from_source;
 use ruzstd::encoding::CompressionLevel;
 use ruzstd::encoding::FrameCompressor;
 
@@ -153,44 +154,48 @@ impl<R: Read> Read for PercentPrintReader<R> {
 }
 
 fn main() {
-    let mut file_paths: Vec<_> = std::env::args().filter(|f| !f.starts_with('-')).collect();
-    let flags: Vec<_> = std::env::args().filter(|f| f.starts_with('-')).collect();
-    file_paths.remove(0);
-
-    if flags.is_empty() {
-        let mut encoder = FrameCompressor::new(CompressionLevel::Fastest);
-        encoder.set_drain(Vec::new());
-
-        for path in file_paths {
-            let start_instant = Instant::now();
-            let file = std::fs::File::open(&path).unwrap();
-            let input_len = file.metadata().unwrap().len() as usize;
-            let file = PercentPrintReader {
-                reader: BufReader::new(file),
-                total: input_len,
-                counter: 0,
-                last_percent: 0,
-            };
-            encoder.set_source(file);
-            encoder.compress();
-            let mut output: Vec<_> = encoder.take_drain().unwrap();
-            println!(
-                "Compressed {path:} from {} to {} ({}%) took {}ms",
-                input_len,
-                output.len(),
-                if input_len == 0 {
-                    0
-                } else {
-                    output.len() * 100 / input_len
-                },
-                start_instant.elapsed().as_millis()
-            );
-            output.clear();
-            encoder.set_drain(output);
-        }
-    } else {
-        decompress(&flags, &file_paths);
-    }
+    let input = File::open("local_corpus_files/enwik9").expect("open input file");
+    let input_len = input.metadata().unwrap().len() as usize;
+    let mut output = File::create("output.dict").expect("create output file");
+    create_dict_from_source(input, input_len, &mut output, 5_000_000);
+    //let mut file_paths: Vec<_> = std::env::args().filter(|f| !f.starts_with('-')).collect();
+    //let flags: Vec<_> = std::env::args().filter(|f| f.starts_with('-')).collect();
+    //file_paths.remove(0);
+    //
+    //if flags.is_empty() {
+    //    let mut encoder = FrameCompressor::new(CompressionLevel::Fastest);
+    //    encoder.set_drain(Vec::new());
+    //
+    //    for path in file_paths {
+    //        let start_instant = Instant::now();
+    //        let file = std::fs::File::open(&path).unwrap();
+    //        let input_len = file.metadata().unwrap().len() as usize;
+    //        let file = PercentPrintReader {
+    //            reader: BufReader::new(file),
+    //            total: input_len,
+    //            counter: 0,
+    //            last_percent: 0,
+    //        };
+    //        encoder.set_source(file);
+    //        encoder.compress();
+    //        let mut output: Vec<_> = encoder.take_drain().unwrap();
+    //        println!(
+    //            "Compressed {path:} from {} to {} ({}%) took {}ms",
+    //            input_len,
+    //            output.len(),
+    //            if input_len == 0 {
+    //                0
+    //            } else {
+    //                output.len() * 100 / input_len
+    //            },
+    //            start_instant.elapsed().as_millis()
+    //        );
+    //        output.clear();
+    //        encoder.set_drain(output);
+    //    }
+    //} else {
+    //    decompress(&flags, &file_paths);
+    //}
 }
 
 fn do_something(data: &[u8], s: &mut StateTracker) {

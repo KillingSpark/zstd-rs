@@ -21,7 +21,7 @@ extern crate std;
 extern crate alloc;
 
 #[cfg(feature = "std")]
-pub(crate) const VERBOSE: bool = false;
+pub(crate) const VERBOSE: bool = true;
 
 macro_rules! vprintln {
     ($($x:expr),*) => {
@@ -35,7 +35,7 @@ macro_rules! vprintln {
 mod bit_io;
 mod common;
 pub mod decoding;
-mod dictionary;
+pub mod dictionary;
 pub mod encoding;
 
 pub(crate) mod blocks;

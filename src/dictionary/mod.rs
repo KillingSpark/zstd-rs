@@ -28,8 +28,13 @@ mod cover;
 mod frequency;
 mod reservoir;
 
+use core::cmp::Reverse;
 use cover::*;
-use std::io::{self, BufReader};
+use std::{
+    collections::{BinaryHeap, HashMap},
+    io::{self, BufReader, Read},
+    vec,
+};
 
 use crate::dictionary::reservoir::create_sample;
 
@@ -67,12 +72,52 @@ pub fn create_dict_from_source<R: io::Read, W: io::Write>(
     output: &mut W,
     dict_size: usize,
 ) {
+    vprintln!("create_dict: creating {dict_size} byte dict from {source_size} byte source");
+    let mut buffered_source = BufReader::with_capacity(5_000_000, source);
+
     let params = DictParams { segment_size: 2048 };
-    let mut buffered_source = BufReader::new(source);
-    let sample_size = buffered_source;
-    let collection_sample = create_sample(&mut buffered_source, 2 * GIBIBYTE);
+    let num_segments = source_size / params.segment_size as usize;
     // According to 4. Experiments - Varying Reservoir Sampler Thresholds,
-    // setting reservoir size to collection size / min{collection size / 2 * number of segments,
+    // setting reservoir size to collection size / min{collection size / (2 * number of segments),
     // 256} was effective
-    let (epoch_size, num_epochs) = compute_epoch_info(params, dict_size, num_kmers);
+    let sample_size = source_size / usize::min(source_size / (2 * num_segments), 256) / 1000;
+    vprintln!("create_dict: creating {sample_size} byte sample of collection");
+    let collection_sample = create_sample(&mut buffered_source, sample_size);
+
+    // A collection of segments to be used in the final dictionary.
+    //
+    // Contains the best segment from every epoch.
+    // Reverse is used because we want a min heap, where
+    // the lowest scoring items come first
+    let mut pool: BinaryHeap<Reverse<Segment>> = BinaryHeap::new();
+    let (num_epochs, epoch_size) = compute_epoch_info(&params, dict_size, source_size / K);
+    vprintln!("create_dict: computed epoch info, using {num_epochs} epochs of {epoch_size} bytes");
+    let mut current_epoch = vec![0; epoch_size];
+    let mut epoch_counter = 0;
+    let mut ctx = Context {
+        frequencies: HashMap::with_capacity(epoch_size / K),
+    };
+    // Score each segment in the epoch and select the highest scoring segment
+    // for the pool
+    while buffered_source
+        .read(&mut current_epoch)
+        .expect("can read input")
+        != 0
+    {
+        epoch_counter += 1;
+        let best_segment = pick_best_segment(&params, &mut ctx, &collection_sample);
+        vprintln!(
+            "\tcreate_dict: epoch {epoch_counter}/{num_epochs} has best segment score {}",
+            best_segment.score
+        );
+        pool.push(Reverse(best_segment));
+        // Wipe frequency list for next epoch
+        ctx.frequencies.clear();
+    }
+    vprintln!("create_dict: writing {} segments", pool.len());
+    // Write the dictionary with the highest scoring segment last because
+    // closer items can be represented with a smaller offset
+    while let Some(segment) = pool.pop() {
+        output.write(&segment.0.raw).expect("can write to output");
+    }
 }
