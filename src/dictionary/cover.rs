@@ -8,7 +8,7 @@
 //! https://github.com/facebook/zstd/tree/dev/lib/dictBuilder
 
 use super::DictParams;
-use crate::dictionary::frequency::compute_frequency;
+use crate::dictionary::frequency::estimate_frequency;
 use crate::dictionary::reservoir::create_sample;
 use core::convert::TryInto;
 use std::collections::{BinaryHeap, HashMap};
@@ -82,11 +82,13 @@ pub fn pick_best_segment<'epoch>(
     ctx: &mut Context,
     collection_sample: &'epoch [u8],
 ) -> Segment {
-    vprintln!("\tpick_best: picking best segment in epoch");
-    let mut best_segment: &[u8] = &collection_sample[0..params.segment_size as usize];
+    let mut segments = collection_sample
+        .chunks(params.segment_size as usize)
+        .peekable();
+    let mut best_segment: &[u8] = &segments.peek().expect("at least one segment");
     let mut top_segment_score: usize = 0;
     // Iterate over segments and score each segment, keeping track of the best segment
-    for segment in collection_sample.chunks(params.segment_size as usize) {
+    for segment in segments {
         let segment_score = score_segment(ctx, collection_sample, segment);
         if segment_score > top_segment_score {
             best_segment = segment;
@@ -106,7 +108,7 @@ pub fn pick_best_segment<'epoch>(
 fn score_segment(ctx: &mut Context, collection_sample: &[u8], segment: &[u8]) -> usize {
     let mut segment_score = 0;
     // Determine the score of each overlapping k-mer
-    for i in 0..segment.len() - K - 1 {
+    for i in 0..(segment.len() - K - 1) {
         let kmer: &KMer = (&segment[i..i + K])
             .try_into()
             .expect("Failed to make kmer");
@@ -114,7 +116,7 @@ fn score_segment(ctx: &mut Context, collection_sample: &[u8], segment: &[u8]) ->
         if ctx.frequencies.contains_key(kmer) {
             continue;
         }
-        let kmer_score = compute_frequency(kmer, &collection_sample);
+        let kmer_score = estimate_frequency(kmer, &collection_sample);
         ctx.frequencies.insert(*kmer, kmer_score);
         segment_score += kmer_score;
     }

@@ -157,7 +157,7 @@ fn main() {
     let input = File::open("local_corpus_files/enwik9").expect("open input file");
     let input_len = input.metadata().unwrap().len() as usize;
     let mut output = File::create("output.dict").expect("create output file");
-    create_dict_from_source(input, input_len, &mut output, 5_000_000);
+    create_dict_from_source(input, input_len, &mut output, 1_000_000);
     //let mut file_paths: Vec<_> = std::env::args().filter(|f| !f.starts_with('-')).collect();
     //let flags: Vec<_> = std::env::args().filter(|f| f.starts_with('-')).collect();
     //file_paths.remove(0);

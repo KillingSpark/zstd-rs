@@ -5,7 +5,7 @@
 
 /// Computes a best effort guess as to how many times `pattern` occurs within
 /// `body`. While not 100% accurate, it will be accurate the vast majority of time
-pub(super) fn compute_frequency(pattern: &[u8], body: &[u8]) -> usize {
+pub(super) fn estimate_frequency(pattern: &[u8], body: &[u8]) -> usize {
     //vprintln!(
     //    "\tkarp-rabin: searching haystack of size {} for needle of size {} with ident {}",
     //    pattern.len(),
@@ -18,7 +18,7 @@ pub(super) fn compute_frequency(pattern: &[u8], body: &[u8]) -> usize {
     // Number of characters in the input alphabet (d)
     const ALPHABET_SIZE: isize = 256;
     // Hash of input pattern (p)
-    let mut input_hash: isize = 0;
+    let mut pattern_hash: isize = 0;
     // Hash of the current window of text (t)
     let mut window_hash: isize = 0;
     // High-order digit multiplier (h)
@@ -29,15 +29,14 @@ pub(super) fn compute_frequency(pattern: &[u8], body: &[u8]) -> usize {
 
     // Compute initial hash values
     for i in 0..pattern.len() {
-        input_hash = (ALPHABET_SIZE * input_hash + pattern[i] as isize) % PRIME;
+        pattern_hash = (ALPHABET_SIZE * pattern_hash + pattern[i] as isize) % PRIME;
         window_hash = (ALPHABET_SIZE * window_hash + body[i] as isize) % PRIME;
     }
 
     let mut num_occurances = 0;
     for i in 0..=body.len() - pattern.len() {
         // There's *probably* a match if these two match
-        if input_hash == window_hash {
-            vprintln!("\t\tkarp-rabin: found occurance in sample");
+        if pattern_hash == window_hash {
             num_occurances += 1;
         }
 
@@ -54,24 +53,24 @@ pub(super) fn compute_frequency(pattern: &[u8], body: &[u8]) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::compute_frequency;
+    use super::estimate_frequency;
     #[test]
     fn dead_beef() {
         assert_eq!(
-            compute_frequency(&[0xde, 0xad], &[0xde, 0xad, 0xbe, 0xef, 0xde, 0xad]),
+            estimate_frequency(&[0xde, 0xad], &[0xde, 0xad, 0xbe, 0xef, 0xde, 0xad]),
             2
         );
     }
 
     #[test]
     fn smallest_body() {
-        assert_eq!(compute_frequency(&[0x00, 0xff], &[0x00, 0xff]), 1);
+        assert_eq!(estimate_frequency(&[0x00, 0xff], &[0x00, 0xff]), 1);
     }
 
     #[test]
     fn no_match() {
         assert_eq!(
-            compute_frequency(&[0xff, 0xff], &[0xde, 0xad, 0xbe, 0xef, 0xde, 0xad]),
+            estimate_frequency(&[0xff, 0xff], &[0xde, 0xad, 0xbe, 0xef, 0xde, 0xad]),
             0
         );
     }

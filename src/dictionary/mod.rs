@@ -7,8 +7,6 @@
 //! Relative Lempel-Ziv Dictionaries", by Kewen Liao, Matthias Petri,
 //! Alistair Moffat, and Anthony Wirth
 
-const GIBIBYTE: usize = 1 << 30;
-
 // The algorithm is summarized here
 // 1. The text is split into "epochs", or chunks from the original source
 // 2. From within each epoch, we select the "segment", or 1 KiB contiguous section
@@ -31,10 +29,16 @@ mod reservoir;
 use core::cmp::Reverse;
 use cover::*;
 use std::{
+    boxed::Box,
     collections::{BinaryHeap, HashMap},
+    dbg,
+    fs::{self, File},
     io::{self, BufReader, Read},
-    vec,
+    path::{Path, PathBuf},
+    vec::Vec,
 };
+
+use alloc::vec;
 
 use crate::dictionary::reservoir::create_sample;
 
@@ -52,6 +56,46 @@ pub struct DictParams {
     ///
     /// Reasonable range: [16, 2048+]
     pub segment_size: u32,
+}
+
+/// Create a dictionary
+pub fn create_dict_from_dir<P: AsRef<Path>, W: io::Write>(
+    path: P,
+    output: &mut W,
+    dict_size: usize,
+) -> Result<(), io::Error> {
+    // Collect a list of a path to every file in the directory into `file_paths`
+    let mut file_paths: Vec<PathBuf> = Vec::new();
+    let dir: fs::ReadDir = fs::read_dir(path)?;
+    fn recurse_read(dir: fs::ReadDir, file_paths: &mut Vec<PathBuf>) -> Result<(), io::Error> {
+        for entry in dir {
+            let entry = entry?;
+            if entry.file_type()?.is_dir() {
+                recurse_read(fs::read_dir(&entry.path())?, file_paths)?;
+            } else {
+                file_paths.push(entry.path());
+            }
+        }
+        Ok(())
+    }
+    recurse_read(dir, &mut file_paths)?;
+
+    // Open each file and chain the readers together
+    let mut total_file_len: u64 = 0;
+    let mut file_handles: Vec<fs::File> = Vec::new();
+    for path in file_paths {
+        let handle = File::open(path)?;
+        total_file_len += handle.metadata()?.len();
+        file_handles.push(handle);
+    }
+    let empty_reader: Box<dyn Read> = Box::new(io::empty());
+    let chained_files = file_handles
+        .iter()
+        .fold(empty_reader, |acc, reader| Box::new(acc.chain(reader)));
+
+    // Create a dict using the new reader
+    create_dict_from_source(chained_files, total_file_len as usize, output, dict_size);
+    Ok(())
 }
 
 /// Read from `source` to create a dictionary of `dict_size`. The completed dictionary is written
@@ -80,7 +124,7 @@ pub fn create_dict_from_source<R: io::Read, W: io::Write>(
     // According to 4. Experiments - Varying Reservoir Sampler Thresholds,
     // setting reservoir size to collection size / min{collection size / (2 * number of segments),
     // 256} was effective
-    let sample_size = source_size / usize::min(source_size / (2 * num_segments), 256) / 1000;
+    let sample_size = source_size / usize::min(source_size / (2 * num_segments), 256);
     vprintln!("create_dict: creating {sample_size} byte sample of collection");
     let collection_sample = create_sample(&mut buffered_source, sample_size);
 
@@ -90,18 +134,20 @@ pub fn create_dict_from_source<R: io::Read, W: io::Write>(
     // Reverse is used because we want a min heap, where
     // the lowest scoring items come first
     let mut pool: BinaryHeap<Reverse<Segment>> = BinaryHeap::new();
-    let (num_epochs, epoch_size) = compute_epoch_info(&params, dict_size, source_size / K);
+    let (_, epoch_size) = compute_epoch_info(&params, dict_size, source_size / K);
+    let num_epochs = source_size / epoch_size;
     vprintln!("create_dict: computed epoch info, using {num_epochs} epochs of {epoch_size} bytes");
-    let mut current_epoch = vec![0; epoch_size];
+    //let mut current_epoch = vec![0; epoch_size];
+    let mut current_epoch = vec![0; 100];
     let mut epoch_counter = 0;
     let mut ctx = Context {
         frequencies: HashMap::with_capacity(epoch_size / K),
     };
     // Score each segment in the epoch and select the highest scoring segment
     // for the pool
-    while buffered_source
+    while dbg!(buffered_source
         .read(&mut current_epoch)
-        .expect("can read input")
+        .expect("can read input"))
         != 0
     {
         epoch_counter += 1;
@@ -114,7 +160,10 @@ pub fn create_dict_from_source<R: io::Read, W: io::Write>(
         // Wipe frequency list for next epoch
         ctx.frequencies.clear();
     }
-    vprintln!("create_dict: writing {} segments", pool.len());
+    vprintln!(
+        "create_dict: {epoch_counter} epochs written, writing {} segments",
+        pool.len()
+    );
     // Write the dictionary with the highest scoring segment last because
     // closer items can be represented with a smaller offset
     while let Some(segment) = pool.pop() {
