@@ -1,4 +1,5 @@
 use ruzstd::dictionary::{create_dict_from_dir, create_dict_from_source};
+use std::cell::RefCell;
 use std::fmt::Display;
 use std::fs::File;
 use std::io::{self, Cursor, Read, Write};
@@ -23,7 +24,7 @@ fn main() {
     //} else {
     //    create_dict_from_dir(input_path, &mut output, dict_size).unwrap();
     //}
-    print!("{}", bench("local_corpus_files/github/"));
+    print!("{}", bench("local_corpus_files/sat-txt-files/"));
 }
 
 struct BenchmarkResults {
@@ -38,30 +39,42 @@ impl Display for BenchmarkResults {
         writeln!(f, "uncompressed: 100.00% ({})", self.uncompressed_size)?;
         writeln!(
             f,
-            "no dict: {:.2} ({})",
-            f64::from(self.nodict_size as u32) / f64::from(self.uncompressed_size as u32),
+            "no dict: {:.2}% of original size ({})",
+            f64::from(self.nodict_size as u32) / f64::from(self.uncompressed_size as u32) * 100.0,
             self.nodict_size
         )?;
         writeln!(
             f,
-            "reference dict: {:.2} ({})",
-            f64::from(self.reference_size as u32) / f64::from(self.uncompressed_size as u32),
-            self.reference_size
+            "reference dict: {:.2}% of no dict size ({} bytes smaller)",
+            f64::from(self.reference_size as u32) / f64::from(self.nodict_size as u32) * 100.0,
+            self.nodict_size - self.reference_size
         )?;
         write!(
             f,
-            "our dict: {:.2} ({})",
-            f64::from(self.our_size as u32) / f64::from(self.uncompressed_size as u32),
-            self.our_size
+            "our dict: {:.2}% of no dict size ({} bytes smaller)",
+            f64::from(self.our_size as u32) / f64::from(self.nodict_size as u32) * 100.0,
+            self.nodict_size - self.our_size
         )?;
+        Ok(())
+    }
+}
+
+struct Dumpster(pub usize);
+
+impl Write for Dumpster {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0 += buf.len();
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
         Ok(())
     }
 }
 
 fn bench<P: AsRef<Path>>(input_path: P) -> BenchmarkResults {
     // At what compression level the dicts are built with
-    let compression_level = 22;
-
+    let compression_level = 1;
     // 1. Collect a list of a path to every file in the directory into `file_paths`
     println!("[bench]: collecting list of input files");
     let mut file_paths: Vec<PathBuf> = Vec::new();
@@ -89,45 +102,69 @@ fn bench<P: AsRef<Path>>(input_path: P) -> BenchmarkResults {
     // Open each file and compress it
     let mut uncompressed_size: usize = 0;
     let mut nodict_size: usize = 0;
-    let mut reference_size: usize = 0;
-    let mut our_size: usize = 0;
 
-    let mut reference_output: Vec<u8> = Vec::with_capacity(128_000);
+    let mut reference_output = Dumpster(0);
     let mut reference_encoder =
         zstd::Encoder::with_dictionary(&mut reference_output, compression_level, &reference_dict)
             .unwrap();
     reference_encoder.multithread(8).unwrap();
-    let mut our_output: Vec<u8> = Vec::with_capacity(128_000);
+    let mut our_output = Dumpster(0);
     let mut our_encoder =
         zstd::Encoder::with_dictionary(&mut our_output, compression_level, &our_dict).unwrap();
     our_encoder.multithread(8).unwrap();
     for (idx, path) in file_paths.iter().enumerate() {
-        println!("[bench]: compressing file {}/{}", idx + 1, file_paths.len());
+        if idx % 10 == 0 {
+            println!("[bench]: compressing file {}/{}", idx + 1, file_paths.len());
+        }
         let mut handle = File::open(path).unwrap();
         let mut data = Vec::new();
-        handle.read_to_end(&mut data);
+        handle.read_to_end(&mut data).unwrap();
         uncompressed_size += data.len();
         // Compress with no dict
         let nodict_output = zstd::encode_all(data.as_slice(), compression_level).unwrap();
         nodict_size += nodict_output.len();
         // Compress with the reference dict
-        reference_encoder.write_all(data.as_slice());
         reference_encoder
-            .do_finish()
-            .expect("reference encoder finishes");
-        reference_size += reference_output.len();
-        reference_output.clear();
+            .write_all(data.as_slice())
+            .expect("reference writer writing");
         // Compress with our dict
-        our_encoder.write_all(data.as_slice());
-        our_encoder.finish().expect("our encoder finishes");
-        our_size += our_output.len();
-        our_output.clear();
+        our_encoder
+            .write_all(data.as_slice())
+            .expect("our writer writing");
     }
+    //println!("[bench]: reading all files");
+    //let mut all_files: Vec<u8> = Vec::with_capacity(1_000_000);
+    //for path in file_paths {
+    //    let mut handle = File::open(path).unwrap();
+    //    handle
+    //        .read_to_end(&mut all_files)
+    //        .expect("reading input file");
+    //}
+    //uncompressed_size = all_files.len();
+    ////    // Compress with no dict
+    //println!("[bench]: compressing using no dict");
+    //let nodict_output = zstd::encode_all(all_files.as_slice(), compression_level).unwrap();
+    //nodict_size = nodict_output.len();
+    //drop(nodict_output);
+    //println!("[bench]: compressing using reference encoder");
+    //reference_encoder
+    //    .write_all(&all_files)
+    //    .expect("writing to reference encoder");
+    //println!("[bench]: compressing using our encoder");
+    //our_encoder
+    //    .write_all(&all_files)
+    //    .expect("writing to our encoder");
+    //our_encoder.do_finish().expect("our encoder finishes");
+    //reference_encoder
+    //    .do_finish()
+    //    .expect("reference encoder finishes");
+    //drop(reference_encoder);
+    //drop(our_encoder);
 
     BenchmarkResults {
         uncompressed_size,
         nodict_size,
-        reference_size,
-        our_size,
+        reference_size: reference_output.0,
+        our_size: our_output.0,
     }
 }
