@@ -19,13 +19,15 @@
 //    reservoir of n/t, where `t` is the desired number of occurances
 //    we want the most common k-mers to have
 //  - Have the ability to estimate
-//    the frequency of a given k-mer: f(w: k-mer) calculates
+//    the frequency of a given k-mer: `f(w: k-mer)` calculates
 //    the frequency of w in the reservoir using a rolling karp-rabin hash
 //  - The score of a segment is the sum of `f(w)` called on every kmer within the segment
 mod cover;
 mod frequency;
 mod reservoir;
 
+use crate::dictionary::reservoir::create_sample;
+use alloc::vec;
 use core::cmp::Reverse;
 use cover::*;
 use std::{
@@ -38,13 +40,10 @@ use std::{
     vec::Vec,
 };
 
-use alloc::vec;
-
-use crate::dictionary::reservoir::create_sample;
-
 /// A set of values that are used during dictionary construction.
 ///
 /// Changing these values can improve the resulting dictionary size for certain datasets.
+// TODO: move `k` here.
 pub struct DictParams {
     /// Segment size.
     ///
@@ -58,7 +57,22 @@ pub struct DictParams {
     pub segment_size: u32,
 }
 
-/// Create a dictionary
+/// Creates a dictionary, training off of every file in this directory and all
+/// sub-directories.
+///
+/// The resulting dictionary will be approxamitely `dict_size` or less, and written to `output`.
+///
+/// # Errors
+/// This function returns `Ok(())` if the dictionary was created successfully, and an
+/// `Err(io::Error)` if an error was encountered reading the input directory.
+///
+/// # Examples
+/// ```no_run
+/// // Create a roughly 1mb dictionary, training off of file in `sample_files`
+/// let input_folder = "sample_files/";
+/// let output = File::create("output.dict");
+/// ruzstd::dict::create_dict_from_dir(input_folder, &mut output, 1_000_000);
+/// ```
 pub fn create_dict_from_dir<P: AsRef<Path>, W: io::Write>(
     path: P,
     output: &mut W,
@@ -103,8 +117,8 @@ pub fn create_dict_from_dir<P: AsRef<Path>, W: io::Write>(
 ///
 /// - `source` will be used as training data for the entire dictionary.
 /// - `source_size` influences how the data is divided and sampled and is measured
-///    in bytes. While this does not need to be exact, estimates should attempt to be
-///    larger than the actual collection size.
+///   in bytes. While this does not need to be exact, estimates should attempt to be
+///   larger than the actual collection size.
 /// - `output` is where the completed dictionary will be written.
 /// - `dict_size` determines how large the complete dictionary should be. The completed
 ///   dictionary will be this size or smaller.
@@ -117,7 +131,7 @@ pub fn create_dict_from_source<R: io::Read, W: io::Write>(
     dict_size: usize,
 ) {
     vprintln!("create_dict: creating {dict_size} byte dict from {source_size} byte source");
-    let mut buffered_source = BufReader::with_capacity(5_000_000, source);
+    let mut buffered_source = BufReader::with_capacity(128_000, source);
 
     let params = DictParams { segment_size: 2048 };
     let num_segments = source_size / params.segment_size as usize;
@@ -167,6 +181,8 @@ pub fn create_dict_from_source<R: io::Read, W: io::Write>(
     // Write the dictionary with the highest scoring segment last because
     // closer items can be represented with a smaller offset
     while let Some(segment) = pool.pop() {
-        output.write(&segment.0.raw).expect("can write to output");
+        output
+            .write_all(&segment.0.raw)
+            .expect("can write to output");
     }
 }

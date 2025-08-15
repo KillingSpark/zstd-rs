@@ -1,4 +1,4 @@
-//! An implementation of the dictionary generation algorithm
+//! An implementation of the local maximum coverage algorithm
 //! described in the paper "Effective Construction of Relative Lempel-Ziv Dictionaries",
 //! by Liao, Petri, Moffat, and Wirth, published under the University of Melbourne.
 //!
@@ -9,14 +9,13 @@
 
 use super::DictParams;
 use crate::dictionary::frequency::estimate_frequency;
-use crate::dictionary::reservoir::create_sample;
 use core::convert::TryInto;
-use std::collections::{BinaryHeap, HashMap};
-use std::io::{Cursor, Read};
+use std::collections::HashMap;
 use std::vec::Vec;
 
 /// The size of each k-mer
 pub(super) const K: usize = 16;
+
 ///As found under "4: Experiments - Varying k-mer Size" in the original paper,
 /// "when k = 16, across all our text collections, there is a reasonable spread"
 ///
@@ -67,14 +66,6 @@ pub struct Context {
     pub frequencies: HashMap<KMer, usize>,
 }
 
-impl Context {
-    fn new() -> Self {
-        Self {
-            frequencies: HashMap::new(),
-        }
-    }
-}
-
 /// Returns the highest scoring segment in an epoch
 /// as a slice of that epoch.
 pub fn pick_best_segment<'epoch>(
@@ -104,7 +95,7 @@ pub fn pick_best_segment<'epoch>(
 
 /// Given a segment, compute the score (or usefulness) of that segment against the entire epoch.
 ///
-/// `score_segment` modifies ctx.frequencies.
+/// `score_segment` modifies `ctx.frequencies`.
 fn score_segment(ctx: &mut Context, collection_sample: &[u8], segment: &[u8]) -> usize {
     let mut segment_score = 0;
     // Determine the score of each overlapping k-mer

@@ -5,13 +5,7 @@
 
 /// Computes a best effort guess as to how many times `pattern` occurs within
 /// `body`. While not 100% accurate, it will be accurate the vast majority of time
-pub(super) fn estimate_frequency(pattern: &[u8], body: &[u8]) -> usize {
-    //vprintln!(
-    //    "\tkarp-rabin: searching haystack of size {} for needle of size {} with ident {}",
-    //    pattern.len(),
-    //    body.len(),
-    //    pattern[0] + pattern[1]
-    //);
+pub fn estimate_frequency(pattern: &[u8], body: &[u8]) -> usize {
     assert!(body.len() >= pattern.len());
     // A prime number for modulo operations to reduce collisions (q)
     const PRIME: isize = 2654435761;
