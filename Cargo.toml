@@ -12,6 +12,10 @@ readme = "Readme.md"
 keywords = ["zstd", "zstandard", "decompression"]
 categories = ["compression"]
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [dependencies]
 twox-hash = { version = "2.0", default-features = false, features = ["xxhash64"], optional = true }
 

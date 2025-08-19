@@ -44,7 +44,7 @@ use std::{
 ///
 /// Changing these values can improve the resulting dictionary size for certain datasets.
 // TODO: move `k` here.
-pub struct DictParams {
+pub(super) struct DictParams {
     /// Segment size.
     ///
     /// As found under "4. Experiments - Varying Segment Size" in the original paper, a
