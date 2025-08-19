@@ -57,7 +57,7 @@ pub struct DictParams {
     pub segment_size: u32,
 }
 
-/// Creates a dictionary, training off of every file in this directory and all
+/// Creates a "raw content" dictionary, training off of every file in this directory and all
 /// sub-directories.
 ///
 /// The resulting dictionary will be approxamitely `dict_size` or less, and written to `output`.
@@ -73,7 +73,7 @@ pub struct DictParams {
 /// let output = File::create("output.dict");
 /// ruzstd::dict::create_dict_from_dir(input_folder, &mut output, 1_000_000);
 /// ```
-pub fn create_dict_from_dir<P: AsRef<Path>, W: io::Write>(
+pub fn create_raw_dict_from_dir<P: AsRef<Path>, W: io::Write>(
     path: P,
     output: &mut W,
     dict_size: usize,
@@ -108,12 +108,12 @@ pub fn create_dict_from_dir<P: AsRef<Path>, W: io::Write>(
         .fold(empty_reader, |acc, reader| Box::new(acc.chain(reader)));
 
     // Create a dict using the new reader
-    create_dict_from_source(chained_files, total_file_len as usize, output, dict_size);
+    create_raw_dict_from_source(chained_files, total_file_len as usize, output, dict_size);
     Ok(())
 }
 
-/// Read from `source` to create a dictionary of `dict_size`. The completed dictionary is written
-/// to `output`.
+/// Read from `source` to create a "raw content" dictionary of `dict_size`.
+/// The completed dictionary is written to `output`.
 ///
 /// - `source` will be used as training data for the entire dictionary.
 /// - `source_size` influences how the data is divided and sampled and is measured
@@ -124,7 +124,7 @@ pub fn create_dict_from_dir<P: AsRef<Path>, W: io::Write>(
 ///   dictionary will be this size or smaller.
 ///
 /// This function uses `BufRead` internally, the provided reader need not be buffered.
-pub fn create_dict_from_source<R: io::Read, W: io::Write>(
+pub fn create_raw_dict_from_source<R: io::Read, W: io::Write>(
     source: R,
     source_size: usize,
     output: &mut W,
