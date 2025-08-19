@@ -1,4 +1,4 @@
-use ruzstd::dictionary::{create_dict_from_dir, create_dict_from_source};
+use ruzstd::dictionary::{create_raw_dict_from_dir, create_raw_dict_from_source};
 use std::fs::File;
 use std::path::Path;
 use std::env::args;
@@ -17,9 +17,9 @@ fn main() {
     if input_path.is_file() {
         let source = File::open(input_path).expect("unable to open input path");
         let source_size = source.metadata().unwrap().len();
-        create_dict_from_source(source, source_size as usize, &mut output, dict_size);
+        create_raw_dict_from_source(source, source_size as usize, &mut output, dict_size);
     } else {
-        create_dict_from_dir(input_path, &mut output, dict_size).unwrap();
+        create_raw_dict_from_dir(input_path, &mut output, dict_size).unwrap();
     }
 }
 
