@@ -1,7 +1,7 @@
 use ruzstd::dictionary::{create_raw_dict_from_dir, create_raw_dict_from_source};
+use std::env::args;
 use std::fs::File;
 use std::path::Path;
-use std::env::args;
 
 fn main() {
     let args: Vec<String> = args().collect();

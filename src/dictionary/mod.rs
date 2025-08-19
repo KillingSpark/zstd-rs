@@ -50,8 +50,8 @@ pub struct DictParams {
     /// As found under "4. Experiments - Varying Segment Size" in the original paper, a
     /// segment size of 2 kiB was effective.
     ///
-    /// "We explored a range of [segment_size] values and found the performance of LMC is insensitive
-    /// to [segment_size]. We fix [segment_size] to 2kiB
+    /// "We explored a range of \[`segment_size`\] values and found the performance of LMC is insensitive
+    /// to \[`segment_size`\]. We fix \[`segment_size`\] to 2kiB
     ///
     /// Reasonable range: [16, 2048+]
     pub segment_size: u32,
@@ -85,7 +85,7 @@ pub fn create_raw_dict_from_dir<P: AsRef<Path>, W: io::Write>(
         for entry in dir {
             let entry = entry?;
             if entry.file_type()?.is_dir() {
-                recurse_read(fs::read_dir(&entry.path())?, file_paths)?;
+                recurse_read(fs::read_dir(entry.path())?, file_paths)?;
             } else {
                 file_paths.push(entry.path());
             }

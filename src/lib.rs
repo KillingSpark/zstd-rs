@@ -35,6 +35,7 @@ macro_rules! vprintln {
 mod bit_io;
 mod common;
 pub mod decoding;
+#[cfg(feature = "dict_builder")]
 pub mod dictionary;
 pub mod encoding;
 

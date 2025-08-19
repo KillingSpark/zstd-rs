@@ -2,10 +2,10 @@
 //! described in the paper "Effective Construction of Relative Lempel-Ziv Dictionaries",
 //! by Liao, Petri, Moffat, and Wirth, published under the University of Melbourne.
 //!
-//! See: https://people.eng.unimelb.edu.au/ammoffat/abstracts/lpmw16www.pdf
+//! See: <https://people.eng.unimelb.edu.au/ammoffat/abstracts/lpmw16www.pdf>
 //!
 //! Facebook's implementation was also used as a reference.
-//! https://github.com/facebook/zstd/tree/dev/lib/dictBuilder
+//! <https://github.com/facebook/zstd/tree/dev/lib/dictBuilder>
 
 use super::DictParams;
 use crate::dictionary::frequency::estimate_frequency;
@@ -43,11 +43,7 @@ impl PartialEq for Segment {
 
 impl PartialOrd for Segment {
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-        match self.score.partial_cmp(&other.score) {
-            Some(core::cmp::Ordering::Equal) => {}
-            ord => return ord,
-        }
-        self.score.partial_cmp(&other.score)
+        Some(self.cmp(other))
     }
 }
 
@@ -68,15 +64,15 @@ pub struct Context {
 
 /// Returns the highest scoring segment in an epoch
 /// as a slice of that epoch.
-pub fn pick_best_segment<'epoch>(
+pub fn pick_best_segment(
     params: &DictParams,
     ctx: &mut Context,
-    collection_sample: &'epoch [u8],
+    collection_sample: &'_ [u8],
 ) -> Segment {
     let mut segments = collection_sample
         .chunks(params.segment_size as usize)
         .peekable();
-    let mut best_segment: &[u8] = &segments.peek().expect("at least one segment");
+    let mut best_segment: &[u8] = segments.peek().expect("at least one segment");
     let mut top_segment_score: usize = 0;
     // Iterate over segments and score each segment, keeping track of the best segment
     for segment in segments {
@@ -107,7 +103,7 @@ fn score_segment(ctx: &mut Context, collection_sample: &[u8], segment: &[u8]) ->
         if ctx.frequencies.contains_key(kmer) {
             continue;
         }
-        let kmer_score = estimate_frequency(kmer, &collection_sample);
+        let kmer_score = estimate_frequency(kmer, collection_sample);
         ctx.frequencies.insert(*kmer, kmer_score);
         segment_score += kmer_score;
     }

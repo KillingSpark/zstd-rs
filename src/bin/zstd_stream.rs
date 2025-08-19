@@ -18,9 +18,7 @@ fn main() {
     }
 
     if flags.len() != 2 {
-        eprintln!(
-            "No flags other than -d and -c are currently implemented. Flags used: {flags:?}"
-        );
+        eprintln!("No flags other than -d and -c are currently implemented. Flags used: {flags:?}");
         return;
     }
 

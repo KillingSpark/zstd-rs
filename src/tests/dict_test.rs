@@ -83,6 +83,7 @@ fn test_dict_decoding() {
     use alloc::string::{String, ToString};
     use alloc::vec::Vec;
     use std::fs;
+    use std::io::BufReader;
     use std::io::Read;
     use std::println;
 
@@ -97,7 +98,7 @@ fn test_dict_decoding() {
     let mut speeds_read = Vec::new();
 
     let mut files: Vec<_> = fs::read_dir("./dict_tests/files").unwrap().collect();
-    let dict = fs::File::open("./dict_tests/dictionary").unwrap();
+    let dict = BufReader::new(fs::File::open("./dict_tests/dictionary").unwrap());
     let dict: Vec<u8> = dict.bytes().map(|x| x.unwrap()).collect();
 
     files.sort_by_key(|x| match x {
@@ -155,7 +156,7 @@ fn test_dict_decoding() {
 
         let mut original_p = p.clone();
         original_p.truncate(original_p.len() - 4);
-        let original_f = fs::File::open(original_p).unwrap();
+        let original_f = BufReader::new(fs::File::open(original_p).unwrap());
         let original: Vec<u8> = original_f.bytes().map(|x| x.unwrap()).collect();
 
         println!("Results for file: {}", p.clone());

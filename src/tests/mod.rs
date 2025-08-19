@@ -130,8 +130,9 @@ fn test_frame_decoder() {
 fn test_decode_from_to() {
     use crate::decoding::FrameDecoder;
     use std::fs::File;
+    use std::io::BufReader;
     use std::io::Read;
-    let f = File::open("./decodecorpus_files/z000088.zst").unwrap();
+    let f = BufReader::new(File::open("./decodecorpus_files/z000088.zst").unwrap());
     let mut frame_dec = FrameDecoder::new();
 
     let content: Vec<u8> = f.bytes().map(|x| x.unwrap()).collect();
@@ -197,7 +198,7 @@ fn test_decode_from_to() {
         None => std::println!("No checksums to test\n"),
     }
 
-    let original_f = File::open("./decodecorpus_files/z000088").unwrap();
+    let original_f = BufReader::new(File::open("./decodecorpus_files/z000088").unwrap());
     let original: Vec<u8> = original_f.bytes().map(|x| x.unwrap()).collect();
 
     if original.len() != result.len() {
@@ -233,6 +234,7 @@ fn test_specific_file() {
     use crate::decoding::BlockDecodingStrategy;
     use crate::decoding::FrameDecoder;
     use std::fs;
+    use std::io::BufReader;
     use std::io::Read;
 
     let path = "./decodecorpus_files/z000068.zst";
@@ -256,7 +258,7 @@ fn test_specific_file() {
         .unwrap();
     let result = frame_dec.collect().unwrap();
 
-    let original_f = fs::File::open("./decodecorpus_files/z000088").unwrap();
+    let original_f = BufReader::new(fs::File::open("./decodecorpus_files/z000088").unwrap());
     let original: Vec<u8> = original_f.bytes().map(|x| x.unwrap()).collect();
 
     std::println!("Results for file: {}", path);
@@ -293,6 +295,7 @@ fn test_specific_file() {
 #[cfg(feature = "std")]
 fn test_streaming() {
     use std::fs;
+    use std::io::BufReader;
     use std::io::Read;
 
     let mut content = fs::File::open("./decodecorpus_files/z000088.zst").unwrap();
@@ -301,7 +304,7 @@ fn test_streaming() {
     let mut result = Vec::new();
     Read::read_to_end(&mut stream, &mut result).unwrap();
 
-    let original_f = fs::File::open("./decodecorpus_files/z000088").unwrap();
+    let original_f = BufReader::new(fs::File::open("./decodecorpus_files/z000088").unwrap());
     let original: Vec<u8> = original_f.bytes().map(|x| x.unwrap()).collect();
 
     if original.len() != result.len() {
@@ -343,7 +346,7 @@ fn test_streaming() {
     let mut result = Vec::new();
     Read::read_to_end(&mut stream, &mut result).unwrap();
 
-    let original_f = fs::File::open("./decodecorpus_files/z000068").unwrap();
+    let original_f = BufReader::new(fs::File::open("./decodecorpus_files/z000068").unwrap());
     let original: Vec<u8> = original_f.bytes().map(|x| x.unwrap()).collect();
 
     std::println!("Results for file:");

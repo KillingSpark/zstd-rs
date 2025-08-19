@@ -15,7 +15,7 @@ categories = ["compression"]
 [dependencies]
 twox-hash = { version = "2.0", default-features = false, features = ["xxhash64"], optional = true }
 
-# Internal feature, only used when building as part of libstd, not part of the
+# Internal feature, only used when building as part of libstd, not part of theea
 # stable interface of this crate.
 compiler_builtins = { version = "0.1.2", optional = true }
 core = { version = "1.0.0", optional = true, package = "rustc-std-workspace-core" }
@@ -33,6 +33,7 @@ default = ["hash", "std"]
 hash = ["dep:twox-hash"]
 fuzz_exports = []
 std = []
+dict_builder = ["std"]
 
 # Internal feature, only used when building as part of libstd, not part of the
 # stable interface of this crate.
@@ -52,4 +53,4 @@ required-features = ["std"]
 
 [[bin]]
 name = "zstd_dict"
-required-features = ["std"]
+required-features = ["std", "dict_builder"]

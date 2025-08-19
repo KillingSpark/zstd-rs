@@ -2,7 +2,7 @@ use super::cover::K;
 use alloc::vec::Vec;
 use core::f64::consts::E;
 use fastrand;
-use std::io;
+use std::{io, vec};
 
 /// Creates a representative sample of `input` of `size` bytes.
 pub fn create_sample<R: io::Read>(input: &mut R, size: usize) -> Vec<u8> {
@@ -31,8 +31,7 @@ impl Reservoir {
     /// Initialize a new empty reservoir, creating an allocation of `size`.
     pub fn new(size: usize) -> Self {
         assert!(size >= 16, "Reservoirs cannot be below 16 bytes in size");
-        let mut lake = Vec::with_capacity(size);
-        lake.resize(size, 0);
+        let lake: Vec<u8> = vec![0; size];
         let k = K as u16;
         Self { lake, k }
     }
