@@ -66,7 +66,7 @@ impl<'s> BitReader<'s> {
 
             let mut bit_shift = bits_left_in_current_byte; //this many bits are already set in value
 
-            assert!(self.idx % 8 == 0);
+            assert!(self.idx.is_multiple_of(8));
 
             //collect full bytes
             for _ in 0..full_bytes_needed {

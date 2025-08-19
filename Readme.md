@@ -46,7 +46,7 @@ provides the ability to create new dictionaries.
 On the `github-users` sample set, our implementation benchmarks within
 0.2% of the official implementation (as of commit 
 `09e52d07340acdb2e13817b066e8be6e424f7258`):
-```
+```no_build
 uncompressed: 100.00% (7484607 bytes)
 no dict: 34.99% of original size (2618872 bytes)
 reference dict: 16.16% of no dict size (2195672 bytes smaller)

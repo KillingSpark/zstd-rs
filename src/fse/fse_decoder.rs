@@ -297,7 +297,7 @@ impl FSETable {
             });
         }
 
-        let bytes_read = if br.bits_read() % 8 == 0 {
+        let bytes_read = if br.bits_read().is_multiple_of(8) {
             br.bits_read() / 8
         } else {
             (br.bits_read() / 8) + 1
