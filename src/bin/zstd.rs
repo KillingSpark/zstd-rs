@@ -183,6 +183,20 @@ fn main() {
                 },
                 start_instant.elapsed().as_millis()
             );
+
+            println!("Check against source file. Decoding...");
+            let mut decoded = Vec::with_capacity(input_len);
+            ruzstd::decoding::FrameDecoder::new()
+                .decode_all_to_vec(&output, &mut decoded)
+                .unwrap();
+            println!("Decoded without error");
+            assert_eq!(decoded.len(), input_len);
+            println!("Decoded length is correct, now check against file contents file");
+            let input = std::fs::read(&path).unwrap();
+            assert_eq!(decoded.len(), input.len());
+            assert!(decoded == input);
+            println!("Checks completed");
+
             output.clear();
             encoder.set_drain(output);
         }

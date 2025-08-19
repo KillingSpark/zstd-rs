@@ -261,7 +261,7 @@ fn test_specific_file() {
     let original_f = BufReader::new(fs::File::open("./decodecorpus_files/z000088").unwrap());
     let original: Vec<u8> = original_f.bytes().map(|x| x.unwrap()).collect();
 
-    std::println!("Results for file: {}", path);
+    std::println!("Results for file: {path}");
 
     if original.len() != result.len() {
         std::println!(
@@ -287,7 +287,7 @@ fn test_specific_file() {
         }
     }
     if counter > 0 {
-        std::println!("Result differs in at least {} bytes from original", counter);
+        std::println!("Result differs in at least {counter} bytes from original");
     }
 }
 

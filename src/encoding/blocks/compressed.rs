@@ -4,7 +4,7 @@ use crate::{
     bit_io::BitWriter,
     encoding::frame_compressor::CompressState,
     encoding::{Matcher, Sequence},
-    fse::fse_encoder::{default_ll_table, default_ml_table, default_of_table, FSETable, State},
+    fse::fse_encoder::{build_table_from_data, FSETable, State},
     huff0::huff0_encoder,
 };
 
@@ -50,69 +50,174 @@ pub fn compress_block<M: Matcher>(state: &mut CompressState<M>, output: &mut Vec
     } else {
         encode_seqnum(sequences.len(), &mut writer);
 
-        // use standard FSE tables
-        writer.write_bits(0u8, 8);
+        // Choose the tables
+        // TODO store previously used tables
+        let ll_mode = choose_table(
+            state.fse_tables.ll_previous.as_ref(),
+            &state.fse_tables.ll_default,
+            sequences.iter().map(|seq| encode_literal_length(seq.ll).0),
+            9,
+        );
+        let ml_mode = choose_table(
+            state.fse_tables.ml_previous.as_ref(),
+            &state.fse_tables.ml_default,
+            sequences.iter().map(|seq| encode_match_len(seq.ml).0),
+            9,
+        );
+        let of_mode = choose_table(
+            state.fse_tables.of_previous.as_ref(),
+            &state.fse_tables.of_default,
+            sequences.iter().map(|seq| encode_offset(seq.of).0),
+            8,
+        );
 
-        let ll_table: FSETable = default_ll_table();
-        let ml_table: FSETable = default_ml_table();
-        let of_table: FSETable = default_of_table();
+        writer.write_bits(encode_fse_table_modes(&ll_mode, &ml_mode, &of_mode), 8);
 
-        let sequence = sequences[sequences.len() - 1];
-        let (ll_code, ll_add_bits, ll_num_bits) = encode_literal_length(sequence.ll);
-        let (of_code, of_add_bits, of_num_bits) = encode_offset(sequence.of);
-        let (ml_code, ml_add_bits, ml_num_bits) = encode_match_len(sequence.ml);
-        let mut ll_state: &State = ll_table.start_state(ll_code);
-        let mut ml_state: &State = ml_table.start_state(ml_code);
-        let mut of_state: &State = of_table.start_state(of_code);
+        encode_table(&ll_mode, &mut writer);
+        encode_table(&of_mode, &mut writer);
+        encode_table(&ml_mode, &mut writer);
 
-        writer.write_bits(ll_add_bits, ll_num_bits);
-        writer.write_bits(ml_add_bits, ml_num_bits);
-        writer.write_bits(of_add_bits, of_num_bits);
+        encode_sequences(
+            &sequences,
+            &mut writer,
+            ll_mode.as_ref(),
+            ml_mode.as_ref(),
+            of_mode.as_ref(),
+        );
 
-        // encode backwards so the decoder reads the first sequence first
-        if sequences.len() > 1 {
-            for sequence in (0..=sequences.len() - 2).rev() {
-                let sequence = sequences[sequence];
-                let (ll_code, ll_add_bits, ll_num_bits) = encode_literal_length(sequence.ll);
-                let (of_code, of_add_bits, of_num_bits) = encode_offset(sequence.of);
-                let (ml_code, ml_add_bits, ml_num_bits) = encode_match_len(sequence.ml);
-
-                {
-                    let next = of_table.next_state(of_code, of_state.index);
-                    let diff = of_state.index - next.baseline;
-                    writer.write_bits(diff as u64, next.num_bits as usize);
-                    of_state = next;
-                }
-                {
-                    let next = ml_table.next_state(ml_code, ml_state.index);
-                    let diff = ml_state.index - next.baseline;
-                    writer.write_bits(diff as u64, next.num_bits as usize);
-                    ml_state = next;
-                }
-                {
-                    let next = ll_table.next_state(ll_code, ll_state.index);
-                    let diff = ll_state.index - next.baseline;
-                    writer.write_bits(diff as u64, next.num_bits as usize);
-                    ll_state = next;
-                }
-
-                writer.write_bits(ll_add_bits, ll_num_bits);
-                writer.write_bits(ml_add_bits, ml_num_bits);
-                writer.write_bits(of_add_bits, of_num_bits);
-            }
+        if let FseTableMode::Encoded(table) = ll_mode {
+            state.fse_tables.ll_previous = Some(table)
         }
-        writer.write_bits(ml_state.index as u64, ml_table.table_size.ilog2() as usize);
-        writer.write_bits(of_state.index as u64, of_table.table_size.ilog2() as usize);
-        writer.write_bits(ll_state.index as u64, ll_table.table_size.ilog2() as usize);
-
-        let bits_to_fill = writer.misaligned();
-        if bits_to_fill == 0 {
-            writer.write_bits(1u32, 8);
-        } else {
-            writer.write_bits(1u32, bits_to_fill);
+        if let FseTableMode::Encoded(table) = ml_mode {
+            state.fse_tables.ml_previous = Some(table)
+        }
+        if let FseTableMode::Encoded(table) = of_mode {
+            state.fse_tables.of_previous = Some(table)
         }
     }
     writer.flush();
+}
+
+#[derive(Clone)]
+#[allow(clippy::large_enum_variant)]
+enum FseTableMode<'a> {
+    Predefined(&'a FSETable),
+    Encoded(FSETable),
+    RepeateLast(&'a FSETable),
+}
+
+impl FseTableMode<'_> {
+    pub fn as_ref(&self) -> &FSETable {
+        match self {
+            Self::Predefined(t) => t,
+            Self::RepeateLast(t) => t,
+            Self::Encoded(t) => t,
+        }
+    }
+}
+
+fn choose_table<'a>(
+    previous: Option<&'a FSETable>,
+    default_table: &'a FSETable,
+    data: impl Iterator<Item = u8>,
+    max_log: u8,
+) -> FseTableMode<'a> {
+    // TODO check if the new table is better than the predefined and previous table
+    let use_new_table = true;
+    let use_previous_table = false;
+    if use_previous_table {
+        FseTableMode::RepeateLast(previous.unwrap())
+    } else if use_new_table {
+        FseTableMode::Encoded(build_table_from_data(data, max_log, true))
+    } else {
+        FseTableMode::Predefined(default_table)
+    }
+}
+
+fn encode_table(mode: &FseTableMode<'_>, writer: &mut BitWriter<&mut Vec<u8>>) {
+    match mode {
+        FseTableMode::Predefined(_) => {}
+        FseTableMode::RepeateLast(_) => {}
+        FseTableMode::Encoded(table) => table.write_table(writer),
+    }
+}
+
+fn encode_fse_table_modes(
+    ll_mode: &FseTableMode<'_>,
+    ml_mode: &FseTableMode<'_>,
+    of_mode: &FseTableMode<'_>,
+) -> u8 {
+    fn mode_to_bits(mode: &FseTableMode<'_>) -> u8 {
+        match mode {
+            FseTableMode::Predefined(_) => 0,
+            FseTableMode::Encoded(_) => 2,
+            FseTableMode::RepeateLast(_) => 3,
+        }
+    }
+    mode_to_bits(ll_mode) << 6 | mode_to_bits(of_mode) << 4 | mode_to_bits(ml_mode) << 2
+}
+
+fn encode_sequences(
+    sequences: &[crate::blocks::sequence_section::Sequence],
+    writer: &mut BitWriter<&mut Vec<u8>>,
+    ll_table: &FSETable,
+    ml_table: &FSETable,
+    of_table: &FSETable,
+) {
+    let sequence = sequences[sequences.len() - 1];
+    let (ll_code, ll_add_bits, ll_num_bits) = encode_literal_length(sequence.ll);
+    let (of_code, of_add_bits, of_num_bits) = encode_offset(sequence.of);
+    let (ml_code, ml_add_bits, ml_num_bits) = encode_match_len(sequence.ml);
+    let mut ll_state: &State = ll_table.start_state(ll_code);
+    let mut ml_state: &State = ml_table.start_state(ml_code);
+    let mut of_state: &State = of_table.start_state(of_code);
+
+    writer.write_bits(ll_add_bits, ll_num_bits);
+    writer.write_bits(ml_add_bits, ml_num_bits);
+    writer.write_bits(of_add_bits, of_num_bits);
+
+    // encode backwards so the decoder reads the first sequence first
+    if sequences.len() > 1 {
+        for sequence in (0..=sequences.len() - 2).rev() {
+            let sequence = sequences[sequence];
+            let (ll_code, ll_add_bits, ll_num_bits) = encode_literal_length(sequence.ll);
+            let (of_code, of_add_bits, of_num_bits) = encode_offset(sequence.of);
+            let (ml_code, ml_add_bits, ml_num_bits) = encode_match_len(sequence.ml);
+
+            {
+                let next = of_table.next_state(of_code, of_state.index);
+                let diff = of_state.index - next.baseline;
+                writer.write_bits(diff as u64, next.num_bits as usize);
+                of_state = next;
+            }
+            {
+                let next = ml_table.next_state(ml_code, ml_state.index);
+                let diff = ml_state.index - next.baseline;
+                writer.write_bits(diff as u64, next.num_bits as usize);
+                ml_state = next;
+            }
+            {
+                let next = ll_table.next_state(ll_code, ll_state.index);
+                let diff = ll_state.index - next.baseline;
+                writer.write_bits(diff as u64, next.num_bits as usize);
+                ll_state = next;
+            }
+
+            writer.write_bits(ll_add_bits, ll_num_bits);
+            writer.write_bits(ml_add_bits, ml_num_bits);
+            writer.write_bits(of_add_bits, of_num_bits);
+        }
+    }
+    writer.write_bits(ml_state.index as u64, ml_table.table_size.ilog2() as usize);
+    writer.write_bits(of_state.index as u64, of_table.table_size.ilog2() as usize);
+    writer.write_bits(ll_state.index as u64, ll_table.table_size.ilog2() as usize);
+
+    let bits_to_fill = writer.misaligned();
+    if bits_to_fill == 0 {
+        writer.write_bits(1u32, 8);
+    } else {
+        writer.write_bits(1u32, bits_to_fill);
+    }
 }
 
 fn encode_seqnum(seqnum: usize, writer: &mut BitWriter<impl AsMut<Vec<u8>>>) {

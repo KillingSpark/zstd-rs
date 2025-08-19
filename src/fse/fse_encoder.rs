@@ -113,55 +113,15 @@ impl<V: AsMut<Vec<u8>>> FSEEncoder<'_, V> {
     }
 
     fn write_table(&mut self) {
-        self.writer.write_bits(self.acc_log() - 5, 4);
-        let mut probability_counter = 0usize;
-        let probability_sum = 1 << self.acc_log();
-
-        let mut prob_idx = 0;
-        while probability_counter < probability_sum {
-            let max_remaining_value = probability_sum - probability_counter + 1;
-            let bits_to_write = max_remaining_value.ilog2() + 1;
-            let low_threshold = ((1 << bits_to_write) - 1) - (max_remaining_value);
-            let mask = (1 << (bits_to_write - 1)) - 1;
-
-            let prob = self.table.states[prob_idx].probability;
-            prob_idx += 1;
-            let value = (prob + 1) as u32;
-            if value < low_threshold as u32 {
-                self.writer.write_bits(value, bits_to_write as usize - 1);
-            } else if value > mask {
-                self.writer
-                    .write_bits(value + low_threshold as u32, bits_to_write as usize);
-            } else {
-                self.writer.write_bits(value, bits_to_write as usize);
-            }
-
-            if prob == -1 {
-                probability_counter += 1;
-            } else if prob > 0 {
-                probability_counter += prob as usize;
-            } else {
-                let mut zeros = 0u8;
-                while self.table.states[prob_idx].probability == 0 {
-                    zeros += 1;
-                    prob_idx += 1;
-                    if zeros == 3 {
-                        self.writer.write_bits(3u8, 2);
-                        zeros = 0;
-                    }
-                }
-                self.writer.write_bits(zeros, 2);
-            }
-        }
-        self.writer.write_bits(0u8, self.writer.misaligned());
+        self.table.write_table(self.writer);
     }
 
     pub(super) fn acc_log(&self) -> u8 {
-        self.table.table_size.ilog2() as u8
+        self.table.acc_log()
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FSETable {
     /// Indexed by symbol
     pub(super) states: [SymbolStates; 256],
@@ -179,9 +139,56 @@ impl FSETable {
         let states = &self.states[symbol as usize];
         &states.states[0]
     }
+
+    pub fn acc_log(&self) -> u8 {
+        self.table_size.ilog2() as u8
+    }
+
+    pub fn write_table<V: AsMut<Vec<u8>>>(&self, writer: &mut BitWriter<V>) {
+        writer.write_bits(self.acc_log() - 5, 4);
+        let mut probability_counter = 0usize;
+        let probability_sum = 1 << self.acc_log();
+
+        let mut prob_idx = 0;
+        while probability_counter < probability_sum {
+            let max_remaining_value = probability_sum - probability_counter + 1;
+            let bits_to_write = max_remaining_value.ilog2() + 1;
+            let low_threshold = ((1 << bits_to_write) - 1) - (max_remaining_value);
+            let mask = (1 << (bits_to_write - 1)) - 1;
+
+            let prob = self.states[prob_idx].probability;
+            prob_idx += 1;
+            let value = (prob + 1) as u32;
+            if value < low_threshold as u32 {
+                writer.write_bits(value, bits_to_write as usize - 1);
+            } else if value > mask {
+                writer.write_bits(value + low_threshold as u32, bits_to_write as usize);
+            } else {
+                writer.write_bits(value, bits_to_write as usize);
+            }
+
+            if prob == -1 {
+                probability_counter += 1;
+            } else if prob > 0 {
+                probability_counter += prob as usize;
+            } else {
+                let mut zeros = 0u8;
+                while self.states[prob_idx].probability == 0 {
+                    zeros += 1;
+                    prob_idx += 1;
+                    if zeros == 3 {
+                        writer.write_bits(3u8, 2);
+                        zeros = 0;
+                    }
+                }
+                writer.write_bits(zeros, 2);
+            }
+        }
+        writer.write_bits(0u8, writer.misaligned());
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(super) struct SymbolStates {
     /// Sorted by baseline to allow easy lookup using an index
     pub(super) states: Vec<State>,
@@ -191,7 +198,6 @@ pub(super) struct SymbolStates {
 impl SymbolStates {
     fn get(&self, idx: usize, max_idx: usize) -> &State {
         let start_search_at = (idx * self.states.len()) / max_idx;
-
         self.states[start_search_at..]
             .iter()
             .find(|state| state.contains(idx))
@@ -199,7 +205,7 @@ impl SymbolStates {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct State {
     /// How many bits the range of this state needs to be encoded as
     pub(crate) num_bits: u8,
@@ -217,16 +223,27 @@ impl State {
     }
 }
 
-pub fn build_table_from_data(data: &[u8], max_log: u8, avoid_0_numbit: bool) -> FSETable {
+pub fn build_table_from_data(
+    data: impl Iterator<Item = u8>,
+    max_log: u8,
+    avoid_0_numbit: bool,
+) -> FSETable {
     let mut counts = [0; 256];
+    let mut max_symbol = 0;
     for x in data {
-        counts[*x as usize] += 1;
+        counts[x as usize] += 1;
     }
-    build_table_from_counts(&counts, max_log, avoid_0_numbit)
+    for (idx, count) in counts.iter().copied().enumerate() {
+        if count > 0 {
+            max_symbol = idx;
+        }
+    }
+    build_table_from_counts(&counts[..=max_symbol], max_log, avoid_0_numbit)
 }
 
 fn build_table_from_counts(counts: &[usize], max_log: u8, avoid_0_numbit: bool) -> FSETable {
     let mut probs = [0; 256];
+    let probs = &mut probs[..counts.len()];
     let mut min_count = 0;
     for (idx, count) in counts.iter().copied().enumerate() {
         probs[idx] = count as i32;
@@ -237,9 +254,20 @@ fn build_table_from_counts(counts: &[usize], max_log: u8, avoid_0_numbit: bool) 
 
     // shift all probabilities down so that the lowest are 1
     min_count -= 1;
+    let mut max_prob = 0i32;
     for prob in probs.iter_mut() {
         if *prob > 0 {
             *prob -= min_count as i32;
+        }
+        max_prob = max_prob.max(*prob);
+    }
+
+    if max_prob > 0 && max_prob as usize > probs.len() {
+        let divisor = max_prob / (probs.len() as i32);
+        for prob in probs.iter_mut() {
+            if *prob > 0 {
+                *prob = (*prob / divisor).max(1)
+            }
         }
     }
 
@@ -258,7 +286,7 @@ fn build_table_from_counts(counts: &[usize], max_log: u8, avoid_0_numbit: bool) 
         *max += diff as i32;
     } else {
         // decrease the smallest ones to 1 first
-        let mut diff = sum - (1 << max_log);
+        let mut diff = sum - (1 << acc_log);
         while diff > 0 {
             let min = probs.iter_mut().filter(|prob| **prob > 1).min().unwrap();
             let decrease = usize::min(*min as usize - 1, diff);
@@ -278,7 +306,8 @@ fn build_table_from_counts(counts: &[usize], max_log: u8, avoid_0_numbit: bool) 
         *second_max += redistribute;
         assert!(*second_max <= max);
     }
-    build_table_from_probabilities(&probs, acc_log)
+
+    build_table_from_probabilities(probs, acc_log)
 }
 
 pub(super) fn build_table_from_probabilities(probs: &[i32], acc_log: u8) -> FSETable {

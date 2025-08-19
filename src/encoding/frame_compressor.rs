@@ -12,6 +12,7 @@ use super::{
     block_header::BlockHeader, frame_header::FrameHeader, levels::*,
     match_generator::MatchGeneratorDriver, CompressionLevel, Matcher,
 };
+use crate::fse::fse_encoder::{default_ll_table, default_ml_table, default_of_table, FSETable};
 
 use crate::io::{Read, Write};
 
@@ -43,9 +44,32 @@ pub struct FrameCompressor<R: Read, W: Write, M: Matcher> {
     hasher: XxHash64,
 }
 
+pub(crate) struct FseTables {
+    pub(crate) ll_default: FSETable,
+    pub(crate) ll_previous: Option<FSETable>,
+    pub(crate) ml_default: FSETable,
+    pub(crate) ml_previous: Option<FSETable>,
+    pub(crate) of_default: FSETable,
+    pub(crate) of_previous: Option<FSETable>,
+}
+
+impl FseTables {
+    pub fn new() -> Self {
+        Self {
+            ll_default: default_ll_table(),
+            ll_previous: None,
+            ml_default: default_ml_table(),
+            ml_previous: None,
+            of_default: default_of_table(),
+            of_previous: None,
+        }
+    }
+}
+
 pub(crate) struct CompressState<M: Matcher> {
     pub(crate) matcher: M,
     pub(crate) last_huff_table: Option<crate::huff0::huff0_encoder::HuffmanTable>,
+    pub(crate) fse_tables: FseTables,
 }
 
 impl<R: Read, W: Write> FrameCompressor<R, W, MatchGeneratorDriver> {
@@ -58,6 +82,7 @@ impl<R: Read, W: Write> FrameCompressor<R, W, MatchGeneratorDriver> {
             state: CompressState {
                 matcher: MatchGeneratorDriver::new(1024 * 128, 1),
                 last_huff_table: None,
+                fse_tables: FseTables::new(),
             },
             #[cfg(feature = "hash")]
             hasher: XxHash64::with_seed(0),
@@ -74,6 +99,7 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
             state: CompressState {
                 matcher,
                 last_huff_table: None,
+                fse_tables: FseTables::new(),
             },
             compression_level,
             #[cfg(feature = "hash")]

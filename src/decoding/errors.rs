@@ -20,8 +20,7 @@ impl fmt::Display for FrameDescriptorError {
         match self {
             Self::InvalidFrameContentSizeFlag { got } => write!(
                 f,
-                "Invalid Frame_Content_Size_Flag; Is: {}, Should be one of: 0, 1, 2, 3",
-                got
+                "Invalid Frame_Content_Size_Flag; Is: {got}, Should be one of: 0, 1, 2, 3"
             ),
         }
     }
@@ -57,22 +56,19 @@ impl fmt::Display for FrameHeaderError {
                 got,
                 crate::common::MIN_WINDOW_SIZE
             ),
-            Self::FrameDescriptorError(e) => write!(f, "{:?}", e),
+            Self::FrameDescriptorError(e) => write!(f, "{e:?}"),
             Self::DictIdTooSmall { got, expected } => write!(
                 f,
-                "Not enough bytes in dict_id. Is: {}, Should be: {}",
-                got, expected
+                "Not enough bytes in dict_id. Is: {got}, Should be: {expected}"
             ),
             Self::MismatchedFrameSize { got, expected } => write!(
                 f,
-                "frame_content_size does not have the right length. Is: {}, Should be: {}",
-                got, expected
+                "frame_content_size does not have the right length. Is: {got}, Should be: {expected}"
             ),
             Self::FrameSizeIsZero => write!(f, "frame_content_size was zero"),
             Self::InvalidFrameSize { got } => write!(
                 f,
-                "Invalid frame_content_size. Is: {}, Should be one of 1, 2, 4, 8 bytes",
-                got
+                "Invalid frame_content_size. Is: {got}, Should be one of 1, 2, 4, 8 bytes"
             ),
         }
     }
@@ -110,26 +106,25 @@ pub enum ReadFrameHeaderError {
 impl fmt::Display for ReadFrameHeaderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MagicNumberReadError(e) => write!(f, "Error while reading magic number: {}", e),
-            Self::BadMagicNumber(e) => write!(f, "Read wrong magic number: 0x{:X}", e),
+            Self::MagicNumberReadError(e) => write!(f, "Error while reading magic number: {e}"),
+            Self::BadMagicNumber(e) => write!(f, "Read wrong magic number: 0x{e:X}"),
             Self::FrameDescriptorReadError(e) => {
-                write!(f, "Error while reading frame descriptor: {}", e)
+                write!(f, "Error while reading frame descriptor: {e}")
             }
-            Self::InvalidFrameDescriptor(e) => write!(f, "{:?}", e),
+            Self::InvalidFrameDescriptor(e) => write!(f, "{e:?}"),
             Self::WindowDescriptorReadError(e) => {
-                write!(f, "Error while reading window descriptor: {}", e)
+                write!(f, "Error while reading window descriptor: {e}")
             }
-            Self::DictionaryIdReadError(e) => write!(f, "Error while reading dictionary id: {}", e),
+            Self::DictionaryIdReadError(e) => write!(f, "Error while reading dictionary id: {e}"),
             Self::FrameContentSizeReadError(e) => {
-                write!(f, "Error while reading frame content size: {}", e)
+                write!(f, "Error while reading frame content size: {e}")
             }
             Self::SkipFrame {
                 magic_number,
                 length,
             } => write!(
                 f,
-                "SkippableFrame encountered with MagicNumber 0x{:X} and length {} bytes",
-                magic_number, length
+                "SkippableFrame encountered with MagicNumber 0x{magic_number:X} and length {length} bytes"
             ),
         }
     }
@@ -185,9 +180,9 @@ impl ::core::fmt::Display for BlockHeaderReadError {
                 f,
                 "Reserved block occured. This is considered corruption by the documentation"
             ),
-            BlockHeaderReadError::BlockTypeError(e) => write!(f, "Error getting block type: {}", e),
+            BlockHeaderReadError::BlockTypeError(e) => write!(f, "Error getting block type: {e}"),
             BlockHeaderReadError::BlockSizeError(e) => {
-                write!(f, "Error getting block content size: {}", e)
+                write!(f, "Error getting block content size: {e}")
             }
         }
     }
@@ -225,8 +220,7 @@ impl core::fmt::Display for BlockTypeError {
         match self {
             BlockTypeError::InvalidBlocktypeNumber { num } => {
                 write!(f,
-                    "Invalid Blocktype number. Is: {} Should be one of: 0, 1, 2, 3 (3 is reserved though",
-                    num,
+                    "Invalid Blocktype number. Is: {num} Should be one of: 0, 1, 2, 3 (3 is reserved though",
                 )
             }
         }
@@ -291,23 +285,21 @@ impl core::fmt::Display for DecompressBlockError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             DecompressBlockError::BlockContentReadError(e) => {
-                write!(f, "Error while reading the block content: {}", e)
+                write!(f, "Error while reading the block content: {e}")
             }
             DecompressBlockError::MalformedSectionHeader {
                 expected_len,
                 remaining_bytes,
             } => {
                 write!(f,
-                    "Malformed section header. Says literals would be this long: {} but there are only {} bytes left",
-                    expected_len,
-                    remaining_bytes,
+                    "Malformed section header. Says literals would be this long: {expected_len} but there are only {remaining_bytes} bytes left",
                 )
             }
-            DecompressBlockError::DecompressLiteralsError(e) => write!(f, "{:?}", e),
-            DecompressBlockError::LiteralsSectionParseError(e) => write!(f, "{:?}", e),
-            DecompressBlockError::SequencesHeaderParseError(e) => write!(f, "{:?}", e),
-            DecompressBlockError::DecodeSequenceError(e) => write!(f, "{:?}", e),
-            DecompressBlockError::ExecuteSequencesError(e) => write!(f, "{:?}", e),
+            DecompressBlockError::DecompressLiteralsError(e) => write!(f, "{e:?}"),
+            DecompressBlockError::LiteralsSectionParseError(e) => write!(f, "{e:?}"),
+            DecompressBlockError::SequencesHeaderParseError(e) => write!(f, "{e:?}"),
+            DecompressBlockError::DecodeSequenceError(e) => write!(f, "{e:?}"),
+            DecompressBlockError::ExecuteSequencesError(e) => write!(f, "{e:?}"),
         }
     }
 }
@@ -383,9 +375,9 @@ impl core::fmt::Display for DecodeBlockContentError {
                         )
             }
             DecodeBlockContentError::ReadError { step, source } => {
-                write!(f, "Error while reading bytes for {}: {}", step, source,)
+                write!(f, "Error while reading bytes for {step}: {source}",)
             }
-            DecodeBlockContentError::DecompressBlockError(e) => write!(f, "{:?}", e),
+            DecodeBlockContentError::DecompressBlockError(e) => write!(f, "{e:?}"),
         }
     }
 }
@@ -412,12 +404,11 @@ impl core::fmt::Display for DecodeBufferError {
             DecodeBufferError::NotEnoughBytesInDictionary { got, need } => {
                 write!(
                     f,
-                    "Need {} bytes from the dictionary but it is only {} bytes long",
-                    need, got,
+                    "Need {need} bytes from the dictionary but it is only {got} bytes long",
                 )
             }
             DecodeBufferError::OffsetTooBig { offset, buf_len } => {
-                write!(f, "offset: {} bigger than buffer: {}", offset, buf_len,)
+                write!(f, "offset: {offset} bigger than buffer: {buf_len}",)
             }
         }
     }
@@ -453,8 +444,8 @@ impl core::fmt::Display for DictionaryDecodeError {
                     crate::decoding::dictionary::MAGIC_NUM,
                 )
             }
-            DictionaryDecodeError::FSETableError(e) => write!(f, "{:?}", e),
-            DictionaryDecodeError::HuffmanTableError(e) => write!(f, "{:?}", e),
+            DictionaryDecodeError::FSETableError(e) => write!(f, "{e:?}"),
+            DictionaryDecodeError::HuffmanTableError(e) => write!(f, "{e:?}"),
         }
     }
 }
@@ -510,10 +501,10 @@ impl core::fmt::Display for FrameDecoderError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         match self {
             FrameDecoderError::ReadFrameHeaderError(e) => {
-                write!(f, "{:?}", e)
+                write!(f, "{e:?}")
             }
             FrameDecoderError::FrameHeaderError(e) => {
-                write!(f, "{:?}", e)
+                write!(f, "{e:?}")
             }
             FrameDecoderError::WindowSizeTooBig { requested } => {
                 write!(
@@ -524,28 +515,27 @@ impl core::fmt::Display for FrameDecoderError {
                 )
             }
             FrameDecoderError::DictionaryDecodeError(e) => {
-                write!(f, "{:?}", e)
+                write!(f, "{e:?}")
             }
             FrameDecoderError::FailedToReadBlockHeader(e) => {
-                write!(f, "Failed to parse/decode block body: {}", e)
+                write!(f, "Failed to parse/decode block body: {e}")
             }
             FrameDecoderError::FailedToReadBlockBody(e) => {
-                write!(f, "Failed to parse block header: {}", e)
+                write!(f, "Failed to parse block header: {e}")
             }
             FrameDecoderError::FailedToReadChecksum(e) => {
-                write!(f, "Failed to read checksum: {}", e)
+                write!(f, "Failed to read checksum: {e}")
             }
             FrameDecoderError::NotYetInitialized => {
                 write!(f, "Decoder must initialized or reset before using it",)
             }
             FrameDecoderError::FailedToInitialize(e) => {
-                write!(f, "Decoder encountered error while initializing: {}", e)
+                write!(f, "Decoder encountered error while initializing: {e}")
             }
             FrameDecoderError::FailedToDrainDecodebuffer(e) => {
                 write!(
                     f,
-                    "Decoder encountered error while draining the decodebuffer: {}",
-                    e,
+                    "Decoder encountered error while draining the decodebuffer: {e}",
                 )
             }
             FrameDecoderError::FailedToSkipFrame => {
@@ -558,7 +548,7 @@ impl core::fmt::Display for FrameDecoderError {
                 write!(f, "Target must have at least as many bytes as the contentsize of the frame reports")
             }
             FrameDecoderError::DictNotProvided { dict_id } => {
-                write!(f, "Frame header specified dictionary id 0x{:X} that wasnt provided by add_dict() or reset_with_dict()", dict_id)
+                write!(f, "Frame header specified dictionary id 0x{dict_id:X} that wasnt provided by add_dict() or reset_with_dict()")
             }
         }
     }
@@ -628,9 +618,9 @@ impl core::fmt::Display for DecompressLiteralsError {
                     "num_streams was none even though it must be set to something (1 or 4) for compressed literals",
                 )
             }
-            DecompressLiteralsError::GetBitsError(e) => write!(f, "{:?}", e),
-            DecompressLiteralsError::HuffmanTableError(e) => write!(f, "{:?}", e),
-            DecompressLiteralsError::HuffmanDecoderError(e) => write!(f, "{:?}", e),
+            DecompressLiteralsError::GetBitsError(e) => write!(f, "{e:?}"),
+            DecompressLiteralsError::HuffmanTableError(e) => write!(f, "{e:?}"),
+            DecompressLiteralsError::HuffmanDecoderError(e) => write!(f, "{e:?}"),
             DecompressLiteralsError::UninitializedHuffmanTable => {
                 write!(
                     f,
@@ -638,33 +628,29 @@ impl core::fmt::Display for DecompressLiteralsError {
                 )
             }
             DecompressLiteralsError::MissingBytesForJumpHeader { got } => {
-                write!(f, "Need 6 bytes to decode jump header, got {} bytes", got,)
+                write!(f, "Need 6 bytes to decode jump header, got {got} bytes",)
             }
             DecompressLiteralsError::MissingBytesForLiterals { got, needed } => {
                 write!(
                     f,
-                    "Need at least {} bytes to decode literals. Have: {} bytes",
-                    needed, got,
+                    "Need at least {needed} bytes to decode literals. Have: {got} bytes",
                 )
             }
             DecompressLiteralsError::ExtraPadding { skipped_bits } => {
                 write!(f,
-                    "Padding at the end of the sequence_section was more than a byte long: {} bits. Probably caused by data corruption",
-                    skipped_bits,
+                    "Padding at the end of the sequence_section was more than a byte long: {skipped_bits} bits. Probably caused by data corruption",
                 )
             }
             DecompressLiteralsError::BitstreamReadMismatch { read_til, expected } => {
                 write!(
                     f,
-                    "Bitstream was read till: {}, should have been: {}",
-                    read_til, expected,
+                    "Bitstream was read till: {read_til}, should have been: {expected}",
                 )
             }
             DecompressLiteralsError::DecodedLiteralCountMismatch { decoded, expected } => {
                 write!(
                     f,
-                    "Did not decode enough literals: {}, Should have been: {}",
-                    decoded, expected,
+                    "Did not decode enough literals: {decoded}, Should have been: {expected}",
                 )
             }
         }
@@ -701,13 +687,12 @@ impl core::fmt::Display for ExecuteSequencesError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             ExecuteSequencesError::DecodebufferError(e) => {
-                write!(f, "{:?}", e)
+                write!(f, "{e:?}")
             }
             ExecuteSequencesError::NotEnoughBytesForSequence { wanted, have } => {
                 write!(
                     f,
-                    "Sequence wants to copy up to byte {}. Bytes in literalsbuffer: {}",
-                    wanted, have
+                    "Sequence wants to copy up to byte {wanted}. Bytes in literalsbuffer: {have}"
                 )
             }
             ExecuteSequencesError::ZeroOffset => {
@@ -765,20 +750,18 @@ impl std::error::Error for DecodeSequenceError {
 impl core::fmt::Display for DecodeSequenceError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            DecodeSequenceError::GetBitsError(e) => write!(f, "{:?}", e),
-            DecodeSequenceError::FSEDecoderError(e) => write!(f, "{:?}", e),
-            DecodeSequenceError::FSETableError(e) => write!(f, "{:?}", e),
+            DecodeSequenceError::GetBitsError(e) => write!(f, "{e:?}"),
+            DecodeSequenceError::FSEDecoderError(e) => write!(f, "{e:?}"),
+            DecodeSequenceError::FSETableError(e) => write!(f, "{e:?}"),
             DecodeSequenceError::ExtraPadding { skipped_bits } => {
                 write!(f,
-                    "Padding at the end of the sequence_section was more than a byte long: {} bits. Probably caused by data corruption",
-                    skipped_bits,
+                    "Padding at the end of the sequence_section was more than a byte long: {skipped_bits} bits. Probably caused by data corruption",
                 )
             }
             DecodeSequenceError::UnsupportedOffset { offset_code } => {
                 write!(
                     f,
-                    "Do not support offsets bigger than 1<<32; got: {}",
-                    offset_code,
+                    "Do not support offsets bigger than 1<<32; got: {offset_code}",
                 )
             }
             DecodeSequenceError::ZeroOffset => write!(
@@ -789,7 +772,7 @@ impl core::fmt::Display for DecodeSequenceError {
                 f,
                 "Bytestream did not contain enough bytes to decode num_sequences"
             ),
-            DecodeSequenceError::ExtraBits { bits_remaining } => write!(f, "{}", bits_remaining),
+            DecodeSequenceError::ExtraBits { bits_remaining } => write!(f, "{bits_remaining}"),
             DecodeSequenceError::MissingCompressionMode => write!(
                 f,
                 "compression modes are none but they must be set to something"
@@ -848,16 +831,14 @@ impl core::fmt::Display for LiteralsSectionParseError {
             LiteralsSectionParseError::IllegalLiteralSectionType { got } => {
                 write!(
                     f,
-                    "Illegal literalssectiontype. Is: {}, must be in: 0, 1, 2, 3",
-                    got
+                    "Illegal literalssectiontype. Is: {got}, must be in: 0, 1, 2, 3"
                 )
             }
-            LiteralsSectionParseError::GetBitsError(e) => write!(f, "{:?}", e),
+            LiteralsSectionParseError::GetBitsError(e) => write!(f, "{e:?}"),
             LiteralsSectionParseError::NotEnoughBytes { have, need } => {
                 write!(
                     f,
-                    "Not enough byte to parse the literals section header. Have: {}, Need: {}",
-                    have, need,
+                    "Not enough byte to parse the literals section header. Have: {have}, Need: {need}",
                 )
             }
         }
@@ -896,8 +877,7 @@ impl core::fmt::Display for SequencesHeaderParseError {
             SequencesHeaderParseError::NotEnoughBytes { need_at_least, got } => {
                 write!(
                     f,
-                    "source must have at least {} bytes to parse header; got {} bytes",
-                    need_at_least, got,
+                    "source must have at least {need_at_least} bytes to parse header; got {got} bytes",
                 )
             }
         }
@@ -940,28 +920,23 @@ impl core::fmt::Display for FSETableError {
             FSETableError::AccLogTooBig { got, max } => {
                 write!(
                     f,
-                    "Found FSE acc_log: {0} bigger than allowed maximum in this case: {1}",
-                    got, max
+                    "Found FSE acc_log: {got} bigger than allowed maximum in this case: {max}"
                 )
             }
-            FSETableError::GetBitsError(e) => write!(f, "{:?}", e),
+            FSETableError::GetBitsError(e) => write!(f, "{e:?}"),
             FSETableError::ProbabilityCounterMismatch {
                 got,
                 expected_sum,
                 symbol_probabilities,
             } => {
                 write!(f,
-                    "The counter ({}) exceeded the expected sum: {}. This means an error or corrupted data \n {:?}",
-                    got,
-                    expected_sum,
-                    symbol_probabilities,
+                    "The counter ({got}) exceeded the expected sum: {expected_sum}. This means an error or corrupted data \n {symbol_probabilities:?}",
                 )
             }
             FSETableError::TooManySymbols { got } => {
                 write!(
                     f,
-                    "There are too many symbols in this distribution: {}. Max: 256",
-                    got,
+                    "There are too many symbols in this distribution: {got}. Max: 256",
                 )
             }
         }
@@ -994,7 +969,7 @@ impl std::error::Error for FSEDecoderError {
 impl core::fmt::Display for FSEDecoderError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            FSEDecoderError::GetBitsError(e) => write!(f, "{:?}", e),
+            FSEDecoderError::GetBitsError(e) => write!(f, "{e:?}"),
             FSEDecoderError::TableIsUninitialized => {
                 write!(f, "Tried to use an uninitialized table!")
             }
@@ -1064,42 +1039,37 @@ impl StdError for HuffmanTableError {
 impl core::fmt::Display for HuffmanTableError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         match self {
-            HuffmanTableError::GetBitsError(e) => write!(f, "{:?}", e),
-            HuffmanTableError::FSEDecoderError(e) => write!(f, "{:?}", e),
-            HuffmanTableError::FSETableError(e) => write!(f, "{:?}", e),
+            HuffmanTableError::GetBitsError(e) => write!(f, "{e:?}"),
+            HuffmanTableError::FSEDecoderError(e) => write!(f, "{e:?}"),
+            HuffmanTableError::FSETableError(e) => write!(f, "{e:?}"),
             HuffmanTableError::SourceIsEmpty => write!(f, "Source needs to have at least one byte"),
             HuffmanTableError::NotEnoughBytesForWeights {
                 got_bytes,
                 expected_bytes,
             } => {
-                write!(f, "Header says there should be {} bytes for the weights but there are only {} bytes in the stream",
-                    expected_bytes,
-                    got_bytes)
+                write!(f, "Header says there should be {expected_bytes} bytes for the weights but there are only {got_bytes} bytes in the stream")
             }
             HuffmanTableError::ExtraPadding { skipped_bits } => {
                 write!(f,
-                    "Padding at the end of the sequence_section was more than a byte long: {} bits. Probably caused by data corruption",
-                    skipped_bits,
+                    "Padding at the end of the sequence_section was more than a byte long: {skipped_bits} bits. Probably caused by data corruption",
                 )
             }
             HuffmanTableError::TooManyWeights { got } => {
                 write!(
                     f,
-                    "More than 255 weights decoded (got {} weights). Stream is probably corrupted",
-                    got,
+                    "More than 255 weights decoded (got {got} weights). Stream is probably corrupted",
                 )
             }
             HuffmanTableError::MissingWeights => {
                 write!(f, "Can\'t build huffman table without any weights")
             }
             HuffmanTableError::LeftoverIsNotAPowerOf2 { got } => {
-                write!(f, "Leftover must be power of two but is: {}", got)
+                write!(f, "Leftover must be power of two but is: {got}")
             }
             HuffmanTableError::NotEnoughBytesToDecompressWeights { have, need } => {
                 write!(
                     f,
-                    "Not enough bytes in stream to decompress weights. Is: {}, Should be: {}",
-                    have, need,
+                    "Not enough bytes in stream to decompress weights. Is: {have}, Should be: {need}",
                 )
             }
             HuffmanTableError::FSETableUsedTooManyBytes {
@@ -1107,17 +1077,11 @@ impl core::fmt::Display for HuffmanTableError {
                 available_bytes,
             } => {
                 write!(f,
-                    "FSE table used more bytes: {} than were meant to be used for the whole stream of huffman weights ({})",
-                    used,
-                    available_bytes,
+                    "FSE table used more bytes: {used} than were meant to be used for the whole stream of huffman weights ({available_bytes})",
                 )
             }
             HuffmanTableError::NotEnoughBytesInSource { got, need } => {
-                write!(
-                    f,
-                    "Source needs to have at least {} bytes, got: {}",
-                    need, got,
-                )
+                write!(f, "Source needs to have at least {need} bytes, got: {got}",)
             }
             HuffmanTableError::WeightBiggerThanMaxNumBits { got } => {
                 write!(
@@ -1166,7 +1130,7 @@ pub enum HuffmanDecoderError {
 impl core::fmt::Display for HuffmanDecoderError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            HuffmanDecoderError::GetBitsError(e) => write!(f, "{:?}", e),
+            HuffmanDecoderError::GetBitsError(e) => write!(f, "{e:?}"),
         }
     }
 }

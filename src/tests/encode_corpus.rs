@@ -27,7 +27,7 @@ fn test_encode_corpus_files_uncompressed_our_decompressor() {
             continue;
         }
 
-        println!("Trying file: {:?}", path);
+        println!("Trying file: {path:?}");
         let input = fs::read(entry.path()).unwrap();
         let mut compressed_file: Vec<u8> = Vec::new();
         let mut compressor = FrameCompressor::new(crate::encoding::CompressionLevel::Fastest);
@@ -82,7 +82,7 @@ fn test_encode_corpus_files_uncompressed_original_decompressor() {
         if path.extension() == Some(OsStr::new("zst")) {
             continue;
         }
-        println!("Trying file: {:?}", path);
+        println!("Trying file: {path:?}");
         let input = fs::read(entry.path()).unwrap();
 
         let mut compressed_file: Vec<u8> = Vec::new();
@@ -143,7 +143,7 @@ fn test_encode_corpus_files_compressed_our_decompressor() {
         if path.extension() == Some(OsStr::new("zst")) {
             continue;
         }
-        println!("Trying file: {:?}", path);
+        println!("Trying file: {path:?}");
         let input = fs::read(entry.path()).unwrap();
 
         let mut compressed_file: Vec<u8> = Vec::new();
@@ -199,7 +199,7 @@ fn test_encode_corpus_files_compressed_original_decompressor() {
         if path.extension() == Some(OsStr::new("zst")) {
             continue;
         }
-        println!("Trying file: {:?}", path);
+        println!("Trying file: {path:?}");
         let input = fs::read(entry.path()).unwrap();
 
         let mut compressed_file: Vec<u8> = Vec::new();

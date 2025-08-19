@@ -125,7 +125,7 @@ impl<V: AsMut<Vec<u8>>> HuffmanEncoder<'_, '_, V> {
             self.writer.write_bits(0u8, 8);
             let idx_before = self.writer.index();
             let mut encoder = FSEEncoder::new(
-                fse_encoder::build_table_from_data(weights, 6, true),
+                fse_encoder::build_table_from_data(weights.iter().copied(), 6, true),
                 self.writer,
             );
             encoder.encode_interleaved(weights);
@@ -435,8 +435,7 @@ fn weights() {
                         let code2_shifted = code2 >> (num_bits2 - num_bits);
                         assert_ne!(
                             code, code2_shifted,
-                            "{:b},{num_bits:} is prefix of {:b},{num_bits2:}",
-                            code, code2
+                            "{code:b},{num_bits:} is prefix of {code2:b},{num_bits2:}"
                         );
                     }
                 }
