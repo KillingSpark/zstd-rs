@@ -579,3 +579,10 @@ pub mod dict_test;
 #[cfg(feature = "std")]
 pub mod encode_corpus;
 pub mod fuzz_regressions;
+
+#[cfg(feature = "std")]
+#[test]
+fn verbose_disabled() {
+    use crate::VERBOSE;
+    assert_eq!(VERBOSE, false);
+}

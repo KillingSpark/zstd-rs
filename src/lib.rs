@@ -21,7 +21,7 @@ extern crate std;
 extern crate alloc;
 
 #[cfg(feature = "std")]
-pub(crate) const VERBOSE: bool = true;
+pub(crate) const VERBOSE: bool = false;
 
 macro_rules! vprintln {
     ($($x:expr),*) => {
@@ -52,8 +52,6 @@ pub(crate) mod fse;
 #[cfg(not(feature = "fuzz_exports"))]
 pub(crate) mod huff0;
 
-mod tests;
-
 #[cfg(feature = "std")]
 pub mod io_std;
 
@@ -65,3 +63,5 @@ pub mod io_nostd;
 
 #[cfg(not(feature = "std"))]
 pub use io_nostd as io;
+
+mod tests;

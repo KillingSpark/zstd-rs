@@ -19,7 +19,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [dependencies]
 twox-hash = { version = "2.0", default-features = false, features = ["xxhash64"], optional = true }
 
-# Internal feature, only used when building as part of libstd, not part of theea
+# Internal feature, only used when building as part of libstd, not part of the
 # stable interface of this crate.
 compiler_builtins = { version = "0.1.2", optional = true }
 core = { version = "1.0.0", optional = true, package = "rustc-std-workspace-core" }
