@@ -13,7 +13,11 @@ keywords = ["zstd", "zstandard", "decompression"]
 categories = ["compression"]
 
 [dependencies]
+# Locked behind the `hash` feature flag
 twox-hash = { version = "2.0", default-features = false, features = ["xxhash64"], optional = true }
+# Used for the command line binary only
+clap = { version = "4.5.46", features = ["derive"], optional = true }
+color-eyre = { version = "0.6.5", optional = true }
 
 # Internal feature, only used when building as part of libstd, not part of the
 # stable interface of this crate.
@@ -31,6 +35,7 @@ default = ["hash", "std"]
 hash = ["dep:twox-hash"]
 fuzz_exports = []
 std = []
+cli = ["dep:clap", "dep:color-eyre"]
 
 # Internal feature, only used when building as part of libstd, not part of the
 # stable interface of this crate.
@@ -42,8 +47,4 @@ harness = false
 
 [[bin]]
 name = "zstd"
-required-features = ["std"]
-
-[[bin]]
-name = "zstd_stream"
-required-features = ["std"]
+required-features = ["std", "cli"]
