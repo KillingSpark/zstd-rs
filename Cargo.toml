@@ -24,6 +24,7 @@ color-eyre = { version = "0.6.5", optional = true }
 compiler_builtins = { version = "0.1.2", optional = true }
 core = { version = "1.0.0", optional = true, package = "rustc-std-workspace-core" }
 alloc = { version = "1.0.0", optional = true, package = "rustc-std-workspace-alloc" }
+console = { version = "0.16.1", optional = true }
 
 [dev-dependencies]
 criterion = "0.5"
@@ -35,7 +36,7 @@ default = ["hash", "std"]
 hash = ["dep:twox-hash"]
 fuzz_exports = []
 std = []
-cli = ["dep:clap", "dep:color-eyre"]
+cli = ["dep:clap", "dep:color-eyre", "dep:console"]
 
 # Internal feature, only used when building as part of libstd, not part of the
 # stable interface of this crate.
