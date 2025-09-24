@@ -66,7 +66,7 @@ impl<'s> BitReader<'s> {
 
             let mut bit_shift = bits_left_in_current_byte; //this many bits are already set in value
 
-            assert!(self.idx % 8 == 0);
+            assert!(self.idx.is_multiple_of(8));
 
             //collect full bytes
             for _ in 0..full_bytes_needed {
@@ -116,7 +116,7 @@ impl core::fmt::Display for GetBitsError {
             } => {
                 write!(
                     f,
-                    "Cant serve this request. The reader is limited to {limit} bits, requested {num_requested_bits} bits",
+                    "Cant serve this request. The reader is limited to {limit} bits, requested {num_requested_bits} bits"
                 )
             }
             GetBitsError::NotEnoughRemainingBits {
@@ -125,7 +125,7 @@ impl core::fmt::Display for GetBitsError {
             } => {
                 write!(
                     f,
-                    "Can\'t read {requested} bits, only have {remaining} bits left",
+                    "Can\'t read {requested} bits, only have {remaining} bits left"
                 )
             }
         }

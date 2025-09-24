@@ -7,8 +7,8 @@
 //!
 //! ## Compression
 //! The [encoding] module contains the code for compression.
-//! Decompression can be achieved by using the [`encoding::compress`]/[`encoding::compress_to_vec`]
-//! functions or the [`encoding::FrameCompressor`]
+//! Compression can be achieved by using the [`encoding::compress`]/[`encoding::compress_to_vec`]
+//! functions or [`encoding::FrameCompressor`]
 //!
 #![doc = include_str!("../Readme.md")]
 #![no_std]
@@ -35,6 +35,9 @@ macro_rules! vprintln {
 mod bit_io;
 mod common;
 pub mod decoding;
+#[cfg(feature = "dict_builder")]
+#[cfg_attr(docsrs, doc(cfg(feature = "dict_builder")))]
+pub mod dictionary;
 pub mod encoding;
 
 pub(crate) mod blocks;
@@ -49,8 +52,6 @@ pub(crate) mod fse;
 #[cfg(not(feature = "fuzz_exports"))]
 pub(crate) mod huff0;
 
-mod tests;
-
 #[cfg(feature = "std")]
 pub mod io_std;
 
@@ -62,3 +63,5 @@ pub mod io_nostd;
 
 #[cfg(not(feature = "std"))]
 pub use io_nostd as io;
+
+mod tests;

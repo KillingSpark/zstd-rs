@@ -7,6 +7,7 @@ fn test_decode_corpus_files() {
     use alloc::string::{String, ToString};
     use alloc::vec::Vec;
     use std::fs;
+    use std::io::BufReader;
     use std::io::Read;
     use std::println;
 
@@ -82,7 +83,7 @@ fn test_decode_corpus_files() {
 
         let mut original_p = p.clone();
         original_p.truncate(original_p.len() - 4);
-        let original_f = fs::File::open(original_p).unwrap();
+        let original_f = BufReader::new(fs::File::open(original_p).unwrap());
         let original: Vec<u8> = original_f.bytes().map(|x| x.unwrap()).collect();
 
         println!("Results for file: {}", p.clone());

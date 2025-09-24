@@ -45,7 +45,7 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
 
     /// Reset to an index. Currently only supports resetting to a byte aligned index
     pub fn reset_to(&mut self, index: usize) {
-        assert!(index % 8 == 0);
+        assert!(index.is_multiple_of(8));
         self.partial = 0;
         self.bits_in_partial = 0;
         self.bit_idx = index;
@@ -66,7 +66,7 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
 
         // We might be changing bits unaligned to byte borders.
         // This means the lower bits of the first byte we are touching must stay the same
-        if idx % 8 != 0 {
+        if !idx.is_multiple_of(8) {
             // How many (upper) bits will change in the first byte?
             let bits_in_first_byte = 8 - (idx % 8);
             // We don't support only changing a few bits in the middle of a byte
@@ -82,7 +82,7 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
             idx += bits_in_first_byte;
         }
 
-        assert!(idx % 8 == 0);
+        assert!(idx.is_multiple_of(8));
         // We are now byte aligned, change idx to byte resolution
         let mut idx = idx / 8;
 
@@ -113,7 +113,7 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
 
     /// Flush temporary internal buffers to the output buffer. Only works if this is currently byte aligned
     pub fn flush(&mut self) {
-        assert!(self.bits_in_partial % 8 == 0);
+        assert!(self.bits_in_partial.is_multiple_of(8));
         let full_bytes = self.bits_in_partial / 8;
         self.output
             .as_mut()
@@ -204,7 +204,7 @@ impl<V: AsMut<Vec<u8>>> BitWriter<V> {
     /// Returns how many bits are missing for an even byte
     pub fn misaligned(&self) -> usize {
         let idx = self.index();
-        if idx % 8 == 0 {
+        if idx.is_multiple_of(8) {
             0
         } else {
             8 - (idx % 8)

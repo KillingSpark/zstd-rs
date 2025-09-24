@@ -15,8 +15,20 @@ This crate is currently actively maintained.
 
 # Current Status
 
-Feature complete on the decoder side.
+## Decompression
+The `decoding` module provides a complete
+implementation of a Zstandard decompressor.
 
+In terms of speed, `ruzstd` is behind the original C implementation
+which has a rust binding located [here](https://github.com/gyscos/zstd-rs).
+
+Measuring with the 'time' utility the original zstd and my decoder both
+decoding the same enwik9.zst file from a ramfs, my decoder is about 3.5
+times slower. Enwik9 is highly compressible, for less compressible data
+(like a ubuntu installation .iso) my decoder comes close to only being
+1.4 times slower.
+
+## Compression
 On the compression side:
 - Support for generating compressed blocks at any compression level
   - [x] Uncompressed
@@ -24,13 +36,28 @@ On the compression side:
   - [ ] Default (roughly level 3)
   - [ ] Better (roughly level 7)
   - [ ] Best (roughly level 11)
-- [ ] Checksums
+- [x] Checksums
 - [ ] Dictionaries
 
-## Speed
-In terms of speed this library is behind the original C implementation which has a rust binding located [here](https://github.com/gyscos/zstd-rs).
+## Dictionary Generation
+When the `dict_builder` feature is enabled, the `dictionary` module
+provides the ability to create new dictionaries. 
 
-Measuring with the 'time' utility the original zstd and my decoder both decoding the same enwik9.zst file from a ramfs, my decoder is about 3.5 times slower. Enwik9 is highly compressible, for less compressible data (like a ubuntu installation .iso) my decoder comes close to only being 1.4 times slower.
+On the `github-users` sample set, our implementation benchmarks within
+0.2% of the official implementation (as of commit 
+`09e52d07340acdb2e13817b066e8be6e424f7258`):
+```no_build
+uncompressed: 100.00% (7484607 bytes)
+no dict: 34.99% of original size (2618872 bytes)
+reference dict: 16.16% of no dict size (2195672 bytes smaller)
+our dict: 16.28% of no dict size (2192400 bytes smaller)
+```
+
+The dictionary generator only provides support for creating "raw
+content" dictionaries. Tagged dictionaries are currently unsupported.
+
+See <https://github.com/facebook/zstd/blob/dev/doc/zstd_compression_format.md#dictionary-format>
+for clarification.
 
 
 # How can you use it?

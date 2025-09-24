@@ -2,6 +2,7 @@
 **/*.rs.bk
 Cargo.lock
 /local_corpus_files
+/local_dict_corpus_files
 /orig-zstd
 fuzz_decodecorpus
 perf.data*

@@ -21,7 +21,7 @@ struct StateTracker {
     file_size: u64,
     old_percentage: i8,
 }
-
+#[allow(unused)]
 fn decompress(flags: &[String], file_paths: &[String]) {
     if !flags.contains(&"-d".to_owned()) {
         eprintln!("This zstd implementation only supports decompression. Please add a \"-d\" flag");
@@ -128,6 +128,7 @@ fn decompress(flags: &[String], file_paths: &[String]) {
     }
 }
 
+#[allow(unused)]
 struct PercentPrintReader<R: Read> {
     total: usize,
     counter: usize,
