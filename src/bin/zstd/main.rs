@@ -4,7 +4,6 @@ use progress::ProgressMonitor;
 
 use std::fs::File;
 use std::io::BufReader;
-use std::io::Read;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use std::path::PathBuf;
@@ -24,6 +23,7 @@ struct Cli {
     command: Option<Commands>,
 }
 
+// TODO: implement a dictionary creation command, and a command for benchmarking
 #[derive(Subcommand)]
 enum Commands {
     /// Compress a single file. If no output file is specified,
@@ -58,8 +58,6 @@ enum Commands {
         /// [default: <ARCHIVE_NAME>]
         output_file: Option<PathBuf>,
     },
-    GenDict {},
-    Bench {},
 }
 
 fn main() -> color_eyre::Result<()> {
@@ -98,7 +96,6 @@ fn main() -> color_eyre::Result<()> {
             );
             decompress(input_file, output_file)?;
         }
-        _ => unimplemented!(),
     }
     Ok(())
 }

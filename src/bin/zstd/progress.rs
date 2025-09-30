@@ -1,6 +1,6 @@
-//! Utilities for displaying a progress monitor to track compression/decompression/whatever else
-//! 
-//! This implementation relies heavily on the `indicatif` crate, see <https://docs.rs/indicatif>
+// ! Utilities for displaying a progress monitor to track compression/decompression/whatever else
+//!
+//! This implementation relies heavily on the `indicatif` crate, see <https://docs.rs/indicatif>cargo hack check --feature-powerset --exclude-features rustc-dep-of-std
 
 use std::io::Read;
 
@@ -47,7 +47,7 @@ impl<R: Read> ProgressMonitor<R> {
             self.progress_bar.finish_and_clear();
             info!(
                 "processed {} in {} ({}/s avg)",
-                fmt_size(self.total),
+                indicatif::HumanBytes(self.total as u64),
                 indicatif::HumanDuration(self.progress_bar.elapsed()),
                 indicatif::HumanBytes(self.total as u64 / self.progress_bar.elapsed().as_secs())
             );
