@@ -245,7 +245,7 @@ impl HuffmanTable {
                 let num_weights = header - 127;
                 self.weights.resize(num_weights as usize, 0);
 
-                let bytes_needed = if num_weights % 2 == 0 {
+                let bytes_needed = if num_weights.is_multiple_of(2) {
                     num_weights as usize / 2
                 } else {
                     (num_weights as usize / 2) + 1
