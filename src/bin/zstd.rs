@@ -1,19 +1,19 @@
 extern crate ruzstd;
-use std::ffi::OsString;
 use std::fs::File;
 use std::io::BufReader;
 use std::io::Read;
-use std::io::Seek;
-use std::io::SeekFrom;
-use std::io::Write;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use std::path::PathBuf;
-use std::time::Instant;
 
 use clap::{Parser, Subcommand};
 use color_eyre::eyre::{ContextCompat, WrapErr};
+use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
 use ruzstd::encoding::CompressionLevel;
+use tracing::info;
+use tracing_indicatif::IndicatifLayer;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 #[derive(Parser)]
 #[command(version, about)]
@@ -49,12 +49,31 @@ enum Commands {
         )]
         level: u8,
     },
-    Decompress {},
+    Decompress {
+        /// .zst archive to decompress
+        input_file: PathBuf,
+        /// Where the compressed file is written
+        /// [default: <ARCHIVE_NAME>]
+        output_file: Option<PathBuf>,
+    },
     GenDict {},
+    Bench {},
 }
 
 fn main() -> color_eyre::Result<()> {
+    // Process CLI arguments
     let cli = Cli::parse();
+    // Initialize logging (with indicatif integration)
+    let indicatif_layer = IndicatifLayer::new();
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(indicatif_layer.get_stderr_writer())
+                .without_time(),
+        )
+        .with(indicatif_layer)
+        .init();
+
     let command: Commands = cli.command.wrap_err("no subcommand provided").unwrap();
     match command {
         Commands::Compress {
@@ -65,6 +84,18 @@ fn main() -> color_eyre::Result<()> {
             let output_file = output_file.unwrap_or_else(|| add_extension(&input_file, ".zst"));
             compress(input_file, output_file, level)?;
         }
+        Commands::Decompress {
+            input_file,
+            output_file,
+        } => {
+            let output_file = output_file.unwrap_or(
+                input_file
+                    .file_stem()
+                    .expect("input has a file name")
+                    .into(),
+            );
+            decompress(input_file, output_file)?;
+        }
         _ => unimplemented!(),
     }
     Ok(())
@@ -73,8 +104,7 @@ fn main() -> color_eyre::Result<()> {
 /// A generic wrapper around a reader that keeps track of how many bytes have been read
 /// from the total.
 ///
-/// This wrapper has a lock on standard out for the lifetime of the monitor,
-/// any logging (TODO) should be done via methods on this struct
+/// This wrapper has a lock on standard out for the lifetime of the monitor
 pub struct ProgressMonitor<R: Read> {
     /// The total amount that the reader will read
     pub total: usize,
@@ -82,21 +112,40 @@ pub struct ProgressMonitor<R: Read> {
     pub read: usize,
     /// The internal reader
     reader: R,
+    progress_bar: ProgressBar,
 }
 
 impl<R: Read> ProgressMonitor<R> {
     /// Create a new progress monitor, initialized with zero bytes read
     fn new(reader: R, size: usize) -> Self {
+        // https://docs.rs/indicatif/latest/indicatif/index.html#templates
+        let style = ProgressStyle::with_template(
+            "{wide_bar} {binary_bytes}/{binary_total_bytes}  \n[est. {eta} remaining]",
+        )
+        .unwrap();
+        let progress_bar = ProgressBar::new(size as u64).with_style(style);
+        // The default is 20hz, this reduces rendering overhead
+        progress_bar.set_draw_target(ProgressDrawTarget::stderr_with_hz(8));
         Self {
             reader,
             total: size,
             read: 0,
+            progress_bar,
         }
     }
 
-    // This function is called whenever a new read is made, and is responsible for updating the UI
-    fn update(&mut self) {
-        println!("{}/{}", self.read, self.total);
+    /// This function is called whenever a new read is made, and is responsible for updating the UI
+    fn update(&mut self, delta: u64) {
+        self.progress_bar.inc(delta);
+        if self.total == self.read && !self.progress_bar.is_finished() {
+            self.progress_bar.finish_and_clear();
+            info!(
+                "processed {} in {} ({}/s avg)",
+                fmt_size(self.total),
+                indicatif::HumanDuration(self.progress_bar.elapsed()),
+                indicatif::HumanBytes(self.total as u64 / self.progress_bar.elapsed().as_secs())
+            );
+        }
     }
 }
 
@@ -106,13 +155,13 @@ impl<R: Read> Read for ProgressMonitor<R> {
         // along the way
         let out = self.reader.read(buf)?;
         self.read += out;
-        self.update();
+        self.update(out as u64);
         Ok(out)
     }
 }
 
 fn compress(input: PathBuf, output: PathBuf, level: u8) -> color_eyre::Result<()> {
-    println!("compressing {input:?} to {output:?}");
+    info!("compressing {input:?} to {output:?}");
     let compression_level: ruzstd::encoding::CompressionLevel = match level {
         0 => CompressionLevel::Uncompressed,
         1 => CompressionLevel::Fastest,
@@ -132,10 +181,31 @@ fn compress(input: PathBuf, output: PathBuf, level: u8) -> color_eyre::Result<()
     ruzstd::encoding::compress(encoder_input, &output, compression_level);
     let compressed_size = output.metadata()?.len();
     let compression_ratio = source_size as f64 / compressed_size as f64;
-    println!(
-        "\n{} ——> {} ({compression_ratio:.2})x)",
-        fmt_size(source_size as usize),
+    info!(
+        "{} ——> {} ({compression_ratio:.2}x)",
+        fmt_size(source_size),
         fmt_size(compressed_size as usize)
+    );
+    Ok(())
+}
+
+fn decompress(input: PathBuf, output: PathBuf) -> color_eyre::Result<()> {
+    info!("extracting {input:?} to {output:?}");
+    let source_file = File::open(input).wrap_err("failed to open input file")?;
+    let source_size = source_file.metadata()?.size() as usize;
+    let buffered_source = BufReader::new(source_file);
+    let decoder_input = ProgressMonitor::new(buffered_source, source_size);
+    let mut output: File =
+        File::create(output).wrap_err("failed to open output file for writing")?;
+
+    let mut decoder = ruzstd::decoding::StreamingDecoder::new(decoder_input)?;
+
+    std::io::copy(&mut decoder, &mut output)?;
+
+    info!(
+        "inflated {} ——> {}",
+        fmt_size(source_size),
+        fmt_size(output.metadata()?.len() as usize),
     );
     Ok(())
 }
@@ -164,8 +234,8 @@ fn fmt_size(size_in_bytes: usize) -> String {
 /// Pending removal when our MSRV reaches 1.91 so we can use
 ///
 /// <https://doc.rust-lang.org/std/path/struct.PathBuf.html#method.add_extension>
-fn add_extension<P: AsRef<Path>>(path: &PathBuf, extension: P) -> PathBuf {
-    let mut output = path.clone().into_os_string();
+fn add_extension<P: AsRef<Path>>(path: &Path, extension: P) -> PathBuf {
+    let mut output = path.to_path_buf().into_os_string();
     output.push(extension.as_ref().as_os_str());
 
     output.into()
