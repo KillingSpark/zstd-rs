@@ -12,13 +12,15 @@ jobs:
 
         - name: Install stable toolchain
           uses: dtolnay/rust-toolchain@stable
+          with:
+            components: clippy
         - name: Install cargo-hack
           uses: taiki-e/install-action@v2
           with:
             tool: cargo-hack
-        - run: cargo hack check --feature-powerset --exclude-features rustc-dep-of-std
-        - run: cargo hack clippy --feature-powerset --exclude-features rustc-dep-of-std
-        - run: cargo hack test --feature-powerset --exclude-features rustc-dep-of-std
+        - run: cargo hack check --workspace --feature-powerset --exclude-features rustc-dep-of-std
+        - run: cargo hack clippy --workspace --feature-powerset --exclude-features rustc-dep-of-std
+        - run: cargo hack test --workspace --feature-powerset --exclude-features rustc-dep-of-std
 
   nightly-stuff:
     name: nightly clippy, format and miri tests
@@ -33,8 +35,8 @@ jobs:
           components: rustfmt, clippy, miri
 
       - run: cargo +nightly fmt --all -- --check
-      - run: cargo +nightly clippy --no-default-features -- -D warnings
-      - run: cargo +nightly clippy -- -D warnings
+      - run: cargo +nightly clippy --workspace --no-default-features -- -D warnings
+      - run: cargo +nightly clippy --workspace -- -D warnings
       - run: cargo +nightly miri test ringbuffer
       - run: cargo +nightly miri test short_Writer
 

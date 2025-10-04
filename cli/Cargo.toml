@@ -1,0 +1,29 @@
+
+[package]
+name = "ruzstd-cli"
+version = "0.8.1"
+authors = ["Moritz Borcherding <moritz.borcherding@web.de>"]
+edition = "2018"
+license = "MIT"
+homepage = "https://github.com/KillingSpark/zstd-rs"
+repository = "https://github.com/KillingSpark/zstd-rs"
+description = "A command line interface for the `ruzstd` zstd implementation"
+readme = "../Readme.md"
+keywords = ["zstd", "zstandard", "decompression"]
+categories = ["compression"]
+
+[dependencies]
+# Used for the command line binary only
+clap = { version = "4.5.46", features = ["derive"]}
+color-eyre = { version = "0.6.5" }
+tracing = { version = "0.1.41" }
+indicatif = { version = "0.18.0" }
+tracing-indicatif = { version = "0.3.13" }
+console = { version = "0.16.1" }
+tracing-subscriber = { version = "0.3.20" }
+ruzstd = { path = "../ruzstd", features = ["std"] }
+
+[dev-dependencies]
+criterion = "0.5"
+rand = { version = "0.8.5", features = ["small_rng"] }
+zstd = "0.13.2"
