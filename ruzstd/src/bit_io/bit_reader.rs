@@ -116,7 +116,7 @@ impl core::fmt::Display for GetBitsError {
             } => {
                 write!(
                     f,
-                    "Cant serve this request. The reader is limited to {limit} bits, requested {num_requested_bits} bits",
+                    "Cant serve this request. The reader is limited to {limit} bits, requested {num_requested_bits} bits"
                 )
             }
             GetBitsError::NotEnoughRemainingBits {
@@ -125,7 +125,7 @@ impl core::fmt::Display for GetBitsError {
             } => {
                 write!(
                     f,
-                    "Can\'t read {requested} bits, only have {remaining} bits left",
+                    "Can\'t read {requested} bits, only have {remaining} bits left"
                 )
             }
         }

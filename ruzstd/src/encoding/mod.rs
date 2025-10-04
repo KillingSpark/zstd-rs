@@ -105,7 +105,7 @@ pub enum Sequence<'data> {
     /// Is encoded as a sequence for the decoder sequence execution.
     ///
     /// First the literals will be copied to the decoded data,
-    /// then `match_len` bytes are copied from `offset` bytes back in the buffer
+    /// then `match_len` bytes are copied from `offset` bytes back in the decoded data
     Triple {
         literals: &'data [u8],
         offset: usize,
