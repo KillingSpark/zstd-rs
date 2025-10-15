@@ -144,7 +144,7 @@ impl FSETable {
         self.table_size.ilog2() as u8
     }
 
-    pub fn write_table<V: AsMut<Vec<u8>>>(&self, writer: &mut BitWriter<V>) {
+    pub(crate) fn write_table<V: AsMut<Vec<u8>>>(&self, writer: &mut BitWriter<V>) {
         writer.write_bits(self.acc_log() - 5, 4);
         let mut probability_counter = 0usize;
         let probability_sum = 1 << self.acc_log();
