@@ -14,7 +14,7 @@ use super::Sequence;
 
 const MIN_MATCH_LEN: usize = 5;
 
-/// Takes care of allocating and reusing vecs
+/// This is the default implementation of the `Matcher` trait. It allocates and reuses the buffers when possible.
 pub struct MatchGeneratorDriver {
     vec_pool: Vec<Vec<u8>>,
     suffix_pool: Vec<SuffixStore>,
