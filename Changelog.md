@@ -2,10 +2,15 @@
 
 This document records the changes made between versions, starting with version 0.5.0
 
-# After 0.8.0 (Current)
+# After 0.8.2 (Current)
+
+# After 0.8.1
+* The CLI has been refactored to use `clap`
+* The MatchDriverGenerator has been made public so users can name it as `M` in `FrameCompressor<R,W,M>`
+
+# After 0.8.0
 * The compressor now includes a `content_checksum` when the `hash` feature is enabled
 * Dictionary generation has been added
-* The CLI has been refactored to use `clap`
 
 # After 0.7.3
 * Add initial compression support
