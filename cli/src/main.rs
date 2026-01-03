@@ -4,7 +4,6 @@ use progress::ProgressMonitor;
 
 use std::fs::File;
 use std::io::BufReader;
-use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -134,7 +133,7 @@ fn compress(input: PathBuf, output: PathBuf, level: u8) -> color_eyre::Result<()
 fn decompress(input: PathBuf, output: PathBuf) -> color_eyre::Result<()> {
     info!("extracting {input:?} to {output:?}");
     let source_file = File::open(input).wrap_err("failed to open input file")?;
-    let source_size = source_file.metadata()?.size() as usize;
+    let source_size = source_file.metadata()?.len() as usize;
     let buffered_source = BufReader::new(source_file);
     let decoder_input = ProgressMonitor::new(buffered_source, source_size);
     let mut output: File =
