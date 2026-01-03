@@ -71,18 +71,18 @@ fn decode_sequences_with_rle(
 
     for _seq_idx in 0..section.num_sequences {
         //get the codes from either the RLE byte or from the decoder
-        let ll_code = if scratch.ll_rle.is_some() {
-            scratch.ll_rle.unwrap()
+        let ll_code = if let Some(ll_rle) = scratch.ll_rle {
+            ll_rle
         } else {
             ll_dec.decode_symbol()
         };
-        let ml_code = if scratch.ml_rle.is_some() {
-            scratch.ml_rle.unwrap()
+        let ml_code = if let Some(ml_rle) = scratch.ml_rle {
+            ml_rle
         } else {
             ml_dec.decode_symbol()
         };
-        let of_code = if scratch.of_rle.is_some() {
-            scratch.of_rle.unwrap()
+        let of_code = if let Some(of_rle) = scratch.of_rle {
+            of_rle
         } else {
             of_dec.decode_symbol()
         };
