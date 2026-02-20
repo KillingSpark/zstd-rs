@@ -154,7 +154,7 @@ impl RingBuffer {
 
         self.reserve(len);
 
-        debug_assert!(self.len() + len <= self.cap - 1);
+        debug_assert!(self.len() + len < self.cap);
         debug_assert!(self.free() >= len, "free: {} len: {}", self.free(), len);
 
         let ((f1_ptr, f1_len), (f2_ptr, f2_len)) = self.free_slice_parts();
