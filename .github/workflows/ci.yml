@@ -4,7 +4,7 @@ name: CI
 
 jobs:
   tests:
-      name: Check
+      name: stable lint, test, build
       runs-on: ubuntu-latest
       steps:
         - name: Checkout sources
@@ -14,16 +14,23 @@ jobs:
           uses: dtolnay/rust-toolchain@stable
           with:
             components: clippy
-        - name: Install cargo-hack
+        - name: Install cargo-hack and cargo-msrv
           uses: taiki-e/install-action@v2
           with:
-            tool: cargo-hack
-        - run: cargo hack check --workspace --feature-powerset --exclude-features rustc-dep-of-std
-        - run: cargo hack clippy --workspace --feature-powerset --exclude-features rustc-dep-of-std
-        - run: cargo hack test --workspace --feature-powerset --exclude-features rustc-dep-of-std
+            tool: cargo-hack, cargo-msrv
+        - name: check
+          run: cargo hack check --workspace --feature-powerset --exclude-features rustc-dep-of-std
+        - name: cargo hack clippy
+          run: cargo hack clippy --workspace --feature-powerset --exclude-features rustc-dep-of-std
+        - name: cargo hack test
+          run: cargo hack test --workspace --feature-powerset --exclude-features rustc-dep-of-std
+        - name: Verify MSRV (cli)
+          run: cargo msrv verify --path cli/
+        - name: Verify MSRV (lib)
+          run: cargo msrv verify --path ruzstd/
 
   nightly-stuff:
-    name: nightly clippy, format and miri tests
+    name: nightly lint, miri
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
@@ -39,4 +46,3 @@ jobs:
       - run: cargo +nightly clippy --workspace -- -D warnings
       - run: cargo +nightly miri test ringbuffer
       - run: cargo +nightly miri test short_Writer
-

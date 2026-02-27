@@ -369,7 +369,7 @@ pub(super) fn build_table_from_probabilities(probs: &[i32], acc_log: u8) -> FSET
         let state = &mut states[symbol];
 
         // We process the states in their order in the table
-        state.states.sort_by(|l, r| l.index.cmp(&r.index));
+        state.states.sort_by_key(|l| l.index);
 
         let prob_log = if prob.is_power_of_two() {
             prob.ilog2()
@@ -401,7 +401,7 @@ pub(super) fn build_table_from_probabilities(probs: &[i32], acc_log: u8) -> FSET
         }
 
         // For encoding we use the states ordered by the indexes they target
-        state.states.sort_by(|l, r| l.baseline.cmp(&r.baseline));
+        state.states.sort_by_key(|l| l.baseline);
     }
 
     FSETable {
