@@ -58,11 +58,10 @@ fn decompress_literals(
             bytes_read += scratch.table.build_decoder(source)?;
             vprintln!("Built huffman table using {} bytes", bytes_read);
         }
-        LiteralsSectionType::Treeless => {
-            if scratch.table.max_num_bits == 0 {
-                return Err(err::UninitializedHuffmanTable);
-            }
+        LiteralsSectionType::Treeless if scratch.table.max_num_bits == 0 => {
+            return Err(err::UninitializedHuffmanTable);
         }
+
         _ => { /* nothing to do, huffman tree has been provided by previous block */ }
     }
 
