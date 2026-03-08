@@ -132,6 +132,10 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
         // Clearing buffers to allow re-using of the compressor
         self.state.matcher.reset(self.compression_level);
         self.state.last_huff_table = None;
+        #[cfg(feature = "hash")]
+        {
+            self.hasher = XxHash64::with_seed(0);
+        }
         let source = self.uncompressed_data.as_mut().unwrap();
         let drain = self.compressed_data.as_mut().unwrap();
         // As the frame is compressed, it's stored here
