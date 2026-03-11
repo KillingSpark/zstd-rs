@@ -132,6 +132,10 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
         // Clearing buffers to allow re-using of the compressor
         self.state.matcher.reset(self.compression_level);
         self.state.last_huff_table = None;
+        #[cfg(feature = "hash")]
+        {
+            self.hasher = XxHash64::with_seed(0);
+        }
         let source = self.uncompressed_data.as_mut().unwrap();
         let drain = self.compressed_data.as_mut().unwrap();
         // As the frame is compressed, it's stored here
@@ -361,6 +365,70 @@ mod tests {
         let mut decoded = Vec::new();
         zstd::stream::copy_decode(output.as_slice(), &mut decoded).unwrap();
         assert_eq!(mock_data, decoded);
+    }
+
+    #[cfg(feature = "hash")]
+    #[test]
+    fn checksum_two_frames_reused_compressor() {
+        // Compress the same data twice using the same compressor and verify that:
+        // 1. The checksum written in each frame matches what the decoder calculates.
+        // 2. The hasher is correctly reset between frames (no cross-contamination).
+        //    If the hasher were NOT reset, the second frame's calculated checksum
+        //    would differ from the one stored in the frame data, causing assert_eq to fail.
+        let data: Vec<u8> = (0u8..=255).cycle().take(1024).collect();
+
+        let mut compressor = FrameCompressor::new(super::CompressionLevel::Uncompressed);
+
+        // --- Frame 1 ---
+        let mut compressed1 = Vec::new();
+        compressor.set_source(data.as_slice());
+        compressor.set_drain(&mut compressed1);
+        compressor.compress();
+
+        // --- Frame 2 (reuse the same compressor) ---
+        let mut compressed2 = Vec::new();
+        compressor.set_source(data.as_slice());
+        compressor.set_drain(&mut compressed2);
+        compressor.compress();
+
+        fn decode_and_collect(compressed: &[u8]) -> (Vec<u8>, Option<u32>, Option<u32>) {
+            let mut decoder = FrameDecoder::new();
+            let mut source = compressed;
+            decoder.reset(&mut source).unwrap();
+            while !decoder.is_finished() {
+                decoder
+                    .decode_blocks(&mut source, crate::decoding::BlockDecodingStrategy::All)
+                    .unwrap();
+            }
+            let mut decoded = Vec::new();
+            decoder.collect_to_writer(&mut decoded).unwrap();
+            (
+                decoded,
+                decoder.get_checksum_from_data(),
+                decoder.get_calculated_checksum(),
+            )
+        }
+
+        let (decoded1, chksum_from_data1, chksum_calculated1) = decode_and_collect(&compressed1);
+        assert_eq!(decoded1, data, "frame 1: decoded data mismatch");
+        assert_eq!(
+            chksum_from_data1, chksum_calculated1,
+            "frame 1: checksum mismatch"
+        );
+
+        let (decoded2, chksum_from_data2, chksum_calculated2) = decode_and_collect(&compressed2);
+        assert_eq!(decoded2, data, "frame 2: decoded data mismatch");
+        assert_eq!(
+            chksum_from_data2, chksum_calculated2,
+            "frame 2: checksum mismatch"
+        );
+
+        // Same data compressed twice must produce the same checksum.
+        // If state leaked across frames, the second calculated checksum would differ.
+        assert_eq!(
+            chksum_from_data1, chksum_from_data2,
+            "frame 1 and frame 2 should have the same checksum (same data, hash must reset per frame)"
+        );
     }
 
     #[cfg(feature = "std")]

@@ -7,3 +7,4 @@ Cargo.lock
 fuzz_decodecorpus
 perf.data*
 fuzz/corpus
+.idea
