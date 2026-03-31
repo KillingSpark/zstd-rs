@@ -149,3 +149,6 @@ This will tell you where the decoder panics exactly. If you are able to fix the 
 # Contributing
 
 Contributions will be published under the same MIT license as this project. Please make an entry in the Changelog.md file when you make a PR.
+
+## AI Contributions
+Contributions may be created by using whatever tools you like. They must be read, verified and decided to be a value added to the project by a human (you! not a maintainer) before submitting a PR and the communication about the PR must be handled by a human and not an agent. This is meant to be more or less in the spirit of the [LLVM policy](https://llvm.org/docs/AIToolPolicy.html) adapted to a much smaller project.
