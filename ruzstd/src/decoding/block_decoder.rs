@@ -79,7 +79,15 @@ impl BlockDecoder {
                 Ok(1)
             }
             BlockType::Raw => {
+                // On deeply embedded targets (e.g. Xtensa ESP32 tasks with
+                // ~40 KiB stacks), the default 128 KiB stack buffer overflows
+                // the task stack. The `small-stack` feature shrinks it to
+                // 1 KiB at the cost of more read/push iterations per block.
+                #[cfg(not(feature = "small-stack"))]
                 const BATCH_SIZE: usize = 128 * 1024;
+                #[cfg(feature = "small-stack")]
+                const BATCH_SIZE: usize = 1024;
+
                 let mut buf = [0u8; BATCH_SIZE];
                 let full_reads = header.decompressed_size / BATCH_SIZE as u32;
                 let single_read_size = header.decompressed_size % BATCH_SIZE as u32;

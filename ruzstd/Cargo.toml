@@ -35,6 +35,11 @@ dict_builder = ["std", "dep:fastrand"]
 hash = ["dep:twox-hash"]
 fuzz_exports = []
 std = []
+# Reduce the stack buffer used when streaming Raw blocks from 128 KiB to 1 KiB.
+# Targets deeply embedded platforms (e.g. Xtensa ESP32 tasks with ~40 KiB
+# stacks) where the default would overflow. Comes at a small throughput cost
+# for Raw-heavy streams due to more read/push iterations.
+small-stack = []
 
 # Internal feature, only used when building as part of libstd, not part of the
 # stable interface of this crate.
