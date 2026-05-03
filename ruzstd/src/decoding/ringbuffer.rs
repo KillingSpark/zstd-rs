@@ -1,3 +1,4 @@
+use crate::io::Read;
 use alloc::alloc::{alloc, dealloc};
 use core::{alloc::Layout, ptr::NonNull, slice};
 
@@ -463,6 +464,9 @@ impl RingBuffer {
     }
 
     pub fn extend_and_fill(&mut self, fill_with: u8, fill_length: usize) {
+        if fill_length == 0 {
+            return;
+        }
         self.reserve(fill_length);
         let ((ptr1, len1), (ptr2, len2)) = self.free_slice_parts();
         debug_assert!(len1 + len2 >= fill_length);
@@ -477,7 +481,37 @@ impl RingBuffer {
                 ptr2.write_bytes(fill_with, fill2);
             }
         }
-        self.tail = (self.tail + fill_length) % self.cap
+        self.tail = (self.tail + fill_length) % self.cap;
+    }
+
+    pub fn extend_from_reader<R: Read>(
+        &mut self,
+        mut read: R,
+        fill_length: usize,
+    ) -> Result<(), crate::io::Error> {
+        if fill_length == 0 {
+            return Ok(());
+        }
+        self.reserve(fill_length);
+        let ((ptr1, len1), (ptr2, len2)) = self.free_slice_parts();
+        debug_assert!(len1 + len2 >= fill_length);
+        let fill1 = usize::min(len1, fill_length);
+        let s1 = unsafe {
+            ptr1.write_bytes(0, fill1);
+            slice::from_raw_parts_mut(ptr1, fill1)
+        };
+        read.read_exact(s1)?;
+        if fill1 < fill_length {
+            let fill2 = fill_length - fill1;
+            debug_assert_eq!(fill_length, fill1 + fill2);
+            let s2 = unsafe {
+                ptr2.write_bytes(0, fill2);
+                slice::from_raw_parts_mut(ptr2, fill2)
+            };
+            read.read_exact(s2)?;
+        }
+        self.tail = (self.tail + fill_length) % self.cap;
+        Ok(())
     }
 
     #[allow(dead_code)]

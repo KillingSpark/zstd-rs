@@ -69,29 +69,13 @@ impl BlockDecoder {
                 Ok(1)
             }
             BlockType::Raw => {
-                const BATCH_SIZE: usize = 128 * 1024;
-                let mut buf = [0u8; BATCH_SIZE];
-                let full_reads = header.decompressed_size / BATCH_SIZE as u32;
-                let single_read_size = header.decompressed_size % BATCH_SIZE as u32;
-
-                for _ in 0..full_reads {
-                    source.read_exact(&mut buf[..]).map_err(|err| {
-                        DecodeBlockContentError::ReadError {
-                            step: block_type,
-                            source: err,
-                        }
-                    })?;
-                    workspace.buffer.push(&buf[..]);
-                }
-
-                let smaller = &mut buf[..single_read_size as usize];
-                source
-                    .read_exact(smaller)
+                workspace
+                    .buffer
+                    .extend_from_reader(&mut source, header.decompressed_size as usize)
                     .map_err(|err| DecodeBlockContentError::ReadError {
                         step: block_type,
                         source: err,
                     })?;
-                workspace.buffer.push(smaller);
 
                 self.internal_state = DecoderState::ReadyToDecodeNextHeader;
                 Ok(u64::from(header.decompressed_size))

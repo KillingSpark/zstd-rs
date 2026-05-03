@@ -63,6 +63,14 @@ impl DecodeBuffer {
         self.buffer.extend_and_fill(fill_with, fill_length);
     }
 
+    pub fn extend_from_reader<R: Read>(
+        &mut self,
+        read: R,
+        fill_length: usize,
+    ) -> Result<(), crate::io::Error> {
+        self.buffer.extend_from_reader(read, fill_length)
+    }
+
     pub fn push(&mut self, data: &[u8]) {
         self.buffer.extend(data);
         self.total_output_counter += data.len() as u64;
