@@ -43,7 +43,7 @@ pub fn compress_to_vec<R: Read>(source: R, level: CompressionLevel) -> Vec<u8> {
 /// The compression mode used impacts the speed of compression,
 /// and resulting compression ratios. Faster compression will result
 /// in worse compression ratios, and vice versa.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum CompressionLevel {
     /// This level does not compress the data at all, and simply wraps
     /// it in a Zstandard frame.
