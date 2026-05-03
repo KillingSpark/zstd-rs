@@ -216,10 +216,7 @@ impl FrameDecoder {
 
     /// Returns the checksum that was read from the data. Only available after all bytes have been read. It is the last 4 bytes of a zstd-frame
     pub fn get_checksum_from_data(&self) -> Option<u32> {
-        let state = match &self.state {
-            None => return None,
-            Some(s) => s,
-        };
+        let state = self.state.as_ref()?;
 
         state.check_sum
     }
@@ -230,10 +227,7 @@ impl FrameDecoder {
     pub fn get_calculated_checksum(&self) -> Option<u32> {
         use core::hash::Hasher;
 
-        let state = match &self.state {
-            None => return None,
-            Some(s) => s,
-        };
+        let state = self.state.as_ref()?;
         let cksum_64bit = state.decoder_scratch.buffer.hash.finish();
         //truncate to lower 32bit because reasons...
         Some(cksum_64bit as u32)
