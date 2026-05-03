@@ -462,6 +462,24 @@ impl RingBuffer {
         self.tail = (self.tail + len) % self.cap;
     }
 
+    pub fn extend_and_fill(&mut self, fill_with: u8, fill_length: usize) {
+        self.reserve(fill_length);
+        let ((ptr1, len1), (ptr2, len2)) = self.free_slice_parts();
+        debug_assert!(len1 + len2 >= fill_length);
+        let fill1 = usize::min(len1, fill_length);
+        unsafe {
+            ptr1.write_bytes(fill_with, fill1);
+        }
+        if fill1 < fill_length {
+            let fill2 = fill_length - fill1;
+            debug_assert_eq!(fill_length, fill1 + fill2);
+            unsafe {
+                ptr2.write_bytes(fill_with, fill2);
+            }
+        }
+        self.tail = (self.tail + fill_length) % self.cap
+    }
+
     #[allow(dead_code)]
     /// This function is functionally the same as [RingBuffer::extend_from_within_unchecked],
     /// but it does not contain any branching operations.

@@ -53,28 +53,18 @@ impl BlockDecoder {
         let block_type = header.block_type;
         match block_type {
             BlockType::RLE => {
-                const BATCH_SIZE: usize = 512;
-                let mut buf = [0u8; BATCH_SIZE];
-                let full_reads = header.decompressed_size / BATCH_SIZE as u32;
-                let single_read_size = header.decompressed_size % BATCH_SIZE as u32;
-
-                source.read_exact(&mut buf[0..1]).map_err(|err| {
+                let mut buf = [0u8; 1];
+                source.read_exact(&mut buf[..]).map_err(|err| {
                     DecodeBlockContentError::ReadError {
                         step: block_type,
                         source: err,
                     }
                 })?;
+                workspace
+                    .buffer
+                    .extend_and_fill(buf[0], header.decompressed_size as usize);
+
                 self.internal_state = DecoderState::ReadyToDecodeNextHeader;
-
-                for i in 1..BATCH_SIZE {
-                    buf[i] = buf[0];
-                }
-
-                for _ in 0..full_reads {
-                    workspace.buffer.push(&buf[..]);
-                }
-                let smaller = &mut buf[..single_read_size as usize];
-                workspace.buffer.push(smaller);
 
                 Ok(1)
             }
