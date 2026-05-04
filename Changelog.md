@@ -4,6 +4,10 @@ This document records the changes made between versions, starting with version 0
 
 # After 0.8.2 (Current)
 * Introduce the `rust-version` field
+* Fix checksum generation when repeatedly using the encoder
+* Expose decoding::Dictionary as public
+* Add Debug derive to CompressionLevel enum
+* Make RLE and Raw block decoding more efficient and not use intermediary buffer on the stack
 
 # After 0.8.1
 * The CLI has been refactored to use `clap`
