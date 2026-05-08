@@ -1,6 +1,6 @@
 [package]
 name = "ruzstd"
-version = "0.8.3"
+version = "0.8.4"
 rust-version = "1.87"
 authors = ["Moritz Borcherding <moritz.borcherding@web.de>"]
 edition = "2018"

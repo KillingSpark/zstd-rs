@@ -2,7 +2,9 @@
 
 This document records the changes made between versions, starting with version 0.5.0
 
-# After 0.8.2 (Current)
+# After 0.8.3 (Current)
+
+# After 0.8.2
 * Introduce the `rust-version` field
 * Fix checksum generation when repeatedly using the encoder
 * Expose decoding::Dictionary as public
