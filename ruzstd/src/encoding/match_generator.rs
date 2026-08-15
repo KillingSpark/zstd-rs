@@ -67,11 +67,19 @@ impl Matcher for MatchGeneratorDriver {
 
     fn commit_space(&mut self, space: Vec<u8>) {
         let vec_pool = &mut self.vec_pool;
-        let suffixes = self
-            .suffix_pool
-            .pop()
-            .unwrap_or_else(|| SuffixStore::with_capacity(space.len()));
         let suffix_pool = &mut self.suffix_pool;
+        const SUFFIX_STORE_MIN_CAPACITY: usize = 1024;
+        let requested_suffix_store_size =
+            usize::max(SUFFIX_STORE_MIN_CAPACITY, space.len().next_power_of_two());
+        let requested_size_log = requested_suffix_store_size.ilog2();
+        let suffix_store_idx = suffix_pool
+            .iter()
+            .enumerate()
+            .find(|(_, store)| store.len_log >= requested_size_log)
+            .map(|(idx, _)| idx);
+        let suffixes = suffix_store_idx
+            .map(|idx| suffix_pool.remove(idx))
+            .unwrap_or_else(|| SuffixStore::with_capacity(requested_suffix_store_size));
         self.match_generator
             .add_data(space, suffixes, |mut data, mut suffixes| {
                 data.resize(data.capacity(), 0);
