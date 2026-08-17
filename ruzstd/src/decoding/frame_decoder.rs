@@ -16,10 +16,13 @@ use core::convert::TryInto;
 
 /// The default maximum window size, in bytes, that a [FrameDecoder] accepts.
 ///
-/// Defaults to 100mb to bound allocation for malformed or hostile frames. The
+/// Defaults to 128mb to bound allocation for malformed or hostile frames. The
 /// spec permits far larger windows, so raise the limit with
 /// [FrameDecoder::set_max_window_size] for input you trust.
-pub const DEFAULT_MAX_WINDOW_SIZE: u64 = 1024 * 1024 * 100;
+///
+/// See [ZSTD_d_maxWindowLog](https://github.com/facebook/zstd/wiki/Using-libzstd-in-a-memory-constrained-environment#zstd_d_maxwindowlog)
+/// for compatibility concerns.
+pub const DEFAULT_MAX_WINDOW_SIZE: u64 = 1024 * 1024 * 128;
 
 /// Low level Zstandard decoder that can be used to decompress frames with fine control over when and how many bytes are decoded.
 ///
