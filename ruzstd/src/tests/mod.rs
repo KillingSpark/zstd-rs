@@ -210,11 +210,7 @@ fn test_decode_from_to() {
     }
 
     let mut counter = 0;
-    let min = if original.len() < result.len() {
-        original.len()
-    } else {
-        result.len()
-    };
+    let min = result.len();
     for idx in 0..min {
         if original[idx] != result[idx] {
             counter += 1;
@@ -316,11 +312,7 @@ fn test_streaming() {
     }
 
     let mut counter = 0;
-    let min = if original.len() < result.len() {
-        original.len()
-    } else {
-        result.len()
-    };
+    let min = result.len();
     for idx in 0..min {
         if original[idx] != result[idx] {
             counter += 1;
@@ -360,11 +352,7 @@ fn test_streaming() {
     }
 
     let mut counter = 0;
-    let min = if original.len() < result.len() {
-        original.len()
-    } else {
-        result.len()
-    };
+    let min = result.len();
     for idx in 0..min {
         if original[idx] != result[idx] {
             counter += 1;
@@ -425,11 +413,7 @@ fn test_streaming_no_std() {
     }
 
     let mut counter = 0;
-    let min = if original.len() < result.len() {
-        original.len()
-    } else {
-        result.len()
-    };
+    let min = result.len();
     for idx in 0..min {
         if original[idx] != result[idx] {
             counter += 1;
@@ -468,11 +452,7 @@ fn test_streaming_no_std() {
     }
 
     let mut counter = 0;
-    let min = if original.len() < result.len() {
-        original.len()
-    } else {
-        result.len()
-    };
+    let min = result.len();
     for idx in 0..min {
         if original[idx] != result[idx] {
             counter += 1;
