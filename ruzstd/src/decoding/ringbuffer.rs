@@ -74,11 +74,17 @@ impl RingBuffer {
         // SAFETY: if we were succesfully able to construct this layout when we allocated then it's also valid do so now
         let current_layout = unsafe { Layout::array::<u8>(self.cap).unwrap_unchecked() };
 
+        // A decode buffer ends at a power-of-two window plus one undrained block
+        // and the block being decoded, so sizes of that shape land on it exactly.
+        const SLACK: usize = 2 * crate::common::MAX_BLOCK_SIZE as usize;
+        let required = self.cap + amount;
+
         // Always have at least 1 unused element as the sentinel.
-        let new_cap = usize::max(
-            self.cap.next_power_of_two(),
-            (self.cap + amount).next_power_of_two(),
-        ) + 1;
+        let new_cap = if required <= SLACK {
+            usize::max(self.cap.next_power_of_two(), required.next_power_of_two()) + 1
+        } else {
+            (required - SLACK).next_power_of_two() + SLACK + 1
+        };
 
         // Check that the capacity isn't bigger than isize::MAX, which is the max allowed by LLVM, or that
         // we are on a >= 64 bit system which will never allow that much memory to be allocated
