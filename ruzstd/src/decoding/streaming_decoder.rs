@@ -123,18 +123,11 @@ impl<READ: Read, DEC: BorrowMut<FrameDecoder>> Read for StreamingDecoder<READ, D
             return Ok(0);
         }
 
-        // need to loop. The UpToBytes strategy doesn't take any effort to actually reach that limit.
-        // The first few calls can result in just filling the decode buffer but these bytes can not be collected.
-        // So we need to call this until we can actually collect enough bytes
-
-        // TODO add BlockDecodingStrategy::UntilCollectable(usize) that pushes this logic into the decode_blocks function
-        while decoder.can_collect() < buf.len() && !decoder.is_finished() {
-            //More bytes can be decoded
-            let additional_bytes_needed = buf.len() - decoder.can_collect();
-            match decoder.decode_blocks(
-                &mut self.source,
-                BlockDecodingStrategy::UptoBytes(additional_bytes_needed),
-            ) {
+        // A short read is allowed, and waiting for `buf.len()` to be collectable
+        // would hold the whole request on top of the window, sizing the buffer by
+        // the caller rather than the frame.
+        while decoder.can_collect() == 0 && !decoder.is_finished() {
+            match decoder.decode_blocks(&mut self.source, BlockDecodingStrategy::UptoBlocks(1)) {
                 Ok(_) => { /*Nothing to do*/ }
                 Err(e) => {
                     let err;
