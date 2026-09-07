@@ -71,6 +71,55 @@ fn roundtrip() {
     }
 }
 
+#[test]
+fn degenerate_single_symbol_round_trip() {
+    // Regression: single-symbol data used to panic in table build or overrun the table description write.
+    use crate::bit_io::{BitReaderReversed, BitWriter};
+    use fse_encoder::FSEEncoder;
+
+    for symbol in [0u8, 200] {
+        let data = alloc::vec![symbol; 64];
+
+        let mut writer = BitWriter::new();
+        let mut encoder = FSEEncoder::new(
+            fse_encoder::build_table_from_data(data.iter().copied(), 9, true),
+            &mut writer,
+        );
+        encoder.encode(&data);
+        let acc_log = encoder.acc_log();
+        let enc_table = encoder.into_table();
+        let encoded = writer.dump();
+
+        let mut dec_table = FSETable::new(255);
+        let table_bytes = dec_table.build_decoder(&encoded, acc_log).unwrap();
+        check_tables(&dec_table, &enc_table);
+
+        let mut br = BitReaderReversed::new(&encoded[table_bytes..]);
+        let mut skipped_bits = 0;
+        loop {
+            let val = br.get_bits(1);
+            skipped_bits += 1;
+            if val == 1 || skipped_bits > 8 {
+                break;
+            }
+        }
+        assert!(skipped_bits <= 8, "Corrupted end marker");
+
+        let mut decoder = FSEDecoder::new(&dec_table);
+        decoder.init_state(&mut br).unwrap();
+        let mut decoded = alloc::vec::Vec::new();
+        for _ in 0..data.len() {
+            decoded.push(decoder.decode_symbol());
+            if decoded.len() < data.len() {
+                decoder.update_state(&mut br);
+            }
+        }
+
+        assert_eq!(&decoded, &data);
+        assert_eq!(br.bits_remaining(), 0);
+    }
+}
+
 /// Only needed for testing.
 ///
 /// Encodes the data with a table built from that data
