@@ -47,6 +47,8 @@ impl RingBuffer {
     /// Return the amount of available space (in bytes) of the buffer.
     pub fn free(&self) -> usize {
         let (x, y) = self.free_slice_lengths();
+
+        // We always keep one free slot as a sentinel
         (x + y).saturating_sub(1)
     }
 
@@ -75,16 +77,16 @@ impl RingBuffer {
         let current_layout = unsafe { Layout::array::<u8>(self.cap).unwrap_unchecked() };
 
         // We always need at least 1 unused element as the sentinel, so add 1 to the required capacity
-        let required = self.cap + amount + 1;
+        let required = self.cap + amount;
 
         // We still grow exponentionally but only when the demand exceeds 2^k + 2 blocks
         // This is where the demand commonly settles when we have reached the window size (commonly a 2^k)
         // And the user code is regularly collecting chunks of decoded data
         const SLACK: usize = 2 * crate::common::MAX_BLOCK_SIZE as usize;
         let new_cap = if required <= SLACK {
-            usize::max(self.cap.next_power_of_two(), required.next_power_of_two())
+            usize::max(self.cap.next_power_of_two(), required.next_power_of_two()) + 1
         } else {
-            (required - SLACK).next_power_of_two() + SLACK
+            (required - SLACK).next_power_of_two() + SLACK + 1
         };
 
         vprintln!("Reallocate ringbuffer to fit: {} KB", new_cap / 1024);
@@ -801,7 +803,7 @@ mod tests {
         let mut rb = RingBuffer::new();
 
         rb.reserve(15);
-        assert_eq!(16, rb.cap);
+        assert_eq!(17, rb.cap);
 
         rb.extend(b"0123456789");
         assert_eq!(rb.len(), 10);
@@ -823,20 +825,20 @@ mod tests {
         assert_eq!(rb.as_slices().0, b"56789789567");
         assert_eq!(rb.as_slices().1, b"");
 
-        rb.extend_from_within(0, 1);
-        assert_eq!(rb.len(), 12);
-        assert_eq!(rb.as_slices().0, b"56789789567");
-        assert_eq!(rb.as_slices().1, b"5");
+        rb.extend_from_within(0, 2);
+        assert_eq!(rb.len(), 13);
+        assert_eq!(rb.as_slices().0, b"567897895675");
+        assert_eq!(rb.as_slices().1, b"6");
 
-        rb.drop_first_n(10);
+        rb.drop_first_n(11);
         assert_eq!(rb.len(), 2);
-        assert_eq!(rb.as_slices().0, b"7");
-        assert_eq!(rb.as_slices().1, b"5");
+        assert_eq!(rb.as_slices().0, b"5");
+        assert_eq!(rb.as_slices().1, b"6");
 
         rb.extend(b"0123456789");
         assert_eq!(rb.len(), 12);
-        assert_eq!(rb.as_slices().0, b"7");
-        assert_eq!(rb.as_slices().1, b"50123456789");
+        assert_eq!(rb.as_slices().0, b"5");
+        assert_eq!(rb.as_slices().1, b"60123456789");
 
         rb.drop_first_n(11);
         assert_eq!(rb.len(), 1);
@@ -845,8 +847,8 @@ mod tests {
 
         rb.extend(b"0123456789");
         assert_eq!(rb.len(), 11);
-        assert_eq!(rb.as_slices().0, b"901234");
-        assert_eq!(rb.as_slices().1, b"56789");
+        assert_eq!(rb.as_slices().0, b"9012345");
+        assert_eq!(rb.as_slices().1, b"6789");
     }
 
     #[test]
@@ -854,82 +856,80 @@ mod tests {
         // Fill exactly, then empty then fill again
         let mut rb = RingBuffer::new();
         rb.reserve(16);
-        assert_eq!(32, rb.cap);
-        rb.extend(b"0123456789012345678901234567890");
-        assert_eq!(32, rb.cap);
-        assert_eq!(31, rb.len());
+        assert_eq!(17, rb.cap);
+        rb.extend(b"0123456789012345");
+        assert_eq!(17, rb.cap);
+        assert_eq!(16, rb.len());
         assert_eq!(0, rb.free());
-        rb.drop_first_n(31);
+        rb.drop_first_n(16);
         assert_eq!(0, rb.len());
-        assert_eq!(31, rb.free());
-        rb.extend(b"0123456789012345678901234567890");
-        assert_eq!(31, rb.len());
+        assert_eq!(16, rb.free());
+        rb.extend(b"0123456789012345");
+        assert_eq!(16, rb.len());
         assert_eq!(0, rb.free());
-        assert_eq!(32, rb.cap);
+        assert_eq!(17, rb.cap);
         assert_eq!(1, rb.as_slices().0.len());
-        assert_eq!(30, rb.as_slices().1.len());
+        assert_eq!(15, rb.as_slices().1.len());
 
         rb.clear();
 
         // data in both slices and then reserve
-        rb.extend(b"0123456789012345678901234567890");
+        rb.extend(b"0123456789012345");
         rb.drop_first_n(8);
         rb.extend(b"67890123");
-        assert_eq!(31, rb.len());
+        assert_eq!(16, rb.len());
         assert_eq!(0, rb.free());
-        assert_eq!(32, rb.cap);
-        assert_eq!(24, rb.as_slices().0.len());
+        assert_eq!(17, rb.cap);
+        assert_eq!(9, rb.as_slices().0.len());
         assert_eq!(7, rb.as_slices().1.len());
         rb.reserve(1);
-        assert_eq!(31, rb.len());
-        assert_eq!(32, rb.free());
-        assert_eq!(64, rb.cap);
-        assert_eq!(31, rb.as_slices().0.len());
+        assert_eq!(16, rb.len());
+        assert_eq!(16, rb.free());
+        assert_eq!(33, rb.cap);
+        assert_eq!(16, rb.as_slices().0.len());
         assert_eq!(0, rb.as_slices().1.len());
 
         rb.clear();
 
         // fill exactly, then extend from within
-        rb.extend(b"0123456789012345678901234567890");
+        rb.extend(b"0123456789012345");
         rb.extend_from_within(0, 16);
-        rb.extend_from_within(0, 16);
-        assert_eq!(63, rb.len());
+        assert_eq!(32, rb.len());
         assert_eq!(0, rb.free());
-        assert_eq!(64, rb.cap);
-        assert_eq!(63, rb.as_slices().0.len());
+        assert_eq!(33, rb.cap);
+        assert_eq!(32, rb.as_slices().0.len());
         assert_eq!(0, rb.as_slices().1.len());
 
         // extend from within cases
         let mut rb = RingBuffer::new();
-        rb.reserve(15);
-        rb.extend(b"012345678901234");
+        rb.reserve(8);
+        rb.extend(b"01234567");
         rb.drop_first_n(5);
         rb.extend_from_within(0, 3);
-        assert_eq!(11, rb.as_slices().0.len());
+        assert_eq!(4, rb.as_slices().0.len());
         assert_eq!(2, rb.as_slices().1.len());
 
         rb.drop_first_n(2);
-        assert_eq!(9, rb.as_slices().0.len());
+        assert_eq!(2, rb.as_slices().0.len());
         assert_eq!(2, rb.as_slices().1.len());
         rb.extend_from_within(0, 4);
-        assert_eq!(9, rb.as_slices().0.len());
+        assert_eq!(2, rb.as_slices().0.len());
         assert_eq!(6, rb.as_slices().1.len());
 
-        rb.drop_first_n(9);
+        rb.drop_first_n(2);
         assert_eq!(6, rb.as_slices().0.len());
         assert_eq!(0, rb.as_slices().1.len());
         rb.drop_first_n(2);
         assert_eq!(4, rb.as_slices().0.len());
         assert_eq!(0, rb.as_slices().1.len());
         rb.extend_from_within(0, 4);
-        rb.extend_from_within(0, 7);
-        assert_eq!(14, rb.as_slices().0.len());
+        assert_eq!(7, rb.as_slices().0.len());
         assert_eq!(1, rb.as_slices().1.len());
 
         let mut rb = RingBuffer::new();
-        rb.reserve(15);
-        rb.extend(b"111111111111111");
-        rb.drop_first_n(14);
+        rb.reserve(8);
+        rb.extend(b"11111111");
+        rb.drop_first_n(7);
         rb.extend(b"111");
         assert_eq!(2, rb.as_slices().0.len());
         assert_eq!(2, rb.as_slices().1.len());
