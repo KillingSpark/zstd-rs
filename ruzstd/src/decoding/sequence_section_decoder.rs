@@ -214,29 +214,32 @@ fn decode_sequences_without_rle(
     const UNROLL: u32 = 4;
     if section.num_sequences > UNROLL {
         while seq_idx < section.num_sequences - UNROLL {
-            let sequence = decode_sequence_without_rle(br, &mut ll_dec, &mut ml_dec, &mut of_dec)?;
+            let sequence1 = decode_sequence_without_rle(br, &mut ll_dec, &mut ml_dec, &mut of_dec)?;
             ll_dec.update_state(br);
             ml_dec.update_state(br);
             of_dec.update_state(br);
-            execute_sequence(scratch, sequence)?;
 
-            let sequence = decode_sequence_without_rle(br, &mut ll_dec, &mut ml_dec, &mut of_dec)?;
+            let sequence2 = decode_sequence_without_rle(br, &mut ll_dec, &mut ml_dec, &mut of_dec)?;
             ll_dec.update_state(br);
             ml_dec.update_state(br);
             of_dec.update_state(br);
-            execute_sequence(scratch, sequence)?;
 
-            let sequence = decode_sequence_without_rle(br, &mut ll_dec, &mut ml_dec, &mut of_dec)?;
-            ll_dec.update_state(br);
-            ml_dec.update_state(br);
-            of_dec.update_state(br);
-            execute_sequence(scratch, sequence)?;
 
-            let sequence = decode_sequence_without_rle(br, &mut ll_dec, &mut ml_dec, &mut of_dec)?;
+            let sequence3 = decode_sequence_without_rle(br, &mut ll_dec, &mut ml_dec, &mut of_dec)?;
             ll_dec.update_state(br);
             ml_dec.update_state(br);
             of_dec.update_state(br);
-            execute_sequence(scratch, sequence)?;
+
+            let sequence4 = decode_sequence_without_rle(br, &mut ll_dec, &mut ml_dec, &mut of_dec)?;
+            ll_dec.update_state(br);
+            ml_dec.update_state(br);
+            of_dec.update_state(br);
+
+            execute_sequence(scratch, sequence1)?;
+            execute_sequence(scratch, sequence2)?;
+            execute_sequence(scratch, sequence3)?;
+            execute_sequence(scratch, sequence4)?;
+
 
             seq_idx += UNROLL;
         }
