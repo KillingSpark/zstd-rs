@@ -12,7 +12,6 @@ use crate::decoding::errors::{
     DecompressBlockError,
 };
 use crate::decoding::scratch::DecoderScratch;
-use crate::decoding::sequence_execution::execute_sequences;
 use crate::io::Read;
 
 pub struct BlockDecoder {
@@ -61,6 +60,7 @@ impl BlockDecoder {
                     }
                 })?;
                 workspace
+                    .sequence_execution
                     .buffer
                     .extend_and_fill(buf[0], header.decompressed_size as usize);
 
@@ -70,6 +70,7 @@ impl BlockDecoder {
             }
             BlockType::Raw => {
                 workspace
+                    .sequence_execution
                     .buffer
                     .extend_from_reader(&mut source, header.decompressed_size as usize)
                     .map_err(|err| DecodeBlockContentError::ReadError {
@@ -136,17 +137,18 @@ impl BlockDecoder {
         let raw_literals = &raw[..upper_limit_for_literals];
         vprintln!("Slice for literals: {}", raw_literals.len());
 
-        workspace.literals_buffer.clear(); //all literals of the previous block must have been used in the sequence execution anyways. just be defensive here
+        workspace.sequence_execution.literals_buffer.clear(); //all literals of the previous block must have been used in the sequence execution anyways. just be defensive here
         let bytes_used_in_literals_section = decode_literals(
             &section,
             &mut workspace.huf,
             raw_literals,
-            &mut workspace.literals_buffer,
+            &mut workspace.sequence_execution.literals_buffer,
         )?;
+        workspace.sequence_execution.literals_copy_counter = 0;
         assert!(
-            section.regenerated_size == workspace.literals_buffer.len() as u32,
+            section.regenerated_size == workspace.sequence_execution.literals_buffer.len() as u32,
             "Wrong number of literals: {}, Should have been: {}",
-            workspace.literals_buffer.len(),
+            workspace.sequence_execution.literals_buffer.len(),
             section.regenerated_size
         );
         assert!(bytes_used_in_literals_section == upper_limit_for_literals as u32);
@@ -177,10 +179,8 @@ impl BlockDecoder {
                 &seq_section,
                 raw,
                 &mut workspace.fse,
-                &mut workspace.sequences,
+                &mut workspace.sequence_execution,
             )?;
-            vprintln!("Executing sequences");
-            execute_sequences(workspace)?;
         } else {
             if !raw.is_empty() {
                 return Err(DecompressBlockError::DecodeSequenceError(
@@ -189,8 +189,10 @@ impl BlockDecoder {
                     },
                 ));
             }
-            workspace.buffer.push(&workspace.literals_buffer);
-            workspace.sequences.clear();
+            workspace
+                .sequence_execution
+                .buffer
+                .push(&workspace.sequence_execution.literals_buffer);
         }
 
         Ok(())

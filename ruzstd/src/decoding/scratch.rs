@@ -1,6 +1,5 @@
 //! Structures that wrap around various decoders to make decoding easier.
 
-use super::super::blocks::sequence_section::Sequence;
 use super::decode_buffer::DecodeBuffer;
 use crate::decoding::dictionary::Dictionary;
 use crate::fse::FSETable;
@@ -17,13 +16,17 @@ pub struct DecoderScratch {
     pub huf: HuffmanScratch,
     /// The decoder used for FSE blocks.
     pub fse: FSEScratch,
+    pub block_content_buffer: Vec<u8>,
+    /// State for executing the sequences
+    pub sequence_execution: SequenceExecutionScratch,
+}
 
+pub struct SequenceExecutionScratch {
     pub buffer: DecodeBuffer,
     pub offset_hist: [u32; 3],
 
     pub literals_buffer: Vec<u8>,
-    pub sequences: Vec<Sequence>,
-    pub block_content_buffer: Vec<u8>,
+    pub literals_copy_counter: usize,
 }
 
 impl DecoderScratch {
@@ -40,22 +43,24 @@ impl DecoderScratch {
                 match_lengths: FSETable::new(MAX_MATCH_LENGTH_CODE),
                 ml_rle: None,
             },
-            buffer: DecodeBuffer::new(window_size),
-            offset_hist: [1, 4, 8],
-
             block_content_buffer: Vec::new(),
-            literals_buffer: Vec::new(),
-            sequences: Vec::new(),
+            sequence_execution: SequenceExecutionScratch {
+                buffer: DecodeBuffer::new(window_size),
+                offset_hist: [1, 4, 8],
+
+                literals_buffer: Vec::new(),
+                literals_copy_counter: 0,
+            },
         }
     }
 
     pub fn reset(&mut self, window_size: usize) {
-        self.offset_hist = [1, 4, 8];
-        self.literals_buffer.clear();
-        self.sequences.clear();
+        self.sequence_execution.offset_hist = [1, 4, 8];
+        self.sequence_execution.literals_buffer.clear();
+        self.sequence_execution.literals_copy_counter = 0;
         self.block_content_buffer.clear();
 
-        self.buffer.reset(window_size);
+        self.sequence_execution.buffer.reset(window_size);
 
         self.fse.literal_lengths.reset();
         self.fse.match_lengths.reset();
@@ -70,9 +75,10 @@ impl DecoderScratch {
     pub fn init_from_dict(&mut self, dict: &Dictionary) {
         self.fse.reinit_from(&dict.fse);
         self.huf.table.reinit_from(&dict.huf.table);
-        self.offset_hist = dict.offset_hist;
-        self.buffer.dict_content.clear();
-        self.buffer
+        self.sequence_execution.offset_hist = dict.offset_hist;
+        self.sequence_execution.buffer.dict_content.clear();
+        self.sequence_execution
+            .buffer
             .dict_content
             .extend_from_slice(&dict.dict_content);
     }

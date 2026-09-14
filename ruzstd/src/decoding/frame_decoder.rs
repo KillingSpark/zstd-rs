@@ -264,7 +264,12 @@ impl FrameDecoder {
         use core::hash::Hasher;
 
         let state = self.state.as_ref()?;
-        let cksum_64bit = state.decoder_scratch.buffer.hash.finish();
+        let cksum_64bit = state
+            .decoder_scratch
+            .sequence_execution
+            .buffer
+            .hash
+            .finish();
         //truncate to lower 32bit because reasons...
         Some(cksum_64bit as u32)
     }
@@ -316,7 +321,7 @@ impl FrameDecoder {
 
         let mut block_dec = decoding::block_decoder::new();
 
-        let buffer_size_before = state.decoder_scratch.buffer.len();
+        let buffer_size_before = state.decoder_scratch.sequence_execution.buffer.len();
         let block_counter_before = state.block_counter;
         loop {
             vprintln!("################");
@@ -342,7 +347,10 @@ impl FrameDecoder {
 
             state.block_counter += 1;
 
-            vprintln!("Output: {}", state.decoder_scratch.buffer.len());
+            vprintln!(
+                "Output: {}",
+                state.decoder_scratch.sequence_execution.buffer.len()
+            );
 
             if block_header.last_block {
                 state.frame_finished = true;
@@ -366,7 +374,9 @@ impl FrameDecoder {
                     }
                 }
                 BlockDecodingStrategy::UptoBytes(n) => {
-                    if state.decoder_scratch.buffer.len() - buffer_size_before >= n {
+                    if state.decoder_scratch.sequence_execution.buffer.len() - buffer_size_before
+                        >= n
+                    {
                         break;
                     }
                 }
@@ -382,9 +392,13 @@ impl FrameDecoder {
         let finished = self.is_finished();
         let state = self.state.as_mut()?;
         if finished {
-            Some(state.decoder_scratch.buffer.drain())
+            Some(state.decoder_scratch.sequence_execution.buffer.drain())
         } else {
-            state.decoder_scratch.buffer.drain_to_window_size()
+            state
+                .decoder_scratch
+                .sequence_execution
+                .buffer
+                .drain_to_window_size()
         }
     }
 
@@ -397,9 +411,17 @@ impl FrameDecoder {
             Some(s) => s,
         };
         if finished {
-            state.decoder_scratch.buffer.drain_to_writer(w)
+            state
+                .decoder_scratch
+                .sequence_execution
+                .buffer
+                .drain_to_writer(w)
         } else {
-            state.decoder_scratch.buffer.drain_to_window_size_writer(w)
+            state
+                .decoder_scratch
+                .sequence_execution
+                .buffer
+                .drain_to_window_size_writer(w)
         }
     }
 
@@ -413,10 +435,11 @@ impl FrameDecoder {
             Some(s) => s,
         };
         if finished {
-            state.decoder_scratch.buffer.can_drain()
+            state.decoder_scratch.sequence_execution.buffer.can_drain()
         } else {
             state
                 .decoder_scratch
+                .sequence_execution
                 .buffer
                 .can_drain_to_window_size()
                 .unwrap_or(0)
@@ -619,9 +642,13 @@ impl Read for FrameDecoder {
             Some(s) => s,
         };
         if state.frame_finished {
-            state.decoder_scratch.buffer.read_all(target)
+            state
+                .decoder_scratch
+                .sequence_execution
+                .buffer
+                .read_all(target)
         } else {
-            state.decoder_scratch.buffer.read(target)
+            state.decoder_scratch.sequence_execution.buffer.read(target)
         }
     }
 }
