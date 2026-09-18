@@ -234,7 +234,6 @@ fn decode_sequences_without_rle(
             execute_sequence(scratch, sequence3)?;
             execute_sequence(scratch, sequence4)?;
 
-
             seq_idx += UNROLL;
         }
     }

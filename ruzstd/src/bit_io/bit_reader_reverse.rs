@@ -164,10 +164,10 @@ impl<'s> BitReaderReversed<'s> {
     /// Like get_bits_triple but doesn't check whether enough bits are available in the internal buffer
     #[inline(always)]
     pub fn get_bits_triple_unchecked(&mut self, n1: u8, n2: u8, n3: u8) -> (u64, u64, u64) {
-            let sum = n1 + n2 + n3;
-            let triple = self.peek_bits_triple(sum, n1, n2, n3);
-            self.consume(sum);
-            return triple;
+        let sum = n1 + n2 + n3;
+        let triple = self.peek_bits_triple(sum, n1, n2, n3);
+        self.consume(sum);
+        return triple;
     }
 }
 

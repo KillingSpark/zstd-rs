@@ -51,9 +51,18 @@ impl<'t> FSEDecoder<'t> {
     }
 
     /// Advance the internal state to decode the next symbol in the bitstream.
-    pub fn update_state_triple(first: &mut Self, second: &mut Self, third: &mut Self, bits: &mut BitReaderReversed<'_>) {
+    pub fn update_state_triple(
+        first: &mut Self,
+        second: &mut Self,
+        third: &mut Self,
+        bits: &mut BitReaderReversed<'_>,
+    ) {
         bits.refill();
-        let (add1, add2, add3) = bits.get_bits_triple_unchecked(first.state.num_bits, second.state.num_bits, third.state.num_bits);
+        let (add1, add2, add3) = bits.get_bits_triple_unchecked(
+            first.state.num_bits,
+            second.state.num_bits,
+            third.state.num_bits,
+        );
 
         let new_state1 = first.state.base_line + add1 as u32;
         first.state = first.table.decode[new_state1 as usize];
