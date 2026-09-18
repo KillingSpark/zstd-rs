@@ -182,7 +182,8 @@ fn decode_sequence_without_rle(
         .into());
     }
 
-    let (obits, ml_add, ll_add) = br.get_bits_triple(of_code, ml_num_bits, ll_num_bits);
+    br.refill();
+    let (obits, ml_add, ll_add) = br.get_bits_triple_unchecked(of_code, ml_num_bits, ll_num_bits);
     let offset = obits as u32 + (1u32 << of_code);
 
     if offset == 0 {
@@ -215,25 +216,18 @@ fn decode_sequences_without_rle(
     if section.num_sequences > UNROLL {
         while seq_idx < section.num_sequences - UNROLL {
             let sequence1 = decode_sequence_without_rle(br, &mut ll_dec, &mut ml_dec, &mut of_dec)?;
-            ll_dec.update_state(br);
-            ml_dec.update_state(br);
-            of_dec.update_state(br);
+            FSEDecoder::update_state_triple(&mut ll_dec, &mut ml_dec, &mut of_dec, br);
 
             let sequence2 = decode_sequence_without_rle(br, &mut ll_dec, &mut ml_dec, &mut of_dec)?;
-            ll_dec.update_state(br);
-            ml_dec.update_state(br);
-            of_dec.update_state(br);
-
+            FSEDecoder::update_state_triple(&mut ll_dec, &mut ml_dec, &mut of_dec, br);
 
             let sequence3 = decode_sequence_without_rle(br, &mut ll_dec, &mut ml_dec, &mut of_dec)?;
-            ll_dec.update_state(br);
-            ml_dec.update_state(br);
-            of_dec.update_state(br);
+            FSEDecoder::update_state_triple(&mut ll_dec, &mut ml_dec, &mut of_dec, br);
 
+            br.refill();
             let sequence4 = decode_sequence_without_rle(br, &mut ll_dec, &mut ml_dec, &mut of_dec)?;
-            ll_dec.update_state(br);
-            ml_dec.update_state(br);
-            of_dec.update_state(br);
+            br.refill();
+            FSEDecoder::update_state_triple(&mut ll_dec, &mut ml_dec, &mut of_dec, br);
 
             execute_sequence(scratch, sequence1)?;
             execute_sequence(scratch, sequence2)?;
@@ -248,14 +242,7 @@ fn decode_sequences_without_rle(
     while seq_idx < section.num_sequences {
         let sequence = decode_sequence_without_rle(br, &mut ll_dec, &mut ml_dec, &mut of_dec)?;
         if seq_idx < section.num_sequences - 1 {
-            //println!(
-            //    "Bits left: {} ({} bytes)",
-            //    br.bits_remaining(),
-            //    br.bits_remaining() / 8,
-            //);
-            ll_dec.update_state(br);
-            ml_dec.update_state(br);
-            of_dec.update_state(br);
+            FSEDecoder::update_state_triple(&mut ll_dec, &mut ml_dec, &mut of_dec, br);
         }
 
         execute_sequence(scratch, sequence)?;

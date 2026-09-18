@@ -39,8 +39,9 @@ impl<'s> BitReaderReversed<'s> {
     }
 
     /// We refill the container in full bytes, shifting the still unread portion to the left, and filling the lower bits with new data
+    /// This ensures that at least 56 bits are readbale before a new refill is necessary
     #[cold]
-    fn refill(&mut self) {
+    pub fn refill(&mut self) {
         let bytes_consumed = self.bits_consumed as usize / 8;
         if bytes_consumed == 0 {
             return;
@@ -116,10 +117,6 @@ impl<'s> BitReaderReversed<'s> {
     /// Caller is responsible for making sure that `sum` many bits have been refilled.
     #[inline(always)]
     pub fn peek_bits_triple(&mut self, sum: u8, n1: u8, n2: u8, n3: u8) -> (u64, u64, u64) {
-        if sum == 0 {
-            return (0, 0, 0);
-        }
-
         // all_three contains bits like this: |XXXX..XXX111122223333|
         // Where XXX are already consumed bytes, 1/2/3 are bits of the respective value
         // Lower bits are to the right
@@ -150,6 +147,9 @@ impl<'s> BitReaderReversed<'s> {
     #[inline(always)]
     pub fn get_bits_triple(&mut self, n1: u8, n2: u8, n3: u8) -> (u64, u64, u64) {
         let sum = n1 + n2 + n3;
+        if sum == 0 {
+            return (0, 0, 0);
+        }
         if sum <= 56 {
             self.refill();
 
@@ -159,6 +159,15 @@ impl<'s> BitReaderReversed<'s> {
         }
 
         (self.get_bits(n1), self.get_bits(n2), self.get_bits(n3))
+    }
+
+    /// Like get_bits_triple but doesn't check whether enough bits are available in the internal buffer
+    #[inline(always)]
+    pub fn get_bits_triple_unchecked(&mut self, n1: u8, n2: u8, n3: u8) -> (u64, u64, u64) {
+            let sum = n1 + n2 + n3;
+            let triple = self.peek_bits_triple(sum, n1, n2, n3);
+            self.consume(sum);
+            return triple;
     }
 }
 
