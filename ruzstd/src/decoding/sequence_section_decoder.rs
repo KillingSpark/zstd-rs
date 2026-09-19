@@ -213,9 +213,26 @@ fn decode_sequences_without_rle(
 
     let mut seq_idx = 0;
     const UNROLL: u32 = 4;
-    const MAX_BYTES_READ_IN_ONE_LOOP: usize = 17;
+
+    // For each of the sequences we read a triple to update the fse states and one triple to decode the three parts of the sequence.
+    // The first read is bound by the tables maximum accuracy_log, which is 9 for literal and match length and 8 for offsets.
+    // The second read is bound by the additional bits literal/match length may need and the maximum supported offset.
+    // To be able to use refill_unchecked we need to make sure we have at least this amount left in the stream
+    //
+    // This means we would need to keep about 20 bytes in the stream to satisfy the maximum requirement
+    // Benchmarking shows that just checking against 32 is much cheaper and processing a few more sequences with the slower
+    // checked code is worth it
+    let max_bits_read_per_update = fse.literal_lengths.accuracy_log
+        + fse.match_lengths.accuracy_log
+        + fse.offsets.accuracy_log;
+    let max_bits_read_per_triple = 16 + 16 + MAX_OFFSET_CODE;
+    let max_bits_read_per_loop = max_bits_read_per_triple as u32 + max_bits_read_per_update as u32 * UNROLL;
+    let max_bytes_read_per_loop = (max_bits_read_per_loop + 7) / 8;
+    debug_assert!(max_bytes_read_per_loop <= 32);
+    const MAX_BYTES_READ_PER_LOOP: usize = 32;
     if section.num_sequences > UNROLL {
-        while seq_idx < section.num_sequences - UNROLL && br.byte_idx() > MAX_BYTES_READ_IN_ONE_LOOP
+        while seq_idx < section.num_sequences - UNROLL
+            && br.byte_idx() > MAX_BYTES_READ_PER_LOOP
         {
             br.refill_unchecked();
             let sequence1 = decode_sequence_without_rle(br, &mut ll_dec, &mut ml_dec, &mut of_dec)?;
