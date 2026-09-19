@@ -186,7 +186,7 @@ impl<'s> BitReaderReversed<'s> {
         let sum = n1 + n2 + n3;
         let triple = self.peek_bits_triple(sum, n1, n2, n3);
         self.consume(sum);
-        return triple;
+        triple
     }
 }
 
