@@ -117,6 +117,9 @@ impl<'s> BitReaderReversed<'s> {
     /// Caller is responsible for making sure that `sum` many bits have been refilled.
     #[inline(always)]
     pub fn peek_bits_triple(&mut self, sum: u8, n1: u8, n2: u8, n3: u8) -> (u64, u64, u64) {
+        if sum == 0 {
+            return (0, 0, 0);
+        }
         // all_three contains bits like this: |XXXX..XXX111122223333|
         // Where XXX are already consumed bytes, 1/2/3 are bits of the respective value
         // Lower bits are to the right
