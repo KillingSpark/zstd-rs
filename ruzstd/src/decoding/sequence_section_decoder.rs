@@ -162,6 +162,7 @@ fn decode_sequences_with_rle(
 }
 
 #[inline(always)]
+/// Assumes the bitreader has been refilled before calling this
 fn decode_sequence_without_rle(
     br: &mut BitReaderReversed<'_>,
     ll_dec: &mut FSEDecoder<'_>,
@@ -182,7 +183,6 @@ fn decode_sequence_without_rle(
         .into());
     }
 
-    br.refill();
     let (obits, ml_add, ll_add) = br.get_bits_triple_unchecked(of_code, ml_num_bits, ll_num_bits);
     let offset = obits as u32 + (1u32 << of_code);
 
@@ -213,21 +213,25 @@ fn decode_sequences_without_rle(
 
     let mut seq_idx = 0;
     const UNROLL: u32 = 4;
+    const MAX_BYTES_READ_IN_ONE_LOOP: usize = 17;
     if section.num_sequences > UNROLL {
-        while seq_idx < section.num_sequences - UNROLL {
+        while seq_idx < section.num_sequences - UNROLL && br.byte_idx() > MAX_BYTES_READ_IN_ONE_LOOP
+        {
+            br.refill_unchecked();
             let sequence1 = decode_sequence_without_rle(br, &mut ll_dec, &mut ml_dec, &mut of_dec)?;
-            FSEDecoder::update_state_triple(&mut ll_dec, &mut ml_dec, &mut of_dec, br);
+            FSEDecoder::update_state_triple::<true>(&mut ll_dec, &mut ml_dec, &mut of_dec, br);
 
+            br.refill_unchecked();
             let sequence2 = decode_sequence_without_rle(br, &mut ll_dec, &mut ml_dec, &mut of_dec)?;
-            FSEDecoder::update_state_triple(&mut ll_dec, &mut ml_dec, &mut of_dec, br);
+            FSEDecoder::update_state_triple::<true>(&mut ll_dec, &mut ml_dec, &mut of_dec, br);
 
+            br.refill_unchecked();
             let sequence3 = decode_sequence_without_rle(br, &mut ll_dec, &mut ml_dec, &mut of_dec)?;
-            FSEDecoder::update_state_triple(&mut ll_dec, &mut ml_dec, &mut of_dec, br);
+            FSEDecoder::update_state_triple::<true>(&mut ll_dec, &mut ml_dec, &mut of_dec, br);
 
-            br.refill();
+            br.refill_unchecked();
             let sequence4 = decode_sequence_without_rle(br, &mut ll_dec, &mut ml_dec, &mut of_dec)?;
-            br.refill();
-            FSEDecoder::update_state_triple(&mut ll_dec, &mut ml_dec, &mut of_dec, br);
+            FSEDecoder::update_state_triple::<true>(&mut ll_dec, &mut ml_dec, &mut of_dec, br);
 
             execute_sequence(scratch, sequence1)?;
             execute_sequence(scratch, sequence2)?;
@@ -239,9 +243,10 @@ fn decode_sequences_without_rle(
     }
 
     while seq_idx < section.num_sequences {
+        br.refill();
         let sequence = decode_sequence_without_rle(br, &mut ll_dec, &mut ml_dec, &mut of_dec)?;
         if seq_idx < section.num_sequences - 1 {
-            FSEDecoder::update_state_triple(&mut ll_dec, &mut ml_dec, &mut of_dec, br);
+            FSEDecoder::update_state_triple::<false>(&mut ll_dec, &mut ml_dec, &mut of_dec, br);
         }
 
         execute_sequence(scratch, sequence)?;

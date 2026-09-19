@@ -28,6 +28,11 @@ impl<'s> BitReaderReversed<'s> {
         self.index as isize * 8 + (64 - self.bits_consumed as isize) - self.extra_bits as isize
     }
 
+    /// How many bytes are definitely still unread in the stream
+    pub fn byte_idx(&self) -> usize {
+        self.index
+    }
+
     pub fn new(source: &'s [u8]) -> BitReaderReversed<'s> {
         BitReaderReversed {
             index: source.len(),
@@ -36,6 +41,20 @@ impl<'s> BitReaderReversed<'s> {
             bit_container: 0,
             extra_bits: 0,
         }
+    }
+
+    /// This assumes that the stream still has enough bytes left to just adjust the bit_container down by the bytes consumed in the container
+    pub fn refill_unchecked(&mut self) {
+        let bytes_consumed = self.bits_consumed as usize / 8;
+        // If the reader wasn't byte aligned, the byte that was partially read is now in the highest order bits in the `bit_container`
+        self.index -= bytes_consumed;
+        // Some bits of the `bits_container` might have been consumed already because we read the window byte aligned
+        self.bits_consumed &= 7;
+        self.bit_container = u64::from_le_bytes(
+            (&self.source[self.index..self.index + 8])
+                .try_into()
+                .unwrap(),
+        );
     }
 
     /// We refill the container in full bytes, shifting the still unread portion to the left, and filling the lower bits with new data
@@ -49,12 +68,7 @@ impl<'s> BitReaderReversed<'s> {
 
         if self.index >= bytes_consumed {
             // We can safely move the window contained in `bit_container` down by `bytes_consumed`
-            // If the reader wasn't byte aligned, the byte that was partially read is now in the highest order bits in the `bit_container`
-            self.index -= bytes_consumed;
-            // Some bits of the `bits_container` might have been consumed already because we read the window byte aligned
-            self.bits_consumed &= 7;
-            self.bit_container =
-                u64::from_le_bytes((&self.source[self.index..][..8]).try_into().unwrap());
+            self.refill_unchecked();
         } else if self.index > 0 {
             // Read the last portion of source into the `bit_container`
             if self.source.len() >= 8 {
