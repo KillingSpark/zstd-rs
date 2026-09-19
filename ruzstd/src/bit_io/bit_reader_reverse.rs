@@ -50,6 +50,8 @@ impl<'s> BitReaderReversed<'s> {
         self.index -= bytes_consumed;
         // Some bits of the `bits_container` might have been consumed already because we read the window byte aligned
         self.bits_consumed &= 7;
+        // This actually benchmarks faster than the unsafe variant:
+        // self.bit_container = unsafe { self.source.as_ptr().add(self.index).cast::<u64>().read_unaligned() };
         self.bit_container = u64::from_le_bytes(
             (&self.source[self.index..self.index + 8])
                 .try_into()
