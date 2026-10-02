@@ -32,3 +32,9 @@ These are just nice to have
 Studying this material lead to a big improvement in bitreader speed
 * https://fgiesen.wordpress.com/2018/02/19/reading-bits-in-far-too-many-ways-part-1/
 * https://fgiesen.wordpress.com/2018/02/20/reading-bits-in-far-too-many-ways-part-2/
+
+### More aggressive inlining
+The following functions have been marked with `#[inline]` or `#[inline(always)]`
+* `FSEDecoder::update_state`
+* `BitReaderReversed::refill`
+* `HuffmanDecoder::next_state`
