@@ -50,6 +50,11 @@ impl BlockDecoder {
             }
         }
 
+        // Block_Maximum_Size (RFC 8878 3.1.1.2.4): the smaller of the window and 128 KiB
+        let max_block_len = (workspace.buffer.window_size).min(MAX_BLOCK_SIZE as usize);
+        // raw and RLE blocks state their size, compressed ones are checked as they decode
+        Self::check_decompressed_size(header.decompressed_size as usize, max_block_len)?;
+
         let block_type = header.block_type;
         match block_type {
             BlockType::RLE => {
@@ -86,7 +91,7 @@ impl BlockDecoder {
             }
 
             BlockType::Compressed => {
-                self.decompress_block(header, workspace, source)?;
+                self.decompress_block(header, workspace, source, max_block_len)?;
 
                 self.internal_state = DecoderState::ReadyToDecodeNextHeader;
                 Ok(u64::from(header.content_size))
@@ -94,11 +99,19 @@ impl BlockDecoder {
         }
     }
 
+    fn check_decompressed_size(at_least: usize, max: usize) -> Result<(), DecompressBlockError> {
+        if at_least > max {
+            return Err(DecompressBlockError::DecompressedSizeTooLarge { at_least, max });
+        }
+        Ok(())
+    }
+
     fn decompress_block(
         &mut self,
         header: &BlockHeader,
         workspace: &mut DecoderScratch, //reuse this as often as possible. Not only if the trees are reused but also reuse the allocations when building new trees
         mut source: impl Read,
+        max_block_decoded_len: usize,
     ) -> Result<(), DecompressBlockError> {
         workspace
             .block_content_buffer
@@ -180,7 +193,7 @@ impl BlockDecoder {
                 &mut workspace.sequences,
             )?;
             vprintln!("Executing sequences");
-            execute_sequences(workspace)?;
+            execute_sequences(workspace, max_block_decoded_len)?;
         } else {
             if !raw.is_empty() {
                 return Err(DecompressBlockError::DecodeSequenceError(

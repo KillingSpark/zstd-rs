@@ -2,7 +2,10 @@ use super::scratch::DecoderScratch;
 use crate::decoding::errors::ExecuteSequencesError;
 
 /// Take the provided decoder and execute the sequences stored within
-pub fn execute_sequences(scratch: &mut DecoderScratch) -> Result<(), ExecuteSequencesError> {
+pub fn execute_sequences(
+    scratch: &mut DecoderScratch,
+    max_block_decoded_len: usize,
+) -> Result<(), ExecuteSequencesError> {
     let mut literals_copy_counter = 0;
     let old_buffer_size = scratch.buffer.len();
     let mut seq_sum = 0;
@@ -36,6 +39,13 @@ pub fn execute_sequences(scratch: &mut DecoderScratch) -> Result<(), ExecuteSequ
 
         seq_sum += seq.ml;
         seq_sum += seq.ll;
+
+        if seq_sum as usize > max_block_decoded_len {
+            return Err(ExecuteSequencesError::TooManyBytesGenerated {
+                max: max_block_decoded_len,
+                decoded: seq_sum as usize,
+            });
+        }
     }
     if literals_copy_counter < scratch.literals_buffer.len() {
         let rest_literals = &scratch.literals_buffer[literals_copy_counter..];
