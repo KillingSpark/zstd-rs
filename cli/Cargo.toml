@@ -22,7 +22,7 @@ indicatif = { version = "0.18.0" }
 tracing-indicatif = { version = "0.3.13" }
 console = { version = "0.16.1" }
 tracing-subscriber = { version = "0.3.20" }
-ruzstd = { path = "../ruzstd", features = ["std"] }
+ruzstd = { path = "../ruzstd", features = ["std", "hash"] }
 
 [dev-dependencies]
 criterion = "0.5"
