@@ -2,7 +2,11 @@
 
 This document records the changes made between versions, starting with version 0.5.0
 
-# After 0.9.0 (Current)
+# After 0.9.1 (Current)
+
+# After 0.9.0
+
+* Avoid decoding more bytes than allowed per block to protect agains malformed blocks triggering an OOM panic
 
 # After 0.8.3
 
