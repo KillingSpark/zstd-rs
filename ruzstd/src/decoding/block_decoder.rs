@@ -129,6 +129,8 @@ impl BlockDecoder {
             section.regenerated_size,
             section.compressed_size
         );
+        // every literal ends up in the output, so the literals alone must fit in the block
+        Self::check_decompressed_size(section.regenerated_size as usize, max_block_decoded_len)?;
 
         let upper_limit_for_literals = match section.compressed_size {
             Some(x) => x as usize,
