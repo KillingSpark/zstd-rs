@@ -740,6 +740,101 @@ fn test_max_window_size_clamped_to_format_maximum() {
     assert_eq!(decoder.max_window_size(), MAX_WINDOW_SIZE);
 }
 
+/// Frame header with a 1 MiB window, which makes Block_Maximum_Size 128 KiB.
+#[cfg(test)]
+const FRAME_HEADER_1MIB_WINDOW: [u8; 6] = [0x28, 0xb5, 0x2f, 0xfd, 0x00, 0x50];
+
+/// A compressed block whose literals section is `n` RLE copies of `b'x'`.
+/// `sequences` is appended as the sequences section.
+#[cfg(test)]
+fn rle_literals_block(n: u32, sequences: &[u8]) -> Vec<u8> {
+    let mut content = vec![
+        0x0d | ((n & 0xf) << 4) as u8,
+        (n >> 4) as u8,
+        (n >> 12) as u8,
+        b'x',
+    ];
+    content.extend_from_slice(sequences);
+    let header = (content.len() as u32) << 3 | 2 << 1;
+    let mut block = header.to_le_bytes()[..3].to_vec();
+    block.extend_from_slice(&content);
+    block
+}
+
+#[test]
+fn test_literals_only_block_bounded_by_block_maximum_size() {
+    use crate::common::MAX_BLOCK_SIZE;
+    use crate::decoding::errors::{
+        DecodeBlockContentError, DecompressBlockError, FrameDecoderError,
+    };
+    use crate::decoding::FrameDecoder;
+
+    let decode = |literals: u32| {
+        let mut input = FRAME_HEADER_1MIB_WINDOW.to_vec();
+        input.extend(rle_literals_block(literals, &[0x00])); // no sequences
+        input.extend_from_slice(&[0x01, 0x00, 0x00]); // empty last raw block
+        FrameDecoder::new().decode_all(&input, &mut vec![0; 4 << 20])
+    };
+
+    assert!(decode(MAX_BLOCK_SIZE).is_ok());
+    for literals in [MAX_BLOCK_SIZE + 1, (1 << 20) - 1] {
+        let result = decode(literals);
+        assert!(
+            matches!(
+                result,
+                Err(FrameDecoderError::FailedToReadBlockBody(
+                    DecodeBlockContentError::DecompressBlockError(
+                        DecompressBlockError::DecompressedSizeTooLarge { .. }
+                    )
+                ))
+            ),
+            "{:?}",
+            result
+        );
+    }
+}
+
+#[test]
+fn test_literals_left_after_sequences_bounded_by_block_maximum_size() {
+    use crate::common::MAX_BLOCK_SIZE;
+    use crate::decoding::errors::{
+        DecodeBlockContentError, DecompressBlockError, ExecuteSequencesError, FrameDecoderError,
+    };
+    use crate::decoding::FrameDecoder;
+
+    let decode = |literals: u32| {
+        let mut input = FRAME_HEADER_1MIB_WINDOW.to_vec();
+        // a raw block of 4 bytes, for the sequence's match to copy from
+        input.extend_from_slice(&[0x20, 0x00, 0x00, 0, 0, 0, 0]);
+        // one sequence from RLE tables (LL 0, OF code 0, ML 3): copies 3 bytes and
+        // leaves all of the literals to be appended after it
+        input.extend(rle_literals_block(
+            literals,
+            &[0x01, 0x54, 0x00, 0x00, 0x00, 0x01],
+        ));
+        input.extend_from_slice(&[0x01, 0x00, 0x00]); // empty last raw block
+        FrameDecoder::new().decode_all(&input, &mut vec![0; 4 << 20])
+    };
+
+    assert!(decode(MAX_BLOCK_SIZE - 3).is_ok());
+    let result = decode(MAX_BLOCK_SIZE - 2);
+    assert!(
+        matches!(
+            result,
+            Err(FrameDecoderError::FailedToReadBlockBody(
+                DecodeBlockContentError::DecompressBlockError(
+                    DecompressBlockError::ExecuteSequencesError(
+                        ExecuteSequencesError::TooManyBytesGenerated { .. }
+                    )
+                )
+            ))
+        ),
+        "{:?}",
+        result
+    );
+    assert!(decode((1 << 20) - 1).is_err());
+}
+
 pub mod bit_reader;
 pub mod decode_corpus;
 pub mod dict_test;
