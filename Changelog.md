@@ -4,6 +4,8 @@ This document records the changes made between versions, starting with version 0
 
 # After 0.9.1 (Current)
 
+* Reject oversized compressed block bodies and sequence output before growing decoder buffers
+
 * Apply the per-block decoded size limit to a block's literals, including blocks with no sequences
 
 # After 0.9.0

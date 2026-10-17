@@ -6,6 +6,22 @@ pub fn execute_sequences(
     scratch: &mut DecoderScratch,
     max_block_decoded_len: usize,
 ) -> Result<(), ExecuteSequencesError> {
+    // Every literal is emitted once; matches add their lengths on top.
+    // RFC 8878 3.1.1.2.4 bounds the entire block, so reject before any
+    // sequence changes the history buffer or repeat-offset state.
+    let regenerated = scratch
+        .sequences
+        .iter()
+        .try_fold(scratch.literals_buffer.len(), |size, seq| {
+            size.checked_add(seq.ml as usize)
+        });
+    if regenerated.is_none_or(|size| size > max_block_decoded_len) {
+        return Err(ExecuteSequencesError::TooManyBytesGenerated {
+            max: max_block_decoded_len,
+            decoded: regenerated.unwrap_or(usize::MAX),
+        });
+    }
+
     let mut literals_copy_counter = 0;
     let old_buffer_size = scratch.buffer.len();
     let mut seq_sum = 0;
@@ -135,7 +151,55 @@ fn do_offset_history(offset_value: u32, lit_len: u32, scratch: &mut [u32; 3]) ->
 
 #[cfg(test)]
 mod tests {
-    use super::do_offset_history;
+    use super::{do_offset_history, execute_sequences};
+    use crate::blocks::sequence_section::Sequence;
+    use crate::decoding::errors::ExecuteSequencesError;
+    use crate::decoding::scratch::DecoderScratch;
+
+    #[test]
+    fn oversized_sequences_are_rejected_before_history_growth() {
+        let mut scratch = DecoderScratch::new(1024);
+        scratch.buffer.push(b"AAAA");
+        // Each sequence is individually below the cap. The second makes
+        // the whole block too large, so even the first must not execute.
+        scratch.sequences.extend([
+            Sequence {
+                ll: 0,
+                ml: 600,
+                of: 4,
+            },
+            Sequence {
+                ll: 0,
+                ml: 600,
+                of: 4,
+            },
+        ]);
+        let offsets = scratch.offset_hist;
+        let result = execute_sequences(&mut scratch, 1024);
+        assert!(matches!(
+            result,
+            Err(ExecuteSequencesError::TooManyBytesGenerated {
+                max: 1024,
+                decoded: 1200,
+            })
+        ));
+        assert_eq!(scratch.buffer.len(), 4);
+        assert_eq!(scratch.offset_hist, offsets);
+    }
+
+    #[test]
+    fn sequence_output_at_block_maximum_is_accepted() {
+        let mut scratch = DecoderScratch::new(1024);
+        scratch.buffer.push(b"AAAA");
+        scratch.literals_buffer.extend_from_slice(b"B");
+        scratch.sequences.push(Sequence {
+            ll: 0,
+            ml: 1023,
+            of: 4,
+        });
+        execute_sequences(&mut scratch, 1024).unwrap();
+        assert_eq!(scratch.buffer.len(), 4 + 1024);
+    }
 
     #[test]
     fn repeat_offset_minus_one_with_zero_history_does_not_underflow() {

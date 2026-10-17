@@ -113,6 +113,9 @@ impl BlockDecoder {
         mut source: impl Read,
         max_block_decoded_len: usize,
     ) -> Result<(), DecompressBlockError> {
+        // The compressed size is also bounded by Block_Maximum_Size
+        // (RFC 8878 3.1.1.2.4). Check before materializing the body.
+        Self::check_decompressed_size(header.content_size as usize, max_block_decoded_len)?;
         workspace
             .block_content_buffer
             .resize(header.content_size as usize, 0);
@@ -295,5 +298,62 @@ impl BlockDecoder {
         u32::from(self.header_buffer[0] >> 3) //push out type and last_block flags. Retain 5 bit
             | (u32::from(self.header_buffer[1]) << 5)
             | (u32::from(self.header_buffer[2]) << 13)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn compressed_header(size: u32) -> BlockHeader {
+        BlockHeader {
+            last_block: true,
+            block_type: BlockType::Compressed,
+            decompressed_size: 0,
+            content_size: size,
+        }
+    }
+
+    #[test]
+    fn oversized_compressed_body_is_rejected_before_buffer_growth() {
+        let mut decoder = new();
+        let mut scratch = DecoderScratch::new(1024);
+        let result =
+            decoder.decompress_block(&compressed_header(1025), &mut scratch, &[][..], 1024);
+        assert!(matches!(
+            result,
+            Err(DecompressBlockError::DecompressedSizeTooLarge {
+                max: 1024,
+                at_least: 1025,
+            })
+        ));
+        assert_eq!(scratch.block_content_buffer.capacity(), 0);
+        assert_eq!(scratch.buffer.len(), 0);
+    }
+
+    #[test]
+    fn oversized_literals_are_rejected_before_buffer_growth() {
+        // A five-byte body advertises 512 KiB of RLE literals and no
+        // sequences. It fits the compressed bound, not the decoded bound.
+        let header = ((512u32 << 10) << 4) | 0x0d;
+        let mut body = header.to_le_bytes()[..3].to_vec();
+        body.extend_from_slice(&[b'A', 0]);
+        let mut decoder = new();
+        let mut scratch = DecoderScratch::new(1024);
+        let result = decoder.decompress_block(
+            &compressed_header(body.len() as u32),
+            &mut scratch,
+            body.as_slice(),
+            1024,
+        );
+        assert!(matches!(
+            result,
+            Err(DecompressBlockError::DecompressedSizeTooLarge {
+                max: 1024,
+                at_least: 524288,
+            })
+        ));
+        assert_eq!(scratch.literals_buffer.capacity(), 0);
+        assert_eq!(scratch.buffer.len(), 0);
     }
 }
