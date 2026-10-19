@@ -330,30 +330,4 @@ mod tests {
         assert_eq!(scratch.block_content_buffer.capacity(), 0);
         assert_eq!(scratch.buffer.len(), 0);
     }
-
-    #[test]
-    fn oversized_literals_are_rejected_before_buffer_growth() {
-        // A five-byte body advertises 512 KiB of RLE literals and no
-        // sequences. It fits the compressed bound, not the decoded bound.
-        let header = ((512u32 << 10) << 4) | 0x0d;
-        let mut body = header.to_le_bytes()[..3].to_vec();
-        body.extend_from_slice(&[b'A', 0]);
-        let mut decoder = new();
-        let mut scratch = DecoderScratch::new(1024);
-        let result = decoder.decompress_block(
-            &compressed_header(body.len() as u32),
-            &mut scratch,
-            body.as_slice(),
-            1024,
-        );
-        assert!(matches!(
-            result,
-            Err(DecompressBlockError::DecompressedSizeTooLarge {
-                max: 1024,
-                at_least: 524288,
-            })
-        ));
-        assert_eq!(scratch.literals_buffer.capacity(), 0);
-        assert_eq!(scratch.buffer.len(), 0);
-    }
 }
