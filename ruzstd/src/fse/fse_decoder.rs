@@ -40,6 +40,12 @@ impl<'t> FSEDecoder<'t> {
     }
 
     /// Advance the internal state to decode the next symbol in the bitstream.
+    #[expect(
+        clippy::inline_always,
+        reason = "Always inlining reduces runtime by about\
+                  9.5 instructions per call."
+    )]
+    #[inline(always)]
     pub fn update_state(&mut self, bits: &mut BitReaderReversed<'_>) {
         let num_bits = self.state.num_bits;
         let add = bits.get_bits(num_bits);

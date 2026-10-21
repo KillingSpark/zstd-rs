@@ -39,7 +39,7 @@ impl<'s> BitReaderReversed<'s> {
     }
 
     /// We refill the container in full bytes, shifting the still unread portion to the left, and filling the lower bits with new data
-    #[cold]
+    #[inline]
     fn refill(&mut self) {
         let bytes_consumed = self.bits_consumed as usize / 8;
         if bytes_consumed == 0 {
@@ -54,7 +54,18 @@ impl<'s> BitReaderReversed<'s> {
             self.bits_consumed &= 7;
             self.bit_container =
                 u64::from_le_bytes((&self.source[self.index..][..8]).try_into().unwrap());
-        } else if self.index > 0 {
+        } else {
+            self.refill_slow();
+        }
+
+        // Assert that at least `56 = 64 - 8` bits are available to read.
+        debug_assert!(self.bits_consumed < 8);
+    }
+
+    /// Only used a few times per container.
+    #[cold]
+    fn refill_slow(&mut self) {
+        if self.index > 0 {
             // Read the last portion of source into the `bit_container`
             if self.source.len() >= 8 {
                 self.bit_container = u64::from_le_bytes((&self.source[..8]).try_into().unwrap());
@@ -81,9 +92,6 @@ impl<'s> BitReaderReversed<'s> {
             self.bits_consumed = 0;
             self.bit_container = 0;
         }
-
-        // Assert that at least `56 = 64 - 8` bits are available to read.
-        debug_assert!(self.bits_consumed < 8);
     }
 
     /// Read `n` number of bits from the source. Will read at most 56 bits.
