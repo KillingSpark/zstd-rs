@@ -4,6 +4,7 @@ This document records the changes made between versions, starting with version 0
 
 # After 0.9.1 (Current)
 
+* Bound sequence counts and entropy-table growth before allocation; check decoded output length before each sequence and trailing-literal append
 * Apply the per-block decoded size limit to a block's literals, including blocks with no sequences
 
 # After 0.9.0

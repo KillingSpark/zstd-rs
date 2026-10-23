@@ -150,6 +150,9 @@ impl HuffmanTable {
                         expected_bytes: header,
                     });
                 }
+                // The entropy header must not consume bytes from the following
+                // literal bitstream, even when the input is malformed.
+                let fse_stream = &fse_stream[..usize::from(header)];
                 //fse decompress weights
                 let bytes_used_by_fse_header = self.fse_table.build_decoder(fse_stream, 6)?;
 

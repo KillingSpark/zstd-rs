@@ -798,7 +798,7 @@ fn test_literals_only_block_bounded_by_block_maximum_size() {
 fn test_literals_left_after_sequences_bounded_by_block_maximum_size() {
     use crate::common::MAX_BLOCK_SIZE;
     use crate::decoding::errors::{
-        DecodeBlockContentError, DecompressBlockError, ExecuteSequencesError, FrameDecoderError,
+        DecodeBlockContentError, DecompressBlockError, FrameDecoderError,
     };
     use crate::decoding::FrameDecoder;
 
@@ -818,14 +818,17 @@ fn test_literals_left_after_sequences_bounded_by_block_maximum_size() {
 
     assert!(decode(MAX_BLOCK_SIZE - 3).is_ok());
     let result = decode(MAX_BLOCK_SIZE - 2);
+    // The one match contributes at least three bytes, so this case is already
+    // impossible at the sequence-count preflight, before sequence execution.
     assert!(
         matches!(
             result,
             Err(FrameDecoderError::FailedToReadBlockBody(
                 DecodeBlockContentError::DecompressBlockError(
-                    DecompressBlockError::ExecuteSequencesError(
-                        ExecuteSequencesError::TooManyBytesGenerated { .. }
-                    )
+                    DecompressBlockError::DecompressedSizeTooLarge {
+                        max: 131072,
+                        at_least: 131073
+                    }
                 )
             ))
         ),
@@ -835,12 +838,57 @@ fn test_literals_left_after_sequences_bounded_by_block_maximum_size() {
     assert!(decode((1 << 20) - 1).is_err());
 }
 
+#[test]
+fn frame_decoder_reuses_after_bounded_block_failure() {
+    use crate::common::MAX_BLOCK_SIZE;
+    use crate::decoding::errors::{
+        DecodeBlockContentError, DecompressBlockError, FrameDecoderError,
+    };
+    use crate::decoding::FrameDecoder;
+
+    let mut bad = FRAME_HEADER_1MIB_WINDOW.to_vec();
+    bad.extend(rle_literals_block(MAX_BLOCK_SIZE + 1, &[0x00]));
+    let mut decoder = FrameDecoder::new();
+    assert!(matches!(
+        decoder.decode_all(&bad, &mut vec![0; 1 << 20]),
+        Err(FrameDecoderError::FailedToReadBlockBody(
+            DecodeBlockContentError::DecompressBlockError(
+                DecompressBlockError::DecompressedSizeTooLarge { .. }
+            )
+        ))
+    ));
+
+    let good = include_bytes!("../../decodecorpus_files/abc.txt.zst");
+    let expected = include_bytes!("../../decodecorpus_files/abc.txt");
+    let mut output = vec![0; expected.len()];
+    let written = decoder.decode_all(good, &mut output).unwrap();
+    assert_eq!(written, expected.len());
+    assert_eq!(output, expected);
+}
+
 pub mod bit_reader;
 pub mod decode_corpus;
 pub mod dict_test;
 #[cfg(feature = "std")]
 pub mod encode_corpus;
 pub mod fuzz_regressions;
+
+#[cfg(feature = "std")]
+#[test]
+fn reference_zstd_stream_preserves_decoded_bytes() {
+    use crate::decoding::FrameDecoder;
+
+    let source: Vec<u8> = (0..(256 * 1024))
+        .map(|i| (((i >> 3) ^ (i * 17)) & 0xff) as u8)
+        .collect();
+    let encoded = zstd::stream::encode_all(std::io::Cursor::new(&source), 3).unwrap();
+    let mut decoded = vec![0; source.len()];
+    let written = FrameDecoder::new()
+        .decode_all(&encoded, &mut decoded)
+        .unwrap();
+    assert_eq!(written, source.len());
+    assert_eq!(decoded, source);
+}
 
 #[cfg(feature = "std")]
 #[test]
