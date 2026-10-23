@@ -110,6 +110,13 @@ fn decompress_literals(
             decoder.init_state(&mut br);
 
             while br.bits_remaining() > -(scratch.table.max_num_bits as isize) {
+                // Refuse the next symbol before push can grow beyond the declared output.
+                if target.len() >= section.regenerated_size as usize {
+                    return Err(err::DecodedLiteralCountMismatch {
+                        decoded: target.len().checked_add(1).unwrap_or(usize::MAX),
+                        expected: section.regenerated_size as usize,
+                    });
+                }
                 target.push(decoder.decode_symbol());
                 decoder.next_state(&mut br);
             }
@@ -141,6 +148,13 @@ fn decompress_literals(
         }
         decoder.init_state(&mut br);
         while br.bits_remaining() > -(scratch.table.max_num_bits as isize) {
+            // Refuse the next symbol before push can grow beyond the declared output.
+            if target.len() >= section.regenerated_size as usize {
+                return Err(err::DecodedLiteralCountMismatch {
+                    decoded: target.len().checked_add(1).unwrap_or(usize::MAX),
+                    expected: section.regenerated_size as usize,
+                });
+            }
             target.push(decoder.decode_symbol());
             decoder.next_state(&mut br);
         }
@@ -155,4 +169,126 @@ fn decompress_literals(
     }
 
     Ok(bytes_read)
+}
+
+#[cfg(test)]
+mod literal10_tests {
+    use super::{decode_literals, HuffmanScratch, LiteralsSection, LiteralsSectionType};
+    use crate::decoding::errors::DecompressLiteralsError;
+    use alloc::{vec, vec::Vec};
+    use core::convert::TryFrom;
+
+    fn stream(symbols: usize) -> Vec<u8> {
+        // Mechanism fixture: zero data bits and a terminating one for a two-symbol
+        // one-bit table. These bytes are deliberately synthetic, not libzstd output.
+        let mut bytes = vec![0; symbols / 8 + 1];
+        *bytes.last_mut().unwrap() = 1 << (symbols % 8);
+        bytes
+    }
+
+    fn payload(counts: &[usize], treeless: bool) -> Vec<u8> {
+        let mut bytes = if treeless {
+            Vec::new()
+        } else {
+            vec![128, 0x10]
+        };
+        if counts.len() == 4 {
+            for count in &counts[..3] {
+                let size = u16::try_from(count / 8 + 1).unwrap();
+                bytes.extend_from_slice(&size.to_le_bytes());
+            }
+        }
+        for count in counts {
+            bytes.extend_from_slice(&stream(*count));
+        }
+        bytes
+    }
+
+    fn section(size: u32, bytes: usize, streams: u8, treeless: bool) -> LiteralsSection {
+        LiteralsSection {
+            regenerated_size: size,
+            compressed_size: Some(u32::try_from(bytes).unwrap()),
+            num_streams: Some(streams),
+            ls_type: if treeless {
+                LiteralsSectionType::Treeless
+            } else {
+                LiteralsSectionType::Compressed
+            },
+        }
+    }
+
+    fn scratch(treeless: bool) -> HuffmanScratch {
+        let mut scratch = HuffmanScratch::new();
+        if treeless {
+            // Direct table seed is a mechanism control, not a genuine prior block.
+            assert_eq!(scratch.table.build_decoder(&[128, 0x10]).unwrap(), 2);
+        }
+        scratch
+    }
+
+    #[test]
+    fn excess_symbol_is_refused_before_literal_vector_growth() {
+        for treeless in [false, true] {
+            // Refusal in stream1, on a later stream boundary, and inside stream4.
+            for counts in [
+                &[1032usize][..],
+                &[258, 258, 258, 258][..],
+                &[0, 0, 0, 1032][..],
+            ] {
+                let bytes = payload(counts, treeless);
+                for declared in [0u32, 1, 7, 8, 1024] {
+                    let mut target = Vec::with_capacity(declared as usize);
+                    let capacity = target.capacity();
+                    let section = section(declared, bytes.len(), counts.len() as u8, treeless);
+                    let error =
+                        decode_literals(&section, &mut scratch(treeless), &bytes, &mut target)
+                            .unwrap_err();
+                    assert!(
+                        matches!(error, DecompressLiteralsError::DecodedLiteralCountMismatch {
+                        decoded, expected
+                    } if decoded == declared as usize + 1 && expected == declared as usize)
+                    );
+                    assert_eq!(target.len(), declared as usize);
+                    assert_eq!(
+                        target.capacity(),
+                        capacity,
+                        "literal allocation grew before refusal"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn exact_and_short_output_keep_existing_count_semantics() {
+        for treeless in [false, true] {
+            for counts in [
+                &[0usize][..],
+                &[1][..],
+                &[1024][..],
+                &[0, 0, 0, 0][..],
+                &[1, 1, 1, 1][..],
+                &[256, 256, 256, 256][..],
+            ] {
+                let bytes = payload(counts, treeless);
+                let total: usize = counts.iter().sum();
+                let mut target = Vec::new();
+                let exact = section(total as u32, bytes.len(), counts.len() as u8, treeless);
+                assert_eq!(
+                    decode_literals(&exact, &mut scratch(treeless), &bytes, &mut target).unwrap()
+                        as usize,
+                    bytes.len()
+                );
+                assert_eq!(target.len(), total);
+                target.clear();
+                let short = section(total as u32 + 1, bytes.len(), counts.len() as u8, treeless);
+                assert!(
+                    matches!(decode_literals(&short, &mut scratch(treeless), &bytes, &mut target),
+                    Err(DecompressLiteralsError::DecodedLiteralCountMismatch { decoded, expected })
+                    if decoded == total && expected == total + 1)
+                );
+                assert_eq!(target.len(), total);
+            }
+        }
+    }
 }

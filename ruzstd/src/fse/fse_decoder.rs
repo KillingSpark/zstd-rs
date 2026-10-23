@@ -219,6 +219,19 @@ impl FSETable {
         Ok(())
     }
 
+    /// Validate growth before modifying the probability vector.
+    fn checked_symbol_len(&self, additional: usize) -> Result<usize, FSETableError> {
+        let got = self
+            .symbol_probabilities
+            .len()
+            .checked_add(additional)
+            .ok_or(FSETableError::TooManySymbols { got: usize::MAX })?;
+        if got > usize::from(self.max_symbol) + 1 {
+            return Err(FSETableError::TooManySymbols { got });
+        }
+        Ok(got)
+    }
+
     /// Read the accuracy log and the probability table from the source and return the number of bytes
     /// read. If the size of the table is larger than the provided `max_log`, return an error.
     fn read_probabilities(&mut self, source: &[u8], max_log: u8) -> Result<usize, FSETableError> {
@@ -261,6 +274,7 @@ impl FSETable {
 
             let prob = (value as i32) - 1;
 
+            self.checked_symbol_len(1)?;
             self.symbol_probabilities.push(prob);
             if prob != 0 {
                 if prob > 0 {
@@ -275,8 +289,8 @@ impl FSETable {
                 loop {
                     let skip_amount = br.get_bits(2)? as usize;
 
-                    self.symbol_probabilities
-                        .resize(self.symbol_probabilities.len() + skip_amount, 0);
+                    let next_len = self.checked_symbol_len(skip_amount)?;
+                    self.symbol_probabilities.resize(next_len, 0);
                     if skip_amount != 3 {
                         break;
                     }

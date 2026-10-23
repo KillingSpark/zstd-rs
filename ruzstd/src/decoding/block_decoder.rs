@@ -122,6 +122,9 @@ impl BlockDecoder {
 
         let mut section = LiteralsSection::new();
         let bytes_in_literals_header = section.parse_from_header(raw)?;
+        // Literal decoding may reserve or resize using this untrusted length.
+        // Check before decoding, including the zero-sequence case.
+        Self::check_decompressed_size(section.regenerated_size as usize, max_block_decoded_len)?;
         let raw = &raw[bytes_in_literals_header as usize..];
         vprintln!(
             "Found {} literalssection with regenerated size: {}, and compressed size: {:?}",
@@ -129,8 +132,6 @@ impl BlockDecoder {
             section.regenerated_size,
             section.compressed_size
         );
-        // every literal ends up in the output, so the literals alone must fit in the block
-        Self::check_decompressed_size(section.regenerated_size as usize, max_block_decoded_len)?;
 
         let upper_limit_for_literals = match section.compressed_size {
             Some(x) => x as usize,
@@ -171,6 +172,15 @@ impl BlockDecoder {
 
         let mut seq_section = SequencesHeader::new();
         let bytes_in_sequence_header = seq_section.parse_from_header(raw)?;
+        // All literals are eventually emitted and each sequence match emits
+        // at least 3 bytes. Reject an impossible count before sequence table
+        // decoding or either entropy path clears/reserves the sequence vector.
+        // The execution loop checks actual lengths before each output append.
+        let minimum_decoded_len = (seq_section.num_sequences as usize)
+            .checked_mul(3)
+            .and_then(|matches| matches.checked_add(workspace.literals_buffer.len()))
+            .unwrap_or(usize::MAX);
+        Self::check_decompressed_size(minimum_decoded_len, max_block_decoded_len)?;
         let raw = &raw[bytes_in_sequence_header as usize..];
         vprintln!(
             "Found sequencessection with sequences: {} and size: {}",
@@ -295,5 +305,243 @@ impl BlockDecoder {
         u32::from(self.header_buffer[0] >> 3) //push out type and last_block flags. Retain 5 bit
             | (u32::from(self.header_buffer[1]) << 5)
             | (u32::from(self.header_buffer[2]) << 13)
+    }
+}
+
+#[cfg(test)]
+mod repair08_block_tests {
+    use super::new;
+    use crate::decoding::{
+        errors::{DecodeBlockContentError, DecompressBlockError},
+        scratch::DecoderScratch,
+    };
+
+    fn compressed_rle_literal_body(size: u32) -> [u8; 5] {
+        let header = (size << 4) | 13; // RLE, 20-bit regenerated length
+        [
+            header as u8,
+            (header >> 8) as u8,
+            (header >> 16) as u8,
+            b'x',
+            0,
+        ]
+    }
+
+    #[test]
+    fn literal_limit_precedes_literal_allocation_and_zero_sequence_output() {
+        for size in [1025, 131073, 1048575] {
+            let mut decoder = new();
+            let mut scratch = DecoderScratch::new(1024);
+            let (header, _) = decoder.read_block_header(&[45u8, 0, 0][..]).unwrap();
+            let body = compressed_rle_literal_body(size);
+            let capacity = scratch.literals_buffer.capacity();
+            let error = decoder
+                .decode_block_content(&header, &mut scratch, &body[..])
+                .unwrap_err();
+            assert!(
+                matches!(error, DecodeBlockContentError::DecompressBlockError(
+                DecompressBlockError::DecompressedSizeTooLarge { max: 1024, at_least }
+            ) if at_least == size as usize)
+            );
+            assert_eq!(scratch.literals_buffer.capacity(), capacity);
+            assert!(scratch.literals_buffer.is_empty());
+            assert_eq!(scratch.buffer.len(), 0);
+        }
+    }
+
+    #[test]
+    fn literal_only_exact_window_limit_is_legal() {
+        let mut decoder = new();
+        let mut scratch = DecoderScratch::new(1024);
+        let (header, _) = decoder.read_block_header(&[45u8, 0, 0][..]).unwrap();
+        let body = compressed_rle_literal_body(1024);
+        decoder
+            .decode_block_content(&header, &mut scratch, &body[..])
+            .unwrap();
+        assert_eq!(scratch.buffer.len(), 1024);
+        assert_eq!(scratch.literals_buffer.len(), 1024);
+    }
+    #[test]
+    fn raw_and_rle_blocks_refuse_before_output_and_accept_tiny_empty() {
+        for kind in [0u32, 1] {
+            let mut decoder = new();
+            let mut scratch = DecoderScratch::new(1024);
+            let encoded_header = (1025u32 << 3) | (kind << 1) | 1;
+            let bytes = [
+                encoded_header as u8,
+                (encoded_header >> 8) as u8,
+                (encoded_header >> 16) as u8,
+            ];
+            let (header, _) = decoder.read_block_header(&bytes[..]).unwrap();
+            // Rejection must precede even reading the body.
+            assert!(matches!(
+                decoder.decode_block_content(&header, &mut scratch, &[][..]),
+                Err(DecodeBlockContentError::DecompressBlockError(
+                    DecompressBlockError::DecompressedSizeTooLarge {
+                        max: 1024,
+                        at_least: 1025
+                    }
+                ))
+            ));
+            assert_eq!(scratch.buffer.len(), 0);
+        }
+        for size in [0u32, 1] {
+            let mut decoder = new();
+            let mut scratch = DecoderScratch::new(1024);
+            let bytes = [(size << 3) as u8 | 1, 0, 0]; // raw block
+            let (header, _) = decoder.read_block_header(&bytes[..]).unwrap();
+            decoder
+                .decode_block_content(&header, &mut scratch, &b"x"[..size as usize])
+                .unwrap();
+            assert_eq!(scratch.buffer.len(), size as usize);
+        }
+    }
+}
+
+#[cfg(test)]
+mod count12_block_tests {
+    use super::new;
+    use crate::blocks::sequence_section::Sequence;
+    use crate::decoding::{
+        errors::{DecodeBlockContentError, DecompressBlockError, ExecuteSequencesError},
+        scratch::DecoderScratch,
+    };
+    use alloc::{vec, vec::Vec};
+
+    fn sequence_header(count: u32, mode: u8) -> Vec<u8> {
+        match count {
+            0 => vec![0],
+            1..=127 => vec![count as u8, mode],
+            128..=32511 => vec![(128 + (count >> 8)) as u8, count as u8, mode],
+            32512..=98047 => {
+                let n = count - 32512;
+                vec![255, n as u8, (n >> 8) as u8, mode]
+            }
+            _ => panic!("out of format range"),
+        }
+    }
+
+    fn body(literals: u32, count: u32, mode: u8, payload: &[u8]) -> Vec<u8> {
+        // RLE literal section, 20-bit count, followed by the sequence section.
+        let header = (literals << 4) | 13;
+        let mut bytes = vec![
+            header as u8,
+            (header >> 8) as u8,
+            (header >> 16) as u8,
+            b'x',
+        ];
+        bytes.extend_from_slice(&sequence_header(count, mode));
+        bytes.extend_from_slice(payload);
+        bytes
+    }
+
+    fn decode(bytes: &[u8], scratch: &mut DecoderScratch) -> Result<u64, DecodeBlockContentError> {
+        let encoded = ((bytes.len() as u32) << 3) | 5; // compressed, last block
+        let header_bytes = [encoded as u8, (encoded >> 8) as u8, (encoded >> 16) as u8];
+        let mut decoder = new();
+        let (header, _) = decoder.read_block_header(&header_bytes[..]).unwrap();
+        decoder.decode_block_content(&header, scratch, bytes)
+    }
+
+    #[test]
+    fn impossible_count_precedes_tables_clear_reserve_and_bitstream_errors() {
+        // Count-header encoding transitions, exact block budget + one, maximum
+        // header count, zero remaining match budget, and a sub-match window.
+        for (window, literals, count) in [
+            (3usize, 0u32, 2u32),
+            (1024, 1022, 1),
+            (1024, 1024, 1),
+            (1024, 641, 128),
+            (1024, 0, 342),
+            (131072, 0, 43691),
+            (262144, 0, 98047),
+            (2, 0, 1),
+        ] {
+            for mode in [0u8, 0x54] {
+                // all predefined and all RLE
+                let mut scratch = DecoderScratch::new(window);
+                scratch.buffer.push(b"abcd");
+                scratch.sequences.push(Sequence {
+                    ll: 7,
+                    ml: 11,
+                    of: 4,
+                });
+                scratch.fse.ll_rle = Some(9);
+                scratch.fse.ml_rle = Some(10);
+                scratch.fse.of_rle = Some(2);
+                let capacity = scratch.sequences.capacity();
+                let history = scratch.offset_hist;
+                // Missing tables/bitstream must not mask the earlier count error.
+                let bytes = body(literals, count, mode, &[]);
+                let budget = window.min(131072);
+                let minimum = literals as usize + count as usize * 3;
+                assert!(matches!(decode(&bytes, &mut scratch),
+                    Err(DecodeBlockContentError::DecompressBlockError(
+                        DecompressBlockError::DecompressedSizeTooLarge { max, at_least }))
+                    if max == budget && at_least == minimum));
+                assert_eq!(scratch.sequences.capacity(), capacity);
+                assert_eq!(scratch.sequences.len(), 1);
+                assert_eq!(
+                    (
+                        scratch.sequences[0].ll,
+                        scratch.sequences[0].ml,
+                        scratch.sequences[0].of
+                    ),
+                    (7, 11, 4)
+                );
+                assert_eq!(
+                    (scratch.fse.ll_rle, scratch.fse.ml_rle, scratch.fse.of_rle),
+                    (Some(9), Some(10), Some(2))
+                );
+                assert_eq!(scratch.buffer.len(), 4);
+                assert_eq!(scratch.offset_hist, history);
+            }
+        }
+    }
+
+    #[test]
+    fn exact_minimum_keeps_overlap_and_previous_block_references() {
+        for (window, literals, ll_code) in [(3usize, 0u32, 0u8), (4, 1, 1)] {
+            let mut scratch = DecoderScratch::new(window);
+            scratch.buffer.push(b"p");
+            scratch.offset_hist = [1, 1, 1]; // legal one-byte match history
+                                             // RLE LL=0/1, OF=0 (repeat history), ML=0 (match length 3),
+                                             // no extra bits and a final one. LL=0 references the prior block;
+                                             // LL=1 copies x then repeats offset1 with overlap.
+            let bytes = body(literals, 1, 0x54, &[ll_code, 0, 0, 1]);
+            decode(&bytes, &mut scratch).unwrap();
+            assert_eq!(scratch.sequences.len(), 1);
+            assert_eq!(
+                (scratch.sequences[0].ll, scratch.sequences[0].ml),
+                (literals, 3)
+            );
+            assert_eq!(scratch.buffer.len(), 1 + window);
+        }
+        for literals in [0u32, 1] {
+            let mut scratch = DecoderScratch::new(1);
+            let bytes = body(literals, 0, 0, &[]);
+            decode(&bytes, &mut scratch).unwrap();
+            assert_eq!(scratch.buffer.len(), literals as usize);
+        }
+    }
+
+    #[test]
+    fn admitted_count_still_checks_actual_match_before_append() {
+        let mut scratch = DecoderScratch::new(4);
+        scratch.buffer.push(b"abcd");
+        let history = scratch.offset_hist;
+        // L+3N=4 passes the necessary bound; actual match length4 makes
+        // output5 and must fail before this sequence changes the output.
+        let bytes = body(1, 1, 0x54, &[1, 0, 1, 1]);
+        assert!(matches!(
+            decode(&bytes, &mut scratch),
+            Err(DecodeBlockContentError::DecompressBlockError(
+                DecompressBlockError::ExecuteSequencesError(
+                    ExecuteSequencesError::TooManyBytesGenerated { max: 4, decoded: 5 }
+                )
+            ))
+        ));
+        assert_eq!(scratch.buffer.len(), 4);
+        assert_eq!(scratch.offset_hist, history);
     }
 }
