@@ -5,6 +5,7 @@ This document records the changes made between versions, starting with version 0
 # After 0.9.1 (Current)
 
 * Apply the per-block decoded size limit to a block's literals, including blocks with no sequences
+* Add `FrameDecoder::peek`: every byte decoded and not yet collected, the retained window among them, without draining, for a frame flushed block by block whose newest bytes are wanted before it ends
 
 # After 0.9.0
 

@@ -192,6 +192,12 @@ impl DecodeBuffer {
         self.buffer.len()
     }
 
+    /// Every byte in the buffer, the window retained for decoding among them, in
+    /// order as the two parts of the ring buffer, without draining any.
+    pub fn as_slices(&self) -> (&[u8], &[u8]) {
+        self.buffer.as_slices()
+    }
+
     /// Drain as much as possible while retaining enough so that decoding si still possible with the required window_size
     /// At best call only if can_drain_to_window_size reports a 'high' number of bytes to reduce allocations
     pub fn drain_to_window_size(&mut self) -> Option<Vec<u8>> {
