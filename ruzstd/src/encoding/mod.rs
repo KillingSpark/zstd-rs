@@ -2,6 +2,7 @@
 
 pub(crate) mod block_header;
 pub(crate) mod blocks;
+mod dictionary;
 pub(crate) mod frame_header;
 pub(crate) mod lazy_matcher;
 pub(crate) mod match_generator;
@@ -9,6 +10,7 @@ pub(crate) mod util;
 
 mod frame_compressor;
 mod levels;
+pub use dictionary::Dictionary;
 pub use frame_compressor::FrameCompressor;
 pub use match_generator::MatchGeneratorDriver;
 
@@ -38,6 +40,40 @@ pub fn compress<R: Read, W: Write>(source: R, target: W, level: CompressionLevel
 pub fn compress_to_vec<R: Read>(source: R, level: CompressionLevel) -> Vec<u8> {
     let mut vec = Vec::new();
     compress(source, &mut vec, level);
+    vec
+}
+
+/// Convenience function to compress some source into a target using a dictionary, see [`Dictionary`]
+///
+/// The decoder needs the same dictionary to decompress the frame.
+/// ```rust
+/// use ruzstd::encoding::{compress_with_dictionary, CompressionLevel, Dictionary};
+/// let dict = Dictionary::from_raw_content(b"some data that is typical for the inputs".to_vec());
+/// let data: &[u8] = b"some data that is typical for this input";
+/// let mut target = Vec::new();
+/// compress_with_dictionary(data, &mut target, CompressionLevel::Default, &dict);
+/// ```
+pub fn compress_with_dictionary<R: Read, W: Write>(
+    source: R,
+    target: W,
+    level: CompressionLevel,
+    dictionary: &Dictionary,
+) {
+    let mut frame_enc = FrameCompressor::new(level);
+    frame_enc.set_dictionary(dictionary.clone());
+    frame_enc.set_source(source);
+    frame_enc.set_drain(target);
+    frame_enc.compress();
+}
+
+/// Convenience function to compress some source into a Vec using a dictionary, see [`compress_with_dictionary`]
+pub fn compress_to_vec_with_dictionary<R: Read>(
+    source: R,
+    level: CompressionLevel,
+    dictionary: &Dictionary,
+) -> Vec<u8> {
+    let mut vec = Vec::new();
+    compress_with_dictionary(source, &mut vec, level, dictionary);
     vec
 }
 
@@ -107,6 +143,14 @@ pub trait Matcher {
     ///
     /// May change after a call to reset with a different compression level
     fn window_size(&self) -> u64;
+    /// Load the content of a dictionary that is used for the next frame. Called right after `reset`,
+    /// before the first space is committed.
+    ///
+    /// The content acts as data that precedes the first block. Sequences may reference it like data of the
+    /// frame, but only as long as the total amount of data in the frame does not exceed [`Matcher::window_size`]
+    /// (this is the limit the Zstd specification places on dictionary references). Matchers that do not
+    /// support dictionaries can ignore this, the default implementation does nothing.
+    fn load_dictionary(&mut self, _content: &[u8]) {}
 }
 
 #[derive(PartialEq, Eq, Debug)]

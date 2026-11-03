@@ -16,6 +16,10 @@
 //! capacity the oldest data is dropped and all table entries are rebased. The table contents are only ever used as
 //! *hints*; every candidate is verified by comparing the actual bytes, so stale entries can never produce an invalid
 //! sequence.
+//!
+//! The content of a dictionary is placed in the buffer in front of the first block of a frame. Matches may reference
+//! it as long as the total amount of data in the frame does not exceed the window size, which is the limit the
+//! Zstd specification places on dictionary references.
 
 use alloc::vec::Vec;
 use core::convert::TryInto;
@@ -85,6 +89,15 @@ impl LazyParams {
     }
 }
 
+/// The state the tables are in when no positions of a frame have been inserted yet
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Baseline {
+    /// All entries are zero
+    Empty,
+    /// The entries are those of the dictionary snapshot
+    Dictionary,
+}
+
 /// Hash and chain tables. Separate from the data buffer so the two can be borrowed independently.
 struct Tables {
     hash_log: u32,
@@ -93,6 +106,15 @@ struct Tables {
     chain_mask: usize,
     /// All positions below this index have been inserted into the tables
     next_to_update: usize,
+    /// What the tables looked like before the current frame inserted anything
+    baseline: Baseline,
+    /// The (hash slot, chain slot) pairs written since the baseline, so that a small frame can be undone
+    /// without touching the whole tables. Only valid while `tracking` is set.
+    touched: Vec<(u32, u32)>,
+    /// Cleared once there are too many touched slots to track, restoring them one by one would then be
+    /// more expensive than rewriting the whole tables
+    tracking: bool,
+    touched_limit: usize,
 }
 
 impl Tables {
@@ -103,13 +125,61 @@ impl Tables {
             chain: alloc::vec![0; 1 << params.chain_log],
             chain_mask: (1 << params.chain_log) - 1,
             next_to_update: 0,
+            baseline: Baseline::Empty,
+            touched: Vec::new(),
+            tracking: true,
+            touched_limit: ((1usize << params.hash_log) + (1usize << params.chain_log)) / 8,
         }
     }
 
-    fn clear(&mut self) {
-        self.hash.fill(0);
-        self.chain.fill(0);
-        self.next_to_update = 0;
+    #[inline(always)]
+    fn record(&mut self, hash_slot: usize, chain_slot: usize) {
+        if self.tracking {
+            self.record_slow(hash_slot, chain_slot);
+        }
+    }
+
+    #[inline(never)]
+    fn record_slow(&mut self, hash_slot: usize, chain_slot: usize) {
+        if self.touched.len() < self.touched_limit {
+            self.touched.push((hash_slot as u32, chain_slot as u32));
+        } else {
+            self.tracking = false;
+            self.touched.clear();
+        }
+    }
+
+    /// Bring the tables back to the wanted baseline, undoing everything the last frame inserted
+    fn restore(&mut self, wanted: Baseline, snapshot: Option<&DictSnapshot>) {
+        let (snapshot, next_to_update) = match wanted {
+            Baseline::Empty => (None, 0),
+            Baseline::Dictionary => {
+                let snapshot = snapshot.expect("dictionary baseline requires a snapshot");
+                (Some(snapshot), snapshot.next_to_update)
+            }
+        };
+        if self.tracking && self.baseline == wanted {
+            for &(h, c) in self.touched.iter() {
+                let (h, c) = (h as usize, c as usize);
+                self.hash[h] = snapshot.map_or(0, |s| s.hash[h]);
+                self.chain[c] = snapshot.map_or(0, |s| s.chain[c]);
+            }
+        } else {
+            match snapshot {
+                Some(s) => {
+                    self.hash.copy_from_slice(&s.hash);
+                    self.chain.copy_from_slice(&s.chain);
+                }
+                None => {
+                    self.hash.fill(0);
+                    self.chain.fill(0);
+                }
+            }
+        }
+        self.touched.clear();
+        self.tracking = true;
+        self.baseline = wanted;
+        self.next_to_update = next_to_update;
     }
 
     /// All data before `shift` has been dropped from the buffer, adjust the stored positions accordingly
@@ -122,6 +192,9 @@ impl Tables {
             *entry = entry.saturating_sub(shift);
         }
         self.next_to_update = self.next_to_update.saturating_sub(shift as usize);
+        // Every entry changed, undoing the frame slot by slot is no longer possible
+        self.tracking = false;
+        self.touched.clear();
     }
 
     #[inline(always)]
@@ -144,12 +217,31 @@ impl Tables {
     fn insert_up_to(&mut self, buf: &[u8], target: usize) {
         while self.next_to_update < target {
             let pos = self.next_to_update;
-            let h = self.hash_at(buf, pos);
-            self.chain[pos & self.chain_mask] = self.hash[h];
-            self.hash[h] = pos as u32;
+            self.insert(buf, pos);
             self.next_to_update = pos + 1;
         }
     }
+
+    /// Insert `pos` into the tables and return the previous head of its hash chain
+    #[inline(always)]
+    fn insert(&mut self, buf: &[u8], pos: usize) -> usize {
+        let h = self.hash_at(buf, pos);
+        let chain_slot = pos & self.chain_mask;
+        let head = self.hash[h];
+        self.chain[chain_slot] = head;
+        self.hash[h] = pos as u32;
+        self.record(h, chain_slot);
+        head as usize
+    }
+}
+
+/// The table state right after a dictionary has been indexed. Restoring it is a lot cheaper than
+/// re-indexing the dictionary for every frame, which matters for many small inputs.
+struct DictSnapshot {
+    content: Vec<u8>,
+    hash: Vec<u32>,
+    chain: Vec<u32>,
+    next_to_update: usize,
 }
 
 /// A [`super::Matcher`] implementation using hash chains and lazy match evaluation, see the module documentation
@@ -161,22 +253,33 @@ pub(crate) struct LazyMatcher {
     capacity: usize,
     /// Index in `buf` where the current block starts
     block_start: usize,
+    /// Index in `buf` where the data of the current frame starts. Everything before it is dictionary content.
+    frame_base: usize,
     tables: Tables,
+    /// The tables still hold data of the previous frame and need to be restored before they are used
+    tables_dirty: bool,
+    dict_snapshot: Option<DictSnapshot>,
     /// Buffers handed out by `get_next_space`
     vec_pool: Vec<Vec<u8>>,
 }
 
 impl LazyMatcher {
     pub(crate) fn new(params: LazyParams) -> Self {
-        let capacity = params.window_size() + SLACK_BLOCKS * MAX_BLOCK_SIZE as usize;
         Self {
             params,
             buf: Vec::new(),
-            capacity,
+            capacity: Self::base_capacity(&params),
             block_start: 0,
+            frame_base: 0,
             tables: Tables::new(&params),
+            tables_dirty: false,
+            dict_snapshot: None,
             vec_pool: Vec::new(),
         }
+    }
+
+    fn base_capacity(params: &LazyParams) -> usize {
+        params.window_size() + SLACK_BLOCKS * MAX_BLOCK_SIZE as usize
     }
 
     #[cfg(test)]
@@ -192,7 +295,64 @@ impl LazyMatcher {
         }
         self.buf.clear();
         self.block_start = 0;
-        self.tables.clear();
+        self.frame_base = 0;
+        self.capacity = Self::base_capacity(&params);
+        self.buf.shrink_to(self.capacity);
+        // Clearing is deferred, a dictionary snapshot might get restored instead
+        self.tables_dirty = true;
+    }
+
+    /// Place dictionary content in front of the data of the next frame. Must be called right after `reset`.
+    pub(crate) fn load_dictionary(&mut self, content: &[u8]) {
+        assert!(
+            self.buf.is_empty(),
+            "a dictionary can only be loaded right after a reset"
+        );
+        if content.is_empty() {
+            return;
+        }
+        // The dictionary stays referencable until the frame holds `window_size` bytes, make sure the buffer
+        // does not have to drop data before that
+        self.capacity = usize::max(
+            self.capacity,
+            content.len() + self.params.window_size() + MAX_BLOCK_SIZE as usize,
+        );
+        self.buf.extend_from_slice(content);
+        self.block_start = self.buf.len();
+        self.frame_base = self.buf.len();
+
+        let same_dict = self
+            .dict_snapshot
+            .as_ref()
+            .is_some_and(|snapshot| snapshot.content == content);
+        if same_dict {
+            self.tables
+                .restore(Baseline::Dictionary, self.dict_snapshot.as_ref());
+            self.tables_dirty = false;
+        } else {
+            self.ensure_clean_tables();
+            // Index all positions whose hash input lies completely in the dictionary. The last few
+            // positions straddle the boundary to the frame data and are inserted by the first search.
+            let indexable = content.len().saturating_sub(MIN_MATCH_LEN - 1);
+            self.tables.insert_up_to(&self.buf, indexable);
+            self.dict_snapshot = Some(DictSnapshot {
+                content: content.to_vec(),
+                hash: self.tables.hash.clone(),
+                chain: self.tables.chain.clone(),
+                next_to_update: self.tables.next_to_update,
+            });
+            // From here on the frame's insertions are tracked relative to the dictionary state
+            self.tables.baseline = Baseline::Dictionary;
+            self.tables.touched.clear();
+            self.tables.tracking = true;
+        }
+    }
+
+    fn ensure_clean_tables(&mut self) {
+        if self.tables_dirty {
+            self.tables.restore(Baseline::Empty, None);
+            self.tables_dirty = false;
+        }
     }
 
     pub(crate) fn window_size(&self) -> u64 {
@@ -213,6 +373,7 @@ impl LazyMatcher {
 
     pub(crate) fn commit_space(&mut self, mut space: Vec<u8>) {
         assert!(space.len() <= MAX_BLOCK_SIZE as usize);
+        self.ensure_clean_tables();
         if self.buf.len() + space.len() > self.capacity {
             // Drop everything that is older than one window before the start of the new block
             let keep = usize::min(self.buf.len(), self.params.window_size());
@@ -220,6 +381,7 @@ impl LazyMatcher {
             self.buf.copy_within(shift.., 0);
             self.buf.truncate(keep);
             self.tables.rebase(shift);
+            self.frame_base = self.frame_base.saturating_sub(shift);
         }
         self.block_start = self.buf.len();
         self.buf.extend_from_slice(&space);
@@ -239,6 +401,7 @@ impl LazyMatcher {
         let params = &self.params;
         let block_start = self.block_start;
         let block_end = buf.len();
+        let frame_base = self.frame_base;
 
         if block_end - block_start < MIN_MATCH_LEN {
             if block_end > block_start {
@@ -254,17 +417,23 @@ impl LazyMatcher {
         let chain_size = tables.chain_mask + 1;
         // Last position at which a search can be started
         let ilimit = block_end - MIN_MATCH_LEN;
+        // Dictionary content may be referenced while the frame does not exceed the window size. While that is the
+        // case every offset reaching back into the dictionary is valid, no matter how far back it points.
+        let dict_usable = frame_base > 0 && block_end - frame_base <= window_size;
+        // Lowest index a match may be sourced from
+        let src_floor = if dict_usable { 0 } else { frame_base };
 
         // Searches the tables for the longest match at `ip` and inserts `ip` into the tables
         let search = |tables: &mut Tables, ip: usize| -> (usize, usize) {
             tables.insert_up_to(buf, ip);
-            let h = tables.hash_at(buf, ip);
-            let mut candidate = tables.hash[h] as usize;
-            tables.chain[ip & tables.chain_mask] = candidate as u32;
-            tables.hash[h] = ip as u32;
+            let mut candidate = tables.insert(buf, ip);
             tables.next_to_update = ip + 1;
 
-            let low_limit = ip.saturating_sub(window_size);
+            let low_limit = if dict_usable {
+                0
+            } else {
+                usize::max(ip.saturating_sub(window_size), src_floor)
+            };
             let min_chain = ip.saturating_sub(chain_size);
             let mut best_len = 0;
             let mut best_offset = 0;
@@ -329,7 +498,10 @@ impl LazyMatcher {
             }
 
             // Catch up: the match might extend backwards into the literals
-            while start > anchor && start > offset && buf[start - 1] == buf[start - 1 - offset] {
+            while start > anchor
+                && start > offset + src_floor
+                && buf[start - 1] == buf[start - 1 - offset]
+            {
                 start -= 1;
                 match_len += 1;
             }

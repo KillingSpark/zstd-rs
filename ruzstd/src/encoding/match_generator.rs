@@ -111,6 +111,13 @@ impl Matcher for MatchGeneratorDriver {
             ActiveMatcher::Lazy => self.lazy.as_mut().unwrap().skip_matching(),
         }
     }
+
+    fn load_dictionary(&mut self, content: &[u8]) {
+        match self.active {
+            ActiveMatcher::Fast => self.fast.load_dictionary(content),
+            ActiveMatcher::Lazy => self.lazy.as_mut().unwrap().load_dictionary(content),
+        }
+    }
 }
 
 /// The matcher used for [`CompressionLevel::Fastest`]. It allocates and reuses the buffers when possible.
@@ -195,6 +202,20 @@ impl Matcher for FastMatcher {
     fn skip_matching(&mut self) {
         self.match_generator.skip_matching();
     }
+
+    fn load_dictionary(&mut self, content: &[u8]) {
+        if content.is_empty() {
+            return;
+        }
+        // Large dictionaries get a capped suffix store, collisions just overwrite
+        const DICT_SUFFIX_STORE_MAX_CAPACITY: usize = 1 << 20;
+        let capacity = usize::min(
+            DICT_SUFFIX_STORE_MAX_CAPACITY,
+            usize::max(1024, content.len().next_power_of_two()),
+        );
+        self.match_generator
+            .add_dict(content, || SuffixStore::with_capacity(capacity));
+    }
 }
 
 /// This stores the index of a suffix of a string by hashing the first few bytes of that suffix
@@ -277,6 +298,13 @@ pub(crate) struct MatchGenerator {
     suffix_idx: usize,
     /// Gets updated when a new sequence is returned to point right behind that sequence
     last_idx_in_sequence: usize,
+    /// Whether the first window entry is dictionary content
+    dict_loaded: bool,
+    /// The dictionary entry of a previous frame. Its suffix store only ever holds the dictionary's own
+    /// suffixes, so it can be used again if the same dictionary is loaded for the next frame.
+    dict_cache: Option<WindowEntry>,
+    /// Number of bytes of the current frame added so far
+    frame_size: usize,
 }
 
 impl MatchGenerator {
@@ -290,18 +318,68 @@ impl MatchGenerator {
             concat_window: Vec::new(),
             suffix_idx: 0,
             last_idx_in_sequence: 0,
+            dict_loaded: false,
+            dict_cache: None,
+            frame_size: 0,
         }
     }
 
     fn reset(&mut self, mut reuse_space: impl FnMut(Vec<u8>, SuffixStore)) {
+        self.drop_dict();
         self.window_size = 0;
         #[cfg(debug_assertions)]
         self.concat_window.clear();
         self.suffix_idx = 0;
         self.last_idx_in_sequence = 0;
+        self.frame_size = 0;
         self.window.drain(..).for_each(|entry| {
             reuse_space(entry.data, entry.suffixes);
         });
+    }
+
+    /// Add dictionary content as the first window entry. It does not count towards the window size and it is dropped
+    /// as soon as the frame holds more than `max_window_size` bytes, since the specification only allows references
+    /// into the dictionary up to that point.
+    ///
+    /// `make_suffix_store` is only called if the dictionary is not the one used for the previous frame.
+    fn add_dict(&mut self, content: &[u8], make_suffix_store: impl FnOnce() -> SuffixStore) {
+        assert!(
+            self.window.is_empty(),
+            "a dictionary can only be loaded into an empty window"
+        );
+        #[cfg(debug_assertions)]
+        self.concat_window.extend_from_slice(content);
+        let len = content.len();
+        match self.dict_cache.take() {
+            Some(mut cached) if cached.data == content => {
+                cached.base_offset = 0;
+                self.window.push(cached);
+            }
+            _ => {
+                self.window.push(WindowEntry {
+                    data: content.to_vec(),
+                    suffixes: make_suffix_store(),
+                    base_offset: 0,
+                });
+                self.suffix_idx = 0;
+                self.add_suffixes_till(len);
+            }
+        }
+        self.suffix_idx = len;
+        self.last_idx_in_sequence = len;
+        self.dict_loaded = true;
+    }
+
+    /// Remove the dictionary entry if there is one. Its buffers are kept for the next frame in case the same
+    /// dictionary is used again, they can not be reused for blocks since they do not have the block size.
+    fn drop_dict(&mut self) {
+        if self.dict_loaded {
+            let removed = self.window.remove(0);
+            #[cfg(debug_assertions)]
+            self.concat_window.drain(0..removed.data.len());
+            self.dict_cache = Some(removed);
+            self.dict_loaded = false;
+        }
     }
 
     /// Processes bytes in the current window until either a match is found or no more matches can be found
@@ -463,6 +541,10 @@ impl MatchGenerator {
         assert!(
             self.window.is_empty() || self.suffix_idx == self.window.last().unwrap().data.len()
         );
+        if self.dict_loaded && self.frame_size + data.len() > self.max_window_size {
+            self.drop_dict();
+        }
+        self.frame_size += data.len();
         self.reserve(data.len(), reuse_space);
         #[cfg(debug_assertions)]
         self.concat_window.extend_from_slice(&data);
