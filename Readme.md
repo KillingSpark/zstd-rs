@@ -32,12 +32,32 @@ times slower. Enwik9 is highly compressible, for less compressible data
 On the compression side:
 - Support for generating compressed blocks at any compression level
   - [x] Uncompressed
-  - [x] Fastest (roughly level 1)
-  - [ ] Default (roughly level 3)
-  - [ ] Better (roughly level 7)
-  - [ ] Best (roughly level 11)
+  - [x] Fastest (roughly level 1): greedy single-slot hash matcher, window of one block (128 kB)
+  - [x] Default (roughly level 3): hash chains with lazy matching, 2 MiB window
+  - [x] Better (roughly level 7): hash chains with lazy matching, 4 MiB window
+  - [x] Best (roughly level 11): hash chains with lazy matching, 8 MiB window
 - [x] Checksums
 - [ ] Dictionaries
+
+The encoder does not yet make use of repeat offset codes and does not try to
+optimize the choice of entropy tables, so the ratio of the higher levels stays
+a bit behind the reference implementation and the speed is well behind it.
+
+Measured on three inputs (the concatenated `decodecorpus_files`, the `*.rs` files of this
+repository and 48 MB of `*.rs` files from a cargo registry). Sizes are relative to the
+input, speeds are single threaded with the reference implementation measured through the
+`zstd` crate on the same machine:
+
+| Level          | decodecorpus (11.5 MB) | ruzstd sources (0.5 MB) | registry sources (48 MB) |
+|----------------|------------------------|-------------------------|--------------------------|
+| Fastest        | 51.7 %, 54 MB/s        | 34.7 %, 67 MB/s         | 26.0 %, 74 MB/s          |
+| Default        | 42.6 %, 59 MB/s        | 21.4 %, 69 MB/s         | 13.6 %, 80 MB/s          |
+| Better         | 41.9 %, 30 MB/s        | 20.3 %, 30 MB/s         | 12.2 %, 35 MB/s          |
+| Best           | 41.6 %, 18 MB/s        | 20.2 %, 14 MB/s         | 12.0 %, 12 MB/s          |
+| zstd -1        | 46.4 %, 478 MB/s       | 24.1 %, 309 MB/s        | 16.2 %, 447 MB/s         |
+| zstd -3        | 43.4 %, 218 MB/s       | 22.3 %, 228 MB/s        | 14.5 %, 305 MB/s         |
+| zstd -7        | 41.8 %, 93 MB/s        | 19.7 %, 73 MB/s         | 12.0 %, 97 MB/s          |
+| zstd -11       | 41.6 %, 38 MB/s        | 19.2 %, 27 MB/s         | 11.1 %, 37 MB/s          |
 
 ## Dictionary Generation
 When the `dict_builder` feature is enabled, the `dictionary` module
@@ -120,9 +140,8 @@ given block count has been decoded or the decodebuffer has reached a certain siz
     1. sequence_decoding and reverse_bitreader::get_bits. Those account for about 50% of the whole time used in decoding
     2. Matching suffixes. This accounts for >60% of the whole time used in encoding
 2. Implement encoder features
-    1. More levels
+    1. Repeat offset codes and smarter entropy table selection
     2. Dictionaries
-    3. Checksums
 
 ## Testing
 

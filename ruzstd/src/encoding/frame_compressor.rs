@@ -80,7 +80,7 @@ impl<R: Read, W: Write> FrameCompressor<R, W, MatchGeneratorDriver> {
             compressed_data: None,
             compression_level,
             state: CompressState {
-                matcher: MatchGeneratorDriver::new(1024 * 128, 1),
+                matcher: MatchGeneratorDriver::new(compression_level),
                 last_huff_table: None,
                 fse_tables: FseTables::new(),
             },
@@ -196,11 +196,11 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                     header.serialize(output);
                     output.extend_from_slice(&uncompressed_data);
                 }
-                CompressionLevel::Fastest => {
-                    compress_fastest(&mut self.state, last_block, uncompressed_data, output)
-                }
-                _ => {
-                    unimplemented!();
+                CompressionLevel::Fastest
+                | CompressionLevel::Default
+                | CompressionLevel::Better
+                | CompressionLevel::Best => {
+                    compress_matched_block(&mut self.state, last_block, uncompressed_data, output)
                 }
             }
             drain.write_all(output).unwrap();
@@ -472,14 +472,14 @@ mod tests {
             )
         }
 
-        fn encode_ruzstd_compressed(data: &mut dyn std::io::Read) -> Vec<u8> {
+        fn encode_ruzstd_compressed(
+            data: &mut dyn std::io::Read,
+            level: crate::encoding::CompressionLevel,
+        ) -> Vec<u8> {
             let mut input = Vec::new();
             data.read_to_end(&mut input).unwrap();
 
-            crate::encoding::compress_to_vec(
-                input.as_slice(),
-                crate::encoding::CompressionLevel::Fastest,
-            )
+            crate::encoding::compress_to_vec(input.as_slice(), level)
         }
 
         fn decode_zstd(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
@@ -515,13 +515,25 @@ mod tests {
                         "Decoded data did not match the original input during compression"
                     );
                     // Compressed encoding
-                    let mut input = data;
-                    let compressed = encode_ruzstd_compressed(&mut input);
-                    let decoded = decode_zstd(&compressed).unwrap();
-                    assert_eq!(
-                        decoded, data,
-                        "Decoded data did not match the original input during compression"
-                    );
+                    for level in [
+                        crate::encoding::CompressionLevel::Fastest,
+                        crate::encoding::CompressionLevel::Default,
+                        crate::encoding::CompressionLevel::Better,
+                        crate::encoding::CompressionLevel::Best,
+                    ] {
+                        let mut input = data;
+                        let compressed = encode_ruzstd_compressed(&mut input, level);
+                        let decoded = decode_zstd(&compressed).unwrap();
+                        assert_eq!(
+                            decoded, data,
+                            "Decoded data did not match the original input during compression at {level:?}"
+                        );
+                        let decoded = decode_ruzstd(&mut compressed.as_slice());
+                        assert_eq!(
+                            decoded, data,
+                            "Decoded data did not match the original input during compression at {level:?}"
+                        );
+                    }
                 }
             }
         }

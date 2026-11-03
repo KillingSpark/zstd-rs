@@ -6,7 +6,13 @@ use crate::{
 };
 use alloc::vec::Vec;
 
-/// Compresses a single block at [`crate::encoding::CompressionLevel::Fastest`].
+/// Compresses a single block using the matcher in `state`.
+///
+/// This is shared by all compression levels that actually compress data. The level only influences
+/// the behaviour of the [`Matcher`] (which has been set up by [`Matcher::reset`]).
+///
+/// If the whole block consists of the same byte it is encoded as an RLE block. Otherwise it is encoded as a
+/// compressed block, unless that does not shrink the block, in which case a raw block is emitted.
 ///
 /// # Parameters
 /// - `state`: [`CompressState`] so the compressor can refer to data before
@@ -17,7 +23,7 @@ use alloc::vec::Vec;
 ///   larger input
 /// - `output`: As `uncompressed_data` is compressed, it's appended to `output`.
 #[inline]
-pub fn compress_fastest<M: Matcher>(
+pub fn compress_matched_block<M: Matcher>(
     state: &mut CompressState<M>,
     last_block: bool,
     uncompressed_data: Vec<u8>,

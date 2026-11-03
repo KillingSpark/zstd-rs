@@ -3,6 +3,7 @@
 pub(crate) mod block_header;
 pub(crate) mod blocks;
 pub(crate) mod frame_header;
+pub(crate) mod lazy_matcher;
 pub(crate) mod match_generator;
 pub(crate) mod util;
 
@@ -48,21 +49,29 @@ pub enum CompressionLevel {
     /// This level does not compress the data at all, and simply wraps
     /// it in a Zstandard frame.
     Uncompressed,
-    /// This level is roughly equivalent to Zstd compression level 1
+    /// This level is roughly equivalent to Zstd compression level 1.
+    ///
+    /// Uses a greedy single-slot hash matcher with a window of one block (128 kB).
     Fastest,
     /// This level is roughly equivalent to Zstd level 3,
     /// or the one used by the official compressor when no level
     /// is specified.
     ///
-    /// UNIMPLEMENTED
+    /// Uses hash chains (depth 8) with a one-byte lazy match evaluation over a 2 MiB window.
+    /// Memory usage of the matcher is about 3.5 MiB.
     Default,
     /// This level is roughly equivalent to Zstd level 7.
     ///
-    /// UNIMPLEMENTED
+    /// Uses hash chains (depth 32) with a two-byte lazy match evaluation over a 4 MiB window.
+    /// Memory usage of the matcher is about 7.5 MiB.
     Better,
     /// This level is roughly equivalent to Zstd level 11.
     ///
-    /// UNIMPLEMENTED
+    /// Uses hash chains (depth 128) with a two-byte lazy match evaluation over a 8 MiB window.
+    /// Memory usage of the matcher is about 14.5 MiB.
+    ///
+    /// Note that the encoder does not yet make use of repeat offset codes, so the compression ratio of
+    /// the higher levels stays somewhat behind the reference implementation.
     Best,
 }
 

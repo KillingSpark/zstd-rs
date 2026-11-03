@@ -12,10 +12,17 @@ fuzz_target!(|data: &[u8]| {
     decoder.decode_all_to_vec(&output, &mut decoded).unwrap();
     assert_eq!(data, &decoded);
 
-    let output = compress_to_vec(data, CompressionLevel::Fastest);
+    for level in [
+        CompressionLevel::Fastest,
+        CompressionLevel::Default,
+        CompressionLevel::Better,
+        CompressionLevel::Best,
+    ] {
+        let output = compress_to_vec(data, level);
 
-    let mut decoded = Vec::with_capacity(data.len());
-    let mut decoder = ruzstd::decoding::FrameDecoder::new();
-    decoder.decode_all_to_vec(&output, &mut decoded).unwrap();
-    assert_eq!(data, &decoded);
+        let mut decoded = Vec::with_capacity(data.len());
+        let mut decoder = ruzstd::decoding::FrameDecoder::new();
+        decoder.decode_all_to_vec(&output, &mut decoded).unwrap();
+        assert_eq!(data, &decoded);
+    }
 });

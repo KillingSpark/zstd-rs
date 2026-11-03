@@ -4,25 +4,124 @@
 //! A sequence basically tells the decoder "Go back X bytes and copy Y bytes to the end of your decode buffer".
 //!
 //! The task here is to efficiently find matches in the already encoded data for the current suffix of the not yet encoded data.
+//!
+//! Two algorithms are implemented:
+//! * [`FastMatcher`] (used for [`CompressionLevel::Fastest`]): a single-slot hash table per block, greedy matching,
+//!   window of one block
+//! * [`super::lazy_matcher::LazyMatcher`] (used for [`CompressionLevel::Default`] and above): hash chains over a window
+//!   spanning multiple blocks with lazy match evaluation
+//!
+//! [`MatchGeneratorDriver`] is the default [`Matcher`] and picks one of them based on the compression level.
 
 use alloc::vec::Vec;
 use core::num::NonZeroUsize;
 
+use super::lazy_matcher::{LazyMatcher, LazyParams};
 use super::CompressionLevel;
 use super::Matcher;
 use super::Sequence;
 
 const MIN_MATCH_LEN: usize = 5;
 
+/// Which algorithm the [`MatchGeneratorDriver`] currently uses
+enum ActiveMatcher {
+    Fast,
+    Lazy,
+}
+
 /// This is the default implementation of the `Matcher` trait. It allocates and reuses the buffers when possible.
+///
+/// Depending on the compression level passed to [`Matcher::reset`] it uses either the fast single-block matcher or the
+/// lazy hash-chain matcher with a window spanning multiple blocks. The level-specific resources are only allocated
+/// when that level is used for the first time.
 pub struct MatchGeneratorDriver {
+    fast: FastMatcher,
+    lazy: Option<LazyMatcher>,
+    active: ActiveMatcher,
+}
+
+impl MatchGeneratorDriver {
+    /// Create a driver that is set up for the given compression level
+    pub(crate) fn new(level: CompressionLevel) -> Self {
+        let mut this = Self {
+            fast: FastMatcher::new(1024 * 128, 1),
+            lazy: None,
+            active: ActiveMatcher::Fast,
+        };
+        this.reset(level);
+        this
+    }
+}
+
+impl Matcher for MatchGeneratorDriver {
+    fn reset(&mut self, level: CompressionLevel) {
+        match LazyParams::for_level(level) {
+            None => {
+                self.active = ActiveMatcher::Fast;
+                self.fast.reset(level);
+            }
+            Some(params) => {
+                self.active = ActiveMatcher::Lazy;
+                match &mut self.lazy {
+                    Some(lazy) => lazy.reset(params),
+                    None => self.lazy = Some(LazyMatcher::new(params)),
+                }
+            }
+        }
+    }
+
+    fn window_size(&self) -> u64 {
+        match self.active {
+            ActiveMatcher::Fast => self.fast.window_size(),
+            ActiveMatcher::Lazy => self.lazy.as_ref().unwrap().window_size(),
+        }
+    }
+
+    fn get_next_space(&mut self) -> Vec<u8> {
+        match self.active {
+            ActiveMatcher::Fast => self.fast.get_next_space(),
+            ActiveMatcher::Lazy => self.lazy.as_mut().unwrap().get_next_space(),
+        }
+    }
+
+    fn get_last_space(&mut self) -> &[u8] {
+        match self.active {
+            ActiveMatcher::Fast => self.fast.get_last_space(),
+            ActiveMatcher::Lazy => self.lazy.as_mut().unwrap().get_last_space(),
+        }
+    }
+
+    fn commit_space(&mut self, space: Vec<u8>) {
+        match self.active {
+            ActiveMatcher::Fast => self.fast.commit_space(space),
+            ActiveMatcher::Lazy => self.lazy.as_mut().unwrap().commit_space(space),
+        }
+    }
+
+    fn start_matching(&mut self, handle_sequence: impl for<'a> FnMut(Sequence<'a>)) {
+        match self.active {
+            ActiveMatcher::Fast => self.fast.start_matching(handle_sequence),
+            ActiveMatcher::Lazy => self.lazy.as_mut().unwrap().start_matching(handle_sequence),
+        }
+    }
+
+    fn skip_matching(&mut self) {
+        match self.active {
+            ActiveMatcher::Fast => self.fast.skip_matching(),
+            ActiveMatcher::Lazy => self.lazy.as_mut().unwrap().skip_matching(),
+        }
+    }
+}
+
+/// The matcher used for [`CompressionLevel::Fastest`]. It allocates and reuses the buffers when possible.
+pub(crate) struct FastMatcher {
     vec_pool: Vec<Vec<u8>>,
     suffix_pool: Vec<SuffixStore>,
     match_generator: MatchGenerator,
     slice_size: usize,
 }
 
-impl MatchGeneratorDriver {
+impl FastMatcher {
     /// slice_size says how big the slices should be that are allocated to work with
     /// max_slices_in_window says how many slices should at most be used while looking for matches
     pub(crate) fn new(slice_size: usize, max_slices_in_window: usize) -> Self {
@@ -35,7 +134,7 @@ impl MatchGeneratorDriver {
     }
 }
 
-impl Matcher for MatchGeneratorDriver {
+impl Matcher for FastMatcher {
     fn reset(&mut self, _level: CompressionLevel) {
         let vec_pool = &mut self.vec_pool;
         let suffix_pool = &mut self.suffix_pool;
