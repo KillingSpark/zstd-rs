@@ -403,6 +403,20 @@ impl FrameDecoder {
         }
     }
 
+    /// Every byte decoded and not yet collected, in order, as two slices, without
+    /// collecting any: the window_size bytes that [`FrameDecoder::collect`] retains
+    /// while decoding is still going on are among them.
+    ///
+    /// For a frame that is a stream flushed block by block, whose newest bytes are
+    /// wanted as soon as their blocks are decoded rather than once the frame ends:
+    /// read them here, then collect to keep the buffer at the window's size.
+    pub fn peek(&self) -> (&[u8], &[u8]) {
+        match &self.state {
+            None => (&[], &[]),
+            Some(state) => state.decoder_scratch.buffer.as_slices(),
+        }
+    }
+
     /// How many bytes can currently be collected from the decodebuffer, while decoding is going on this will be lower than the actual decodbuffer size
     /// because window_size bytes need to be retained for decoding.
     /// After decoding of the frame (is_finished() == true) has finished it will report all remaining bytes

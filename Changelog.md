@@ -4,6 +4,8 @@ This document records the changes made between versions, starting with version 0
 
 # After 0.9.1 (Current)
 
+* Add `FrameDecoder::peek` to see the decoded bytes `collect` still retains, such as a flushed block's in a frame not yet ended
+
 * Apply the per-block decoded size limit to a block's literals, including blocks with no sequences
 
 # After 0.9.0

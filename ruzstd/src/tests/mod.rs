@@ -848,3 +848,43 @@ fn verbose_disabled() {
     use crate::VERBOSE;
     assert_eq!(VERBOSE, false);
 }
+
+/// What `peek` shows is every byte decoded and not yet collected, in order:
+/// before the frame ends, the window `collect` retains among them.
+#[test]
+fn peek_shows_what_collect_retains() {
+    use crate::decoding::{BlockDecodingStrategy, FrameDecoder};
+    use crate::encoding::{compress_to_vec, CompressionLevel};
+
+    // Several blocks' worth, which does not all repeat.
+    let data: Vec<u8> = (0..400_000u32)
+        .map(|i| (i.wrapping_mul(2_654_435_761) >> 24) as u8 ^ (i / 1000) as u8)
+        .collect();
+    let compressed = compress_to_vec(&data[..], CompressionLevel::Fastest);
+    let mut decoder = FrameDecoder::new();
+    let mut source = &compressed[..];
+    decoder.init(&mut source).unwrap();
+    let mut out = Vec::new();
+    let peeked = |decoder: &FrameDecoder| {
+        let (a, b) = decoder.peek();
+        [a, b].concat()
+    };
+    assert!(peeked(&decoder).is_empty());
+    while !decoder.is_finished() {
+        decoder
+            .decode_blocks(&mut source, BlockDecodingStrategy::UptoBlocks(1))
+            .unwrap();
+        // Everything decoded so far: what was collected, then what peek shows.
+        let shown = peeked(&decoder);
+        assert!(!shown.is_empty());
+        assert_eq!(
+            [&out[..], &shown[..]].concat(),
+            data[..out.len() + shown.len()]
+        );
+        if let Some(collected) = decoder.collect() {
+            out.extend_from_slice(&collected);
+        }
+    }
+    out.extend_from_slice(&decoder.collect().unwrap());
+    assert_eq!(out, data);
+}
