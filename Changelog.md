@@ -5,6 +5,14 @@ This document records the changes made between versions, starting with version 0
 # After 0.9.1 (Current)
 
 * Apply the per-block decoded size limit to a block's literals, including blocks with no sequences
+* Implement the `Default`, `Better` and `Best` compression levels using a hash chain matcher with lazy
+  match evaluation over a window spanning multiple blocks (2/4/8 MiB)
+* Fix a panic in the FSE table builder when a block's sequences only use a single symbol
+  (e.g. every sequence has zero literals)
+* Dictionary support for the compressor: `encoding::Dictionary` (zstd dictionary format or raw content),
+  `FrameCompressor::set_dictionary`, `compress_with_dictionary`/`compress_to_vec_with_dictionary`, a default
+  `Matcher::load_dictionary` method, `decoding::Dictionary::from_raw_content` and a `--dictionary` option
+  for the cli
 
 # After 0.9.0
 

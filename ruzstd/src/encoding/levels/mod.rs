@@ -1,4 +1,5 @@
-mod fastest;
+//! Per-level block compression logic
+mod matched;
 #[cfg(test)]
-mod fastest_tests;
-pub use fastest::compress_fastest;
+mod tests;
+pub use matched::compress_matched_block;

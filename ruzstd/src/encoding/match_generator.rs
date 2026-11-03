@@ -4,25 +4,131 @@
 //! A sequence basically tells the decoder "Go back X bytes and copy Y bytes to the end of your decode buffer".
 //!
 //! The task here is to efficiently find matches in the already encoded data for the current suffix of the not yet encoded data.
+//!
+//! Two algorithms are implemented:
+//! * [`FastMatcher`] (used for [`CompressionLevel::Fastest`]): a single-slot hash table per block, greedy matching,
+//!   window of one block
+//! * [`super::lazy_matcher::LazyMatcher`] (used for [`CompressionLevel::Default`] and above): hash chains over a window
+//!   spanning multiple blocks with lazy match evaluation
+//!
+//! [`MatchGeneratorDriver`] is the default [`Matcher`] and picks one of them based on the compression level.
 
 use alloc::vec::Vec;
 use core::num::NonZeroUsize;
 
+use super::lazy_matcher::{LazyMatcher, LazyParams};
 use super::CompressionLevel;
 use super::Matcher;
 use super::Sequence;
 
 const MIN_MATCH_LEN: usize = 5;
 
+/// Which algorithm the [`MatchGeneratorDriver`] currently uses
+enum ActiveMatcher {
+    Fast,
+    Lazy,
+}
+
 /// This is the default implementation of the `Matcher` trait. It allocates and reuses the buffers when possible.
+///
+/// Depending on the compression level passed to [`Matcher::reset`] it uses either the fast single-block matcher or the
+/// lazy hash-chain matcher with a window spanning multiple blocks. The level-specific resources are only allocated
+/// when that level is used for the first time.
 pub struct MatchGeneratorDriver {
+    fast: FastMatcher,
+    lazy: Option<LazyMatcher>,
+    active: ActiveMatcher,
+}
+
+impl MatchGeneratorDriver {
+    /// Create a driver that is set up for the given compression level
+    pub(crate) fn new(level: CompressionLevel) -> Self {
+        let mut this = Self {
+            fast: FastMatcher::new(1024 * 128, 1),
+            lazy: None,
+            active: ActiveMatcher::Fast,
+        };
+        this.reset(level);
+        this
+    }
+}
+
+impl Matcher for MatchGeneratorDriver {
+    fn reset(&mut self, level: CompressionLevel) {
+        match LazyParams::for_level(level) {
+            None => {
+                self.active = ActiveMatcher::Fast;
+                self.fast.reset(level);
+            }
+            Some(params) => {
+                self.active = ActiveMatcher::Lazy;
+                match &mut self.lazy {
+                    Some(lazy) => lazy.reset(params),
+                    None => self.lazy = Some(LazyMatcher::new(params)),
+                }
+            }
+        }
+    }
+
+    fn window_size(&self) -> u64 {
+        match self.active {
+            ActiveMatcher::Fast => self.fast.window_size(),
+            ActiveMatcher::Lazy => self.lazy.as_ref().unwrap().window_size(),
+        }
+    }
+
+    fn get_next_space(&mut self) -> Vec<u8> {
+        match self.active {
+            ActiveMatcher::Fast => self.fast.get_next_space(),
+            ActiveMatcher::Lazy => self.lazy.as_mut().unwrap().get_next_space(),
+        }
+    }
+
+    fn get_last_space(&mut self) -> &[u8] {
+        match self.active {
+            ActiveMatcher::Fast => self.fast.get_last_space(),
+            ActiveMatcher::Lazy => self.lazy.as_mut().unwrap().get_last_space(),
+        }
+    }
+
+    fn commit_space(&mut self, space: Vec<u8>) {
+        match self.active {
+            ActiveMatcher::Fast => self.fast.commit_space(space),
+            ActiveMatcher::Lazy => self.lazy.as_mut().unwrap().commit_space(space),
+        }
+    }
+
+    fn start_matching(&mut self, handle_sequence: impl for<'a> FnMut(Sequence<'a>)) {
+        match self.active {
+            ActiveMatcher::Fast => self.fast.start_matching(handle_sequence),
+            ActiveMatcher::Lazy => self.lazy.as_mut().unwrap().start_matching(handle_sequence),
+        }
+    }
+
+    fn skip_matching(&mut self) {
+        match self.active {
+            ActiveMatcher::Fast => self.fast.skip_matching(),
+            ActiveMatcher::Lazy => self.lazy.as_mut().unwrap().skip_matching(),
+        }
+    }
+
+    fn load_dictionary(&mut self, content: &[u8]) {
+        match self.active {
+            ActiveMatcher::Fast => self.fast.load_dictionary(content),
+            ActiveMatcher::Lazy => self.lazy.as_mut().unwrap().load_dictionary(content),
+        }
+    }
+}
+
+/// The matcher used for [`CompressionLevel::Fastest`]. It allocates and reuses the buffers when possible.
+pub(crate) struct FastMatcher {
     vec_pool: Vec<Vec<u8>>,
     suffix_pool: Vec<SuffixStore>,
     match_generator: MatchGenerator,
     slice_size: usize,
 }
 
-impl MatchGeneratorDriver {
+impl FastMatcher {
     /// slice_size says how big the slices should be that are allocated to work with
     /// max_slices_in_window says how many slices should at most be used while looking for matches
     pub(crate) fn new(slice_size: usize, max_slices_in_window: usize) -> Self {
@@ -35,7 +141,7 @@ impl MatchGeneratorDriver {
     }
 }
 
-impl Matcher for MatchGeneratorDriver {
+impl Matcher for FastMatcher {
     fn reset(&mut self, _level: CompressionLevel) {
         let vec_pool = &mut self.vec_pool;
         let suffix_pool = &mut self.suffix_pool;
@@ -95,6 +201,20 @@ impl Matcher for MatchGeneratorDriver {
     }
     fn skip_matching(&mut self) {
         self.match_generator.skip_matching();
+    }
+
+    fn load_dictionary(&mut self, content: &[u8]) {
+        if content.is_empty() {
+            return;
+        }
+        // Large dictionaries get a capped suffix store, collisions just overwrite
+        const DICT_SUFFIX_STORE_MAX_CAPACITY: usize = 1 << 20;
+        let capacity = usize::min(
+            DICT_SUFFIX_STORE_MAX_CAPACITY,
+            usize::max(1024, content.len().next_power_of_two()),
+        );
+        self.match_generator
+            .add_dict(content, || SuffixStore::with_capacity(capacity));
     }
 }
 
@@ -178,6 +298,13 @@ pub(crate) struct MatchGenerator {
     suffix_idx: usize,
     /// Gets updated when a new sequence is returned to point right behind that sequence
     last_idx_in_sequence: usize,
+    /// Whether the first window entry is dictionary content
+    dict_loaded: bool,
+    /// The dictionary entry of a previous frame. Its suffix store only ever holds the dictionary's own
+    /// suffixes, so it can be used again if the same dictionary is loaded for the next frame.
+    dict_cache: Option<WindowEntry>,
+    /// Number of bytes of the current frame added so far
+    frame_size: usize,
 }
 
 impl MatchGenerator {
@@ -191,18 +318,68 @@ impl MatchGenerator {
             concat_window: Vec::new(),
             suffix_idx: 0,
             last_idx_in_sequence: 0,
+            dict_loaded: false,
+            dict_cache: None,
+            frame_size: 0,
         }
     }
 
     fn reset(&mut self, mut reuse_space: impl FnMut(Vec<u8>, SuffixStore)) {
+        self.drop_dict();
         self.window_size = 0;
         #[cfg(debug_assertions)]
         self.concat_window.clear();
         self.suffix_idx = 0;
         self.last_idx_in_sequence = 0;
+        self.frame_size = 0;
         self.window.drain(..).for_each(|entry| {
             reuse_space(entry.data, entry.suffixes);
         });
+    }
+
+    /// Add dictionary content as the first window entry. It does not count towards the window size and it is dropped
+    /// as soon as the frame holds more than `max_window_size` bytes, since the specification only allows references
+    /// into the dictionary up to that point.
+    ///
+    /// `make_suffix_store` is only called if the dictionary is not the one used for the previous frame.
+    fn add_dict(&mut self, content: &[u8], make_suffix_store: impl FnOnce() -> SuffixStore) {
+        assert!(
+            self.window.is_empty(),
+            "a dictionary can only be loaded into an empty window"
+        );
+        #[cfg(debug_assertions)]
+        self.concat_window.extend_from_slice(content);
+        let len = content.len();
+        match self.dict_cache.take() {
+            Some(mut cached) if cached.data == content => {
+                cached.base_offset = 0;
+                self.window.push(cached);
+            }
+            _ => {
+                self.window.push(WindowEntry {
+                    data: content.to_vec(),
+                    suffixes: make_suffix_store(),
+                    base_offset: 0,
+                });
+                self.suffix_idx = 0;
+                self.add_suffixes_till(len);
+            }
+        }
+        self.suffix_idx = len;
+        self.last_idx_in_sequence = len;
+        self.dict_loaded = true;
+    }
+
+    /// Remove the dictionary entry if there is one. Its buffers are kept for the next frame in case the same
+    /// dictionary is used again, they can not be reused for blocks since they do not have the block size.
+    fn drop_dict(&mut self) {
+        if self.dict_loaded {
+            let removed = self.window.remove(0);
+            #[cfg(debug_assertions)]
+            self.concat_window.drain(0..removed.data.len());
+            self.dict_cache = Some(removed);
+            self.dict_loaded = false;
+        }
     }
 
     /// Processes bytes in the current window until either a match is found or no more matches can be found
@@ -364,6 +541,10 @@ impl MatchGenerator {
         assert!(
             self.window.is_empty() || self.suffix_idx == self.window.last().unwrap().data.len()
         );
+        if self.dict_loaded && self.frame_size + data.len() > self.max_window_size {
+            self.drop_dict();
+        }
+        self.frame_size += data.len();
         self.reserve(data.len(), reuse_space);
         #[cfg(debug_assertions)]
         self.concat_window.extend_from_slice(&data);

@@ -238,6 +238,9 @@ pub fn build_table_from_data(
             max_symbol = idx;
         }
     }
+    // If only the symbol 0 occurs the table needs a second (unused) symbol to redistribute probability to,
+    // otherwise the only symbol would have the whole table and would be encoded with zero bits
+    let max_symbol = max_symbol.max(1);
     build_table_from_counts(&counts[..=max_symbol], max_log, avoid_0_numbit)
 }
 
@@ -442,4 +445,22 @@ pub(crate) fn default_ll_table() -> FSETable {
 
 pub(crate) fn default_of_table() -> FSETable {
     build_table_from_probabilities(OF_DIST, 5)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_table_from_data;
+
+    #[test]
+    fn single_symbol_zero_builds_a_table() {
+        // A block in which every sequence has e.g. zero literals produces only the symbol 0.
+        // This used to panic while redistributing probability away from the only symbol.
+        for count in [1, 2, 17, 1000] {
+            let table = build_table_from_data(core::iter::repeat_n(0u8, count), 9, true);
+            assert!(table.table_size >= 32);
+            assert!(table.states[0].probability > 0);
+        }
+        let table = build_table_from_data(core::iter::repeat_n(0u8, 5), 9, false);
+        assert!(table.states[0].probability > 0);
+    }
 }

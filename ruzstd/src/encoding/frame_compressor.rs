@@ -10,7 +10,7 @@ use core::hash::Hasher;
 
 use super::{
     block_header::BlockHeader, frame_header::FrameHeader, levels::*,
-    match_generator::MatchGeneratorDriver, CompressionLevel, Matcher,
+    match_generator::MatchGeneratorDriver, CompressionLevel, Dictionary, Matcher,
 };
 use crate::fse::fse_encoder::{default_ll_table, default_ml_table, default_of_table, FSETable};
 
@@ -39,6 +39,7 @@ pub struct FrameCompressor<R: Read, W: Write, M: Matcher> {
     uncompressed_data: Option<R>,
     compressed_data: Option<W>,
     compression_level: CompressionLevel,
+    dictionary: Option<Dictionary>,
     state: CompressState<M>,
     #[cfg(feature = "hash")]
     hasher: XxHash64,
@@ -79,8 +80,9 @@ impl<R: Read, W: Write> FrameCompressor<R, W, MatchGeneratorDriver> {
             uncompressed_data: None,
             compressed_data: None,
             compression_level,
+            dictionary: None,
             state: CompressState {
-                matcher: MatchGeneratorDriver::new(1024 * 128, 1),
+                matcher: MatchGeneratorDriver::new(compression_level),
                 last_huff_table: None,
                 fse_tables: FseTables::new(),
             },
@@ -102,6 +104,7 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                 fse_tables: FseTables::new(),
             },
             compression_level,
+            dictionary: None,
             #[cfg(feature = "hash")]
             hasher: XxHash64::with_seed(0),
         }
@@ -131,6 +134,9 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
     pub fn compress(&mut self) {
         // Clearing buffers to allow re-using of the compressor
         self.state.matcher.reset(self.compression_level);
+        if let Some(dict) = &self.dictionary {
+            self.state.matcher.load_dictionary(dict.content());
+        }
         self.state.last_huff_table = None;
         #[cfg(feature = "hash")]
         {
@@ -145,7 +151,12 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
             frame_content_size: None,
             single_segment: false,
             content_checksum: cfg!(feature = "hash"),
-            dictionary_id: None,
+            dictionary_id: self
+                .dictionary
+                .as_ref()
+                .map(|dict| dict.id())
+                .filter(|id| *id != 0)
+                .map(u64::from),
             window_size: Some(self.state.matcher.window_size()),
         };
         header.serialize(output);
@@ -196,11 +207,11 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                     header.serialize(output);
                     output.extend_from_slice(&uncompressed_data);
                 }
-                CompressionLevel::Fastest => {
-                    compress_fastest(&mut self.state, last_block, uncompressed_data, output)
-                }
-                _ => {
-                    unimplemented!();
+                CompressionLevel::Fastest
+                | CompressionLevel::Default
+                | CompressionLevel::Better
+                | CompressionLevel::Best => {
+                    compress_matched_block(&mut self.state, last_block, uncompressed_data, output)
                 }
             }
             drain.write_all(output).unwrap();
@@ -272,6 +283,28 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
     /// Get the current compression level
     pub fn compression_level(&self) -> CompressionLevel {
         self.compression_level
+    }
+
+    /// Before calling [FrameCompressor::compress] you can set a dictionary that is used for all following frames.
+    /// Returns the previously set dictionary.
+    ///
+    /// The ID of the dictionary is written into the frame header (unless it is 0, which is the case for raw content
+    /// dictionaries), so decoders know which dictionary they need. Note that references into the dictionary are only
+    /// allowed while the frame holds at most `window_size` bytes. The window of [CompressionLevel::Fastest] is a
+    /// single block, so a dictionary only helps the first 128 kB there. Use [CompressionLevel::Default] or above to
+    /// benefit from a dictionary over the first 2 MiB and more.
+    pub fn set_dictionary(&mut self, dictionary: Dictionary) -> Option<Dictionary> {
+        self.dictionary.replace(dictionary)
+    }
+
+    /// Remove the dictionary so that following frames are compressed without one
+    pub fn take_dictionary(&mut self) -> Option<Dictionary> {
+        self.dictionary.take()
+    }
+
+    /// Get the dictionary that is currently used
+    pub fn dictionary(&self) -> Option<&Dictionary> {
+        self.dictionary.as_ref()
     }
 }
 
@@ -472,14 +505,14 @@ mod tests {
             )
         }
 
-        fn encode_ruzstd_compressed(data: &mut dyn std::io::Read) -> Vec<u8> {
+        fn encode_ruzstd_compressed(
+            data: &mut dyn std::io::Read,
+            level: crate::encoding::CompressionLevel,
+        ) -> Vec<u8> {
             let mut input = Vec::new();
             data.read_to_end(&mut input).unwrap();
 
-            crate::encoding::compress_to_vec(
-                input.as_slice(),
-                crate::encoding::CompressionLevel::Fastest,
-            )
+            crate::encoding::compress_to_vec(input.as_slice(), level)
         }
 
         fn decode_zstd(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
@@ -515,13 +548,25 @@ mod tests {
                         "Decoded data did not match the original input during compression"
                     );
                     // Compressed encoding
-                    let mut input = data;
-                    let compressed = encode_ruzstd_compressed(&mut input);
-                    let decoded = decode_zstd(&compressed).unwrap();
-                    assert_eq!(
-                        decoded, data,
-                        "Decoded data did not match the original input during compression"
-                    );
+                    for level in [
+                        crate::encoding::CompressionLevel::Fastest,
+                        crate::encoding::CompressionLevel::Default,
+                        crate::encoding::CompressionLevel::Better,
+                        crate::encoding::CompressionLevel::Best,
+                    ] {
+                        let mut input = data;
+                        let compressed = encode_ruzstd_compressed(&mut input, level);
+                        let decoded = decode_zstd(&compressed).unwrap();
+                        assert_eq!(
+                            decoded, data,
+                            "Decoded data did not match the original input during compression at {level:?}"
+                        );
+                        let decoded = decode_ruzstd(&mut compressed.as_slice());
+                        assert_eq!(
+                            decoded, data,
+                            "Decoded data did not match the original input during compression at {level:?}"
+                        );
+                    }
                 }
             }
         }

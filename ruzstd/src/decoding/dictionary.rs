@@ -40,6 +40,22 @@ pub struct Dictionary {
 pub const MAGIC_NUM: [u8; 4] = [0x37, 0xA4, 0x30, 0xEC];
 
 impl Dictionary {
+    /// Create a "raw content" dictionary that only consists of content and has no entropy tables.
+    ///
+    /// Raw content dictionaries have no ID of their own. Frames compressed with one do not carry a dictionary ID
+    /// in their header, so a [`crate::decoding::FrameDecoder`] does not pick them up automatically. Use
+    /// [`crate::decoding::FrameDecoder::force_dict`] with the `id` chosen here after initializing the decoder for
+    /// a frame.
+    pub fn from_raw_content(id: u32, content: Vec<u8>) -> Dictionary {
+        Dictionary {
+            id,
+            fse: FSEScratch::new(),
+            huf: HuffmanScratch::new(),
+            dict_content: content,
+            offset_hist: [1, 4, 8],
+        }
+    }
+
     /// Parses the dictionary from `raw` and set the tables
     /// it returns the dict_id for checking with the frame's `dict_id``
     pub fn decode_dict(raw: &[u8]) -> Result<Dictionary, DictionaryDecodeError> {
