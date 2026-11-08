@@ -6,7 +6,11 @@ use crate::{
 };
 use alloc::vec::Vec;
 
-/// Compresses a single block at [`crate::encoding::CompressionLevel::Fastest`].
+/// Compresses a single block with the state's matcher.
+///
+/// Every level that emits compressed blocks uses this; the levels differ in
+/// how the matcher searches (it is configured for the level when the frame
+/// starts).
 ///
 /// # Parameters
 /// - `state`: [`CompressState`] so the compressor can refer to data before
@@ -17,7 +21,7 @@ use alloc::vec::Vec;
 ///   larger input
 /// - `output`: As `uncompressed_data` is compressed, it's appended to `output`.
 #[inline]
-pub fn compress_fastest<M: Matcher>(
+pub fn compress_matched<M: Matcher>(
     state: &mut CompressState<M>,
     last_block: bool,
     uncompressed_data: Vec<u8>,
@@ -38,7 +42,16 @@ pub fn compress_fastest<M: Matcher>(
         header.serialize(output);
         output.push(rle_byte);
     } else {
-        // Compress as a standard compressed block
+        // Compress as a standard compressed block. Compressing updates state
+        // the decoder only sees if the block is emitted compressed, so keep
+        // what it had in case the block is stored raw instead.
+        let offset_history = state.offset_history;
+        let huff_table = state.last_huff_table.clone();
+        let fse_previous = (
+            state.fse_tables.ll_previous.clone(),
+            state.fse_tables.ml_previous.clone(),
+            state.fse_tables.of_previous.clone(),
+        );
         let mut compressed = Vec::new();
         state.matcher.commit_space(uncompressed_data);
         compress_block(state, &mut compressed);
@@ -47,6 +60,13 @@ pub fn compress_fastest<M: Matcher>(
         // Also preserve the format guard that compressed blocks must not
         // exceed the maximum block size.
         if compressed_size >= block_size as usize || compressed_size > MAX_BLOCK_SIZE as usize {
+            state.offset_history = offset_history;
+            state.last_huff_table = huff_table;
+            (
+                state.fse_tables.ll_previous,
+                state.fse_tables.ml_previous,
+                state.fse_tables.of_previous,
+            ) = fse_previous;
             let header = BlockHeader {
                 last_block,
                 block_type: crate::blocks::block::BlockType::Raw,

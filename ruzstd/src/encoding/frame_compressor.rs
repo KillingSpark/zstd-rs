@@ -10,7 +10,8 @@ use core::hash::Hasher;
 
 use super::{
     block_header::BlockHeader, frame_header::FrameHeader, levels::*,
-    match_generator::MatchGeneratorDriver, CompressionLevel, Matcher,
+    match_generator::MatchGeneratorDriver, offset_history::OffsetHistory, CompressionLevel,
+    Matcher,
 };
 use crate::fse::fse_encoder::{default_ll_table, default_ml_table, default_of_table, FSETable};
 
@@ -69,6 +70,8 @@ impl FseTables {
 pub(crate) struct CompressState<M: Matcher> {
     pub(crate) matcher: M,
     pub(crate) last_huff_table: Option<crate::huff0::huff0_encoder::HuffmanTable>,
+    /// The repeat offsets as the decoder will track them through this frame.
+    pub(crate) offset_history: OffsetHistory,
     pub(crate) fse_tables: FseTables,
 }
 
@@ -83,6 +86,7 @@ impl<R: Read, W: Write> FrameCompressor<R, W, MatchGeneratorDriver> {
                 matcher: MatchGeneratorDriver::new(1024 * 128, 1),
                 last_huff_table: None,
                 fse_tables: FseTables::new(),
+                offset_history: OffsetHistory::new(),
             },
             #[cfg(feature = "hash")]
             hasher: XxHash64::with_seed(0),
@@ -100,6 +104,7 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                 matcher,
                 last_huff_table: None,
                 fse_tables: FseTables::new(),
+                offset_history: OffsetHistory::new(),
             },
             compression_level,
             #[cfg(feature = "hash")]
@@ -132,6 +137,10 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
         // Clearing buffers to allow re-using of the compressor
         self.state.matcher.reset(self.compression_level);
         self.state.last_huff_table = None;
+        self.state.fse_tables.ll_previous = None;
+        self.state.fse_tables.ml_previous = None;
+        self.state.fse_tables.of_previous = None;
+        self.state.offset_history = OffsetHistory::new();
         #[cfg(feature = "hash")]
         {
             self.hasher = XxHash64::with_seed(0);
@@ -196,10 +205,12 @@ impl<R: Read, W: Write, M: Matcher> FrameCompressor<R, W, M> {
                     header.serialize(output);
                     output.extend_from_slice(&uncompressed_data);
                 }
-                CompressionLevel::Fastest => {
-                    compress_fastest(&mut self.state, last_block, uncompressed_data, output)
+                CompressionLevel::Fastest
+                | CompressionLevel::Default
+                | CompressionLevel::Better => {
+                    compress_matched(&mut self.state, last_block, uncompressed_data, output)
                 }
-                _ => {
+                CompressionLevel::Best => {
                     unimplemented!();
                 }
             }
@@ -522,6 +533,15 @@ mod tests {
                         decoded, data,
                         "Decoded data did not match the original input during compression"
                     );
+                    // The hash-chain levels
+                    for level in [
+                        crate::encoding::CompressionLevel::Default,
+                        crate::encoding::CompressionLevel::Better,
+                    ] {
+                        let compressed = crate::encoding::compress_to_vec(data, level);
+                        let decoded = decode_zstd(&compressed).unwrap();
+                        assert_eq!(decoded, data, "Decoded data did not match at {:?}", level);
+                    }
                 }
             }
         }

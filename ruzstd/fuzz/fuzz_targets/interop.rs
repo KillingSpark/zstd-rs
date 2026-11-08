@@ -32,16 +32,10 @@ fn encode_zstd(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
     zstd::stream::encode_all(std::io::Cursor::new(data), 3)
 }
 
-fn encode_ruzstd_uncompressed(data: &mut dyn std::io::Read) -> Vec<u8> {
+fn encode_ruzstd(data: &mut dyn std::io::Read, level: CompressionLevel) -> Vec<u8> {
     let mut input = Vec::new();
     data.read_to_end(&mut input).unwrap();
-    compress_to_vec(data, CompressionLevel::Uncompressed)
-}
-
-fn encode_ruzstd_compressed(data: &mut dyn std::io::Read) -> Vec<u8> {
-    let mut input = Vec::new();
-    data.read_to_end(&mut input).unwrap();
-    compress_to_vec(data, CompressionLevel::Uncompressed)
+    compress_to_vec(input.as_slice(), level)
 }
 
 fn decode_zstd(data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
@@ -64,21 +58,20 @@ fuzz_target!(|data: &[u8]| {
         "Decoded data did not match the original input during decompression"
     );
 
-    // Encoding
-    // Uncompressed encoding
-    let mut input = data;
-    let compressed = encode_ruzstd_uncompressed(&mut input);
-    let decoded = decode_zstd(&compressed).unwrap();
-    assert_eq!(
-        decoded, data,
-        "Decoded data did not match the original input during compression"
-    );
-    // Compressed encoding
-    let mut input = data;
-    let compressed = encode_ruzstd_compressed(&mut input);
-    let decoded = decode_zstd(&compressed).unwrap();
-    assert_eq!(
-        decoded, data,
-        "Decoded data did not match the original input during compression"
-    );
+    // Encoding, at every level the encoder implements
+    for level in [
+        CompressionLevel::Uncompressed,
+        CompressionLevel::Fastest,
+        CompressionLevel::Default,
+        CompressionLevel::Better,
+    ] {
+        let mut input = data;
+        let compressed = encode_ruzstd(&mut input, level);
+        let decoded = decode_zstd(&compressed).unwrap();
+        assert_eq!(
+            decoded, data,
+            "Decoded data did not match the original input during compression at {:?}",
+            level
+        );
+    }
 });

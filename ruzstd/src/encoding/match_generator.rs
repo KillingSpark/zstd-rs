@@ -8,6 +8,7 @@
 use alloc::vec::Vec;
 use core::num::NonZeroUsize;
 
+use super::hash_chain::{HashChainMatcher, Params};
 use super::CompressionLevel;
 use super::Matcher;
 use super::Sequence;
@@ -15,10 +16,17 @@ use super::Sequence;
 const MIN_MATCH_LEN: usize = 5;
 
 /// This is the default implementation of the `Matcher` trait. It allocates and reuses the buffers when possible.
+///
+/// [`CompressionLevel::Fastest`] uses a single-entry hash table per block.
+/// [`CompressionLevel::Default`] and [`CompressionLevel::Better`] search hash
+/// chains with lazy evaluation over a larger window.
 pub struct MatchGeneratorDriver {
     vec_pool: Vec<Vec<u8>>,
     suffix_pool: Vec<SuffixStore>,
     match_generator: MatchGenerator,
+    /// The matcher for the levels that search hash chains, while one is used.
+    hash_chain: Option<HashChainMatcher>,
+    use_hash_chain: bool,
     slice_size: usize,
 }
 
@@ -30,13 +38,24 @@ impl MatchGeneratorDriver {
             vec_pool: Vec::new(),
             suffix_pool: Vec::new(),
             match_generator: MatchGenerator::new(max_slices_in_window * slice_size),
+            hash_chain: None,
+            use_hash_chain: false,
             slice_size,
         }
     }
 }
 
 impl Matcher for MatchGeneratorDriver {
-    fn reset(&mut self, _level: CompressionLevel) {
+    fn reset(&mut self, level: CompressionLevel) {
+        if let Some(params) = Params::for_level(level) {
+            match &mut self.hash_chain {
+                Some(matcher) => matcher.reset(params),
+                None => self.hash_chain = Some(HashChainMatcher::new(params)),
+            }
+            self.use_hash_chain = true;
+            return;
+        }
+        self.use_hash_chain = false;
         let vec_pool = &mut self.vec_pool;
         let suffix_pool = &mut self.suffix_pool;
 
@@ -50,7 +69,10 @@ impl Matcher for MatchGeneratorDriver {
     }
 
     fn window_size(&self) -> u64 {
-        self.match_generator.max_window_size as u64
+        match &self.hash_chain {
+            Some(matcher) if self.use_hash_chain => matcher.window_size(),
+            _ => self.match_generator.max_window_size as u64,
+        }
     }
 
     fn get_next_space(&mut self) -> Vec<u8> {
@@ -62,10 +84,20 @@ impl Matcher for MatchGeneratorDriver {
     }
 
     fn get_last_space(&mut self) -> &[u8] {
-        self.match_generator.window.last().unwrap().data.as_slice()
+        match &self.hash_chain {
+            Some(matcher) if self.use_hash_chain => matcher.last_block(),
+            _ => self.match_generator.window.last().unwrap().data.as_slice(),
+        }
     }
 
-    fn commit_space(&mut self, space: Vec<u8>) {
+    fn commit_space(&mut self, mut space: Vec<u8>) {
+        if let (true, Some(matcher)) = (self.use_hash_chain, &mut self.hash_chain) {
+            // The hash-chain matcher keeps its own copy of the window.
+            matcher.add_block(&space);
+            space.resize(space.capacity(), 0);
+            self.vec_pool.push(space);
+            return;
+        }
         let vec_pool = &mut self.vec_pool;
         let suffix_pool = &mut self.suffix_pool;
         const SUFFIX_STORE_MIN_CAPACITY: usize = 1024;
@@ -91,9 +123,17 @@ impl Matcher for MatchGeneratorDriver {
     }
 
     fn start_matching(&mut self, mut handle_sequence: impl for<'a> FnMut(Sequence<'a>)) {
+        if let (true, Some(matcher)) = (self.use_hash_chain, &mut self.hash_chain) {
+            matcher.start_matching(handle_sequence);
+            return;
+        }
         while self.match_generator.next_sequence(&mut handle_sequence) {}
     }
     fn skip_matching(&mut self) {
+        if let (true, Some(matcher)) = (self.use_hash_chain, &mut self.hash_chain) {
+            matcher.skip_matching();
+            return;
+        }
         self.match_generator.skip_matching();
     }
 }
