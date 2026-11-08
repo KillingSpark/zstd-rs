@@ -5,6 +5,13 @@ This document records the changes made between versions, starting with version 0
 # After 0.9.1 (Current)
 
 * Apply the per-block decoded size limit to a block's literals, including blocks with no sequences
+* Implement the `Default` and `Better` compression levels with a lazy hash-chain matcher
+* Encode repeat offsets, keeping the offset history across the blocks of a frame like the decoder does
+* Build optimal length-limited Huffman codes for literals
+* Normalize FSE counts like zstd does, and pick the cheapest of the predefined, repeated or new FSE table for each sequence stream
+* Fix a panic when building an FSE table where every code is the same symbol
+* Restore the encoder state (repeat offsets, Huffman and FSE tables) when a block is stored raw instead of compressed
+* Fix the interop fuzz target, which compressed an already consumed reader
 
 # After 0.9.0
 

@@ -144,6 +144,12 @@ impl FSETable {
         self.table_size.ilog2() as u8
     }
 
+    /// The normalized probability of `symbol` (`-1` is "less than one",
+    /// `0` means the table cannot encode it).
+    pub(crate) fn probability(&self, symbol: u8) -> i32 {
+        self.states[symbol as usize].probability
+    }
+
     pub(crate) fn write_table<V: AsMut<Vec<u8>>>(&self, writer: &mut BitWriter<V>) {
         writer.write_bits(self.acc_log() - 5, 4);
         let mut probability_counter = 0usize;
@@ -238,76 +244,203 @@ pub fn build_table_from_data(
             max_symbol = idx;
         }
     }
-    build_table_from_counts(&counts[..=max_symbol], max_log, avoid_0_numbit)
+    // Keep at least two symbol slots: when only symbol 0 occurs, the
+    // `avoid_0_numbit` redistribution needs a second (unused) symbol to give
+    // probability to.
+    build_table_from_counts(&counts[..=max_symbol.max(1)], max_log, avoid_0_numbit)
+}
+
+#[cfg(test)]
+mod single_symbol_tests {
+    use super::build_table_from_data;
+
+    /// Every sequence of a block can use the same code, e.g. offset code 0
+    /// (repeat offset 1); the table must still build.
+    #[test]
+    fn a_single_symbol_zero_builds_a_table() {
+        for max_log in [8, 9] {
+            let table = build_table_from_data(core::iter::repeat_n(0u8, 300), max_log, true);
+            assert!(table.table_size > 0);
+            let _ = table.start_state(0);
+        }
+    }
 }
 
 fn build_table_from_counts(counts: &[usize], max_log: u8, avoid_0_numbit: bool) -> FSETable {
-    let mut probs = [0; 256];
-    let probs = &mut probs[..counts.len()];
-    let mut min_count = 0;
-    for (idx, count) in counts.iter().copied().enumerate() {
-        probs[idx] = count as i32;
-        if count > 0 && (count < min_count || min_count == 0) {
-            min_count = count;
+    let (probs, acc_log) = normalize_counts(counts, max_log, avoid_0_numbit);
+    build_table_from_probabilities(&probs, acc_log)
+}
+
+/// Slots a normalized probability occupies (`-1`, "less than one", takes one).
+fn slots(prob: i32) -> i32 {
+    if prob == -1 {
+        1
+    } else {
+        prob
+    }
+}
+
+/// The table log for `total` symbols drawn from `counts.len()` values
+/// (zstd's `FSE_optimalTableLog`): no larger than the data warrants, large
+/// enough to give every value a slot.
+fn table_log(total: usize, symbols: usize, max_log: u8) -> u8 {
+    let high_bit = |x: usize| (usize::BITS - 1 - x.max(1).leading_zeros()) as u8;
+    let from_source = high_bit(total.saturating_sub(1)).saturating_sub(2);
+    let minimum = u8::min(high_bit(total) + 1, high_bit(symbols.saturating_sub(1)) + 2);
+    u8::max(u8::min(max_log, from_source), minimum).clamp(5, max_log.max(5))
+}
+
+/// Probabilities proportional to `counts` that sum to `1 << acc_log`
+/// (zstd's `FSE_normalizeCount`). Symbols too rare for a full slot get the
+/// "less than one" probability `-1`. With `avoid_0_numbit`, no probability
+/// exceeds half the table, so every state reads at least one bit.
+fn normalize_counts(counts: &[usize], max_log: u8, avoid_0_numbit: bool) -> (Vec<i32>, u8) {
+    // Rounding thresholds for small probabilities, from zstd.
+    const ROUND_UP: [u64; 8] = [0, 473195, 504333, 520860, 550000, 700000, 750000, 830000];
+    let total: usize = counts.iter().sum();
+    assert!(total > 0);
+    let acc_log = table_log(total, counts.len(), max_log);
+    let size = 1i64 << acc_log;
+    let mut probs = alloc::vec![0i32; counts.len()];
+
+    let scale = 62 - acc_log as u32;
+    let step = (1u64 << 62) / total as u64;
+    let v_step = 1u64 << (scale - 20);
+    let low_threshold = total >> acc_log;
+    let mut remaining = size;
+    let mut largest = 0;
+    let mut largest_prob = 0i32;
+    for (symbol, &count) in counts.iter().enumerate() {
+        if count == 0 {
+            continue;
         }
+        if count <= low_threshold {
+            probs[symbol] = -1;
+            remaining -= 1;
+            continue;
+        }
+        let exact = count as u64 * step;
+        let mut prob = (exact >> scale) as i32;
+        if prob < 8 {
+            let rest = exact - ((prob as u64) << scale);
+            if rest > v_step * ROUND_UP[prob as usize] {
+                prob += 1;
+            }
+        }
+        if prob > largest_prob {
+            largest_prob = prob;
+            largest = symbol;
+        }
+        probs[symbol] = prob;
+        remaining -= prob as i64;
+    }
+    // Hand the rounding error to the most probable symbol, unless that
+    // would distort it; then fall back to largest-remainder rounding.
+    if -remaining >= (probs[largest] >> 1) as i64 || probs[largest] as i64 + remaining < 1 {
+        probs = largest_remainder(counts, total, size);
+    } else {
+        probs[largest] += remaining as i32;
     }
 
-    // shift all probabilities down so that the lowest are 1
-    min_count -= 1;
-    let mut max_prob = 0i32;
-    for prob in probs.iter_mut() {
-        if *prob > 0 {
-            *prob -= min_count as i32;
-        }
-        max_prob = max_prob.max(*prob);
-    }
-
-    if max_prob > 0 && max_prob as usize > probs.len() {
-        let divisor = max_prob / (probs.len() as i32);
-        for prob in probs.iter_mut() {
-            if *prob > 0 {
-                *prob = (*prob / divisor).max(1)
+    if avoid_0_numbit {
+        let half = (size / 2) as i32;
+        if let Some(max) = (0..probs.len()).max_by_key(|&s| probs[s]) {
+            if probs[max] > half {
+                let excess = probs[max] - half;
+                probs[max] = half;
+                // Prefer a symbol that occurs; otherwise lift an unused one.
+                let target = (0..probs.len())
+                    .filter(|&s| s != max)
+                    .max_by_key(|&s| (slots(probs[s]), core::cmp::Reverse(s)))
+                    .expect("at least two symbol slots");
+                probs[target] = slots(probs[target]) + excess;
+                debug_assert!(probs[target] <= half);
             }
         }
     }
+    debug_assert_eq!(probs.iter().map(|&p| slots(p) as i64).sum::<i64>(), size);
+    (probs, acc_log)
+}
 
-    // normalize probabilities to a 2^x
-    let sum = probs.iter().sum::<i32>();
-    assert!(sum > 0);
-    let sum = sum as usize;
-    let acc_log = (sum.ilog2() as u8 + 1).max(5);
-    let acc_log = u8::min(acc_log, max_log);
+/// Proportional probabilities summing to `size`: each occurring symbol gets
+/// at least one slot, and leftover slots go to the largest remainders.
+fn largest_remainder(counts: &[usize], total: usize, size: i64) -> Vec<i32> {
+    let mut probs = alloc::vec![0i32; counts.len()];
+    let mut remainders = Vec::new();
+    let mut used = 0i64;
+    for (symbol, &count) in counts.iter().enumerate() {
+        if count == 0 {
+            continue;
+        }
+        let exact = count as u128 * size as u128;
+        let prob = ((exact / total as u128) as i64).max(1);
+        probs[symbol] = prob as i32;
+        used += prob;
+        remainders.push((exact % total as u128, symbol));
+    }
+    remainders.sort_unstable_by(|a, b| b.cmp(a));
+    let mut index = 0;
+    while used < size {
+        probs[remainders[index % remainders.len()].1] += 1;
+        used += 1;
+        index += 1;
+    }
+    // Too many slots (from the minimum of one): take them from the largest.
+    while used > size {
+        let largest = (0..probs.len()).max_by_key(|&s| probs[s]).unwrap();
+        probs[largest] -= 1;
+        used -= 1;
+    }
+    probs
+}
 
-    if sum < 1 << acc_log {
-        // just raise the maximum probability as much as possible
-        // TODO is this optimal?
-        let diff = (1 << acc_log) - sum;
-        let max = probs.iter_mut().max().unwrap();
-        *max += diff as i32;
-    } else {
-        // decrease the smallest ones to 1 first
-        let mut diff = sum - (1 << acc_log);
-        while diff > 0 {
-            let min = probs.iter_mut().filter(|prob| **prob > 1).min().unwrap();
-            let decrease = usize::min(*min as usize - 1, diff);
-            diff -= decrease;
-            *min -= decrease as i32;
+#[cfg(test)]
+mod normalize_tests {
+    use super::{normalize_counts, slots};
+    use alloc::vec::Vec;
+
+    #[test]
+    fn probabilities_fill_the_table_and_follow_the_counts() {
+        let mut seed = 0x1234_5678u32;
+        let mut cases: Vec<Vec<usize>> = alloc::vec![
+            alloc::vec![1000, 1],
+            alloc::vec![5, 0],
+            alloc::vec![1; 53],
+            alloc::vec![100_000, 3, 2, 1, 0, 0, 7],
+        ];
+        for _ in 0..200 {
+            let len = 2 + (seed % 52) as usize;
+            cases.push(
+                (0..len)
+                    .map(|_| {
+                        seed ^= seed << 13;
+                        seed ^= seed >> 17;
+                        seed ^= seed << 5;
+                        (seed % 5000) as usize >> (seed % 12)
+                    })
+                    .collect(),
+            );
+        }
+        for counts in cases {
+            if counts.iter().sum::<usize>() == 0 {
+                continue;
+            }
+            for (max_log, avoid) in [(9, true), (8, true), (9, false)] {
+                let (probs, acc_log) = normalize_counts(&counts, max_log, avoid);
+                assert!((5..=max_log).contains(&acc_log));
+                let sum: i32 = probs.iter().map(|&p| slots(p)).sum();
+                assert_eq!(sum, 1 << acc_log, "{:?} -> {:?}", counts, probs);
+                for (&count, &prob) in counts.iter().zip(&probs) {
+                    if count > 0 {
+                        assert!(prob == -1 || prob >= 1);
+                    }
+                }
+                if avoid {
+                    assert!(probs.iter().all(|&p| p <= 1 << (acc_log - 1)));
+                }
+            }
         }
     }
-    let max = probs.iter_mut().max().unwrap();
-    if avoid_0_numbit && *max > 1 << (acc_log - 1) {
-        let redistribute = *max - (1 << (acc_log - 1));
-        *max -= redistribute;
-        let max = *max;
-
-        // find first occurence of the second_max to avoid lifting the last zero
-        let second_max = *probs.iter_mut().filter(|x| **x != max).max().unwrap();
-        let second_max = probs.iter_mut().find(|x| **x == second_max).unwrap();
-        *second_max += redistribute;
-        assert!(*second_max <= max);
-    }
-
-    build_table_from_probabilities(probs, acc_log)
 }
 
 pub(super) fn build_table_from_probabilities(probs: &[i32], acc_log: u8) -> FSETable {

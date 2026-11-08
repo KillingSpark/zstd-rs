@@ -33,8 +33,8 @@ On the compression side:
 - Support for generating compressed blocks at any compression level
   - [x] Uncompressed
   - [x] Fastest (roughly level 1)
-  - [ ] Default (roughly level 3)
-  - [ ] Better (roughly level 7)
+  - [x] Default (roughly level 3)
+  - [x] Better (roughly level 7)
   - [ ] Best (roughly level 11)
 - [x] Checksums
 - [ ] Dictionaries

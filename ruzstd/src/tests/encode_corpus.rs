@@ -231,3 +231,59 @@ fn test_encode_corpus_files_compressed_original_decompressor() {
         }
     }
 }
+
+/// The hash-chain levels on every corpus file, through both decoders.
+#[test]
+fn test_encode_corpus_files_hash_chain_levels_both_decompressors() {
+    extern crate std;
+    use crate::encoding::{compress_to_vec, CompressionLevel};
+    use alloc::borrow::ToOwned;
+    use alloc::format;
+    use alloc::string::String;
+    use alloc::vec::Vec;
+    use std::ffi::OsStr;
+    use std::fs;
+    use std::io::Read;
+    use std::path::PathBuf;
+
+    let mut failures: Vec<(PathBuf, String)> = Vec::new();
+    let mut files: Vec<_> = fs::read_dir("./decodecorpus_files").unwrap().collect();
+    if fs::read_dir("./local_corpus_files").is_ok() {
+        files.extend(fs::read_dir("./local_corpus_files").unwrap());
+    }
+    files.sort_by_key(|x| match x {
+        Err(_) => "".to_owned(),
+        Ok(entry) => entry.path().to_str().unwrap().to_owned(),
+    });
+
+    for entry in files.iter().map(|f| f.as_ref().unwrap()) {
+        let path = entry.path();
+        if path.extension() == Some(OsStr::new("zst")) {
+            continue;
+        }
+        let input = fs::read(&path).unwrap();
+        for level in [CompressionLevel::Default, CompressionLevel::Better] {
+            let compressed = compress_to_vec(input.as_slice(), level);
+
+            let mut ours = Vec::new();
+            let mut decoder =
+                crate::decoding::StreamingDecoder::new(compressed.as_slice()).unwrap();
+            decoder.read_to_end(&mut ours).unwrap();
+            if ours != input {
+                failures.push((path.to_owned(), format!("{:?}: our decoder differs", level)));
+            }
+
+            let mut theirs = Vec::new();
+            match zstd::stream::copy_decode(compressed.as_slice(), &mut theirs) {
+                Ok(()) if theirs == input => {}
+                Ok(()) => {
+                    failures.push((path.to_owned(), format!("{:?}: zstd output differs", level)))
+                }
+                Err(e) => {
+                    failures.push((path.to_owned(), format!("{:?}: zstd error {:?}", level, e)))
+                }
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{:?}", failures);
+}

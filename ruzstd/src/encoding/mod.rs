@@ -3,7 +3,9 @@
 pub(crate) mod block_header;
 pub(crate) mod blocks;
 pub(crate) mod frame_header;
+pub(crate) mod hash_chain;
 pub(crate) mod match_generator;
+pub(crate) mod offset_history;
 pub(crate) mod util;
 
 mod frame_compressor;
@@ -54,11 +56,12 @@ pub enum CompressionLevel {
     /// or the one used by the official compressor when no level
     /// is specified.
     ///
-    /// UNIMPLEMENTED
+    /// It uses lazy matching over hash chains and reuses repeat offsets.
     Default,
     /// This level is roughly equivalent to Zstd level 7.
     ///
-    /// UNIMPLEMENTED
+    /// It searches deeper hash chains than [`CompressionLevel::Default`]
+    /// and looks further ahead for a better match.
     Better,
     /// This level is roughly equivalent to Zstd level 11.
     ///

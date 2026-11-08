@@ -12,21 +12,21 @@ use crate::{
 pub fn compress_block<M: Matcher>(state: &mut CompressState<M>, output: &mut Vec<u8>) {
     let mut literals_vec = Vec::new();
     let mut sequences = Vec::new();
-    state.matcher.start_matching(|seq| {
-        match seq {
-            Sequence::Literals { literals } => literals_vec.extend_from_slice(literals),
-            Sequence::Triple {
-                literals,
-                offset,
-                match_len,
-            } => {
-                literals_vec.extend_from_slice(literals);
-                sequences.push(crate::blocks::sequence_section::Sequence {
-                    ll: literals.len() as u32,
-                    ml: match_len as u32,
-                    of: (offset + 3) as u32, // TODO make use of the offset history
-                });
-            }
+    let offset_history = &mut state.offset_history;
+    state.matcher.start_matching(|seq| match seq {
+        Sequence::Literals { literals } => literals_vec.extend_from_slice(literals),
+        Sequence::Triple {
+            literals,
+            offset,
+            match_len,
+        } => {
+            literals_vec.extend_from_slice(literals);
+            let ll = literals.len() as u32;
+            sequences.push(crate::blocks::sequence_section::Sequence {
+                ll,
+                ml: match_len as u32,
+                of: offset_history.encode(offset as u32, ll),
+            });
         }
     });
 
@@ -85,15 +85,10 @@ pub fn compress_block<M: Matcher>(state: &mut CompressState<M>, output: &mut Vec
             of_mode.as_ref(),
         );
 
-        if let FseTableMode::Encoded(table) = ll_mode {
-            state.fse_tables.ll_previous = Some(table)
-        }
-        if let FseTableMode::Encoded(table) = ml_mode {
-            state.fse_tables.ml_previous = Some(table)
-        }
-        if let FseTableMode::Encoded(table) = of_mode {
-            state.fse_tables.of_previous = Some(table)
-        }
+        // Whatever table a block used is the one the next block may repeat.
+        state.fse_tables.ll_previous = Some(ll_mode.into_table());
+        state.fse_tables.ml_previous = Some(ml_mode.into_table());
+        state.fse_tables.of_previous = Some(of_mode.into_table());
     }
     writer.flush();
 }
@@ -114,23 +109,77 @@ impl FseTableMode<'_> {
             Self::Encoded(t) => t,
         }
     }
+
+    fn into_table(self) -> FSETable {
+        match self {
+            Self::Predefined(t) | Self::RepeateLast(t) => t.clone(),
+            Self::Encoded(t) => t,
+        }
+    }
 }
 
+/// `log2(x)` in 1/256 bits, for `x >= 1`: the integer part plus a linear
+/// interpolation of the fraction (under 0.09 bits low), good enough to
+/// compare table costs without floating point (`no_std`).
+fn log2_fixed(x: u32) -> u64 {
+    let int = 31 - x.leading_zeros();
+    let fraction = ((u64::from(x) << 16) >> int) - (1 << 16);
+    (u64::from(int) << 8) + (fraction >> 8)
+}
+
+/// Bits (in 1/256) to code `counts` with `table`, or `None` if the table
+/// lacks one of the symbols.
+fn coded_cost(table: &FSETable, counts: &[u32; 256]) -> Option<u64> {
+    let log_size = u64::from(table.acc_log()) << 8;
+    let mut cost = 0;
+    for (symbol, &count) in counts.iter().enumerate() {
+        if count == 0 {
+            continue;
+        }
+        let slots = match table.probability(symbol as u8) {
+            0 => return None,
+            -1 => 1,
+            p => p as u32,
+        };
+        cost += u64::from(count) * (log_size - log2_fixed(slots));
+    }
+    Some(cost)
+}
+
+/// The cheapest way to code `codes`: a new table (paying for its
+/// description), the predefined one, or the previous block's.
 fn choose_table<'a>(
     previous: Option<&'a FSETable>,
     default_table: &'a FSETable,
-    data: impl Iterator<Item = u8>,
+    codes: impl Iterator<Item = u8>,
     max_log: u8,
 ) -> FseTableMode<'a> {
-    // TODO check if the new table is better than the predefined and previous table
-    let use_new_table = true;
-    let use_previous_table = false;
-    if use_previous_table {
-        FseTableMode::RepeateLast(previous.unwrap())
-    } else if use_new_table {
-        FseTableMode::Encoded(build_table_from_data(data, max_log, true))
-    } else {
-        FseTableMode::Predefined(default_table)
+    let codes: Vec<u8> = codes.collect();
+    let mut counts = [0u32; 256];
+    for &code in &codes {
+        counts[code as usize] += 1;
+    }
+    let new_table = build_table_from_data(codes.into_iter(), max_log, true);
+    let mut description = BitWriter::new();
+    new_table.write_table(&mut description);
+    let new_cost =
+        coded_cost(&new_table, &counts).map(|bits| bits + ((description.index() as u64) << 8));
+
+    let mut best = (new_cost.unwrap_or(u64::MAX), 0);
+    if let Some(bits) = coded_cost(default_table, &counts) {
+        if bits < best.0 {
+            best = (bits, 1);
+        }
+    }
+    if let Some(bits) = previous.and_then(|table| coded_cost(table, &counts)) {
+        if bits < best.0 {
+            best = (bits, 2);
+        }
+    }
+    match best.1 {
+        1 => FseTableMode::Predefined(default_table),
+        2 => FseTableMode::RepeateLast(previous.unwrap()),
+        _ => FseTableMode::Encoded(new_table),
     }
 }
 
