@@ -5,6 +5,7 @@ This document records the changes made between versions, starting with version 0
 # After 0.9.1 (Current)
 
 * Apply the per-block decoded size limit to a block's literals, including blocks with no sequences
+* Reject a sequences section header whose Symbol_Compression_Modes sets its reserved bits
 
 # After 0.9.0
 

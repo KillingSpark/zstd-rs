@@ -835,6 +835,27 @@ fn test_literals_left_after_sequences_bounded_by_block_maximum_size() {
     assert!(decode((1 << 20) - 1).is_err());
 }
 
+#[test]
+fn test_sequences_header_rejects_reserved_symbol_compression_modes_bits() {
+    use crate::blocks::sequence_section::SequencesHeader;
+    use crate::decoding::errors::SequencesHeaderParseError;
+
+    // One header for each width of Number_of_Sequences.
+    for header in [&[1, 0][..], &[0x80, 1, 0], &[0xff, 0, 0, 0]] {
+        let mut with_modes = header.to_vec();
+        assert!(SequencesHeader::new()
+            .parse_from_header(&with_modes)
+            .is_ok());
+        for reserved in [0b01, 0b10, 0b11] {
+            *with_modes.last_mut().unwrap() = 0b1010_1000 | reserved;
+            assert!(matches!(
+                SequencesHeader::new().parse_from_header(&with_modes),
+                Err(SequencesHeaderParseError::ReservedBitsSet { .. })
+            ));
+        }
+    }
+}
+
 pub mod bit_reader;
 pub mod decode_corpus;
 pub mod dict_test;

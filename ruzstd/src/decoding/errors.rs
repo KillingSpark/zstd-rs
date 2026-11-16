@@ -883,6 +883,7 @@ impl core::fmt::Display for LiteralsSectionType {
 #[non_exhaustive]
 pub enum SequencesHeaderParseError {
     NotEnoughBytes { need_at_least: u8, got: usize },
+    ReservedBitsSet { got: u8 },
 }
 
 #[cfg(feature = "std")]
@@ -895,6 +896,12 @@ impl core::fmt::Display for SequencesHeaderParseError {
                 write!(
                     f,
                     "source must have at least {need_at_least} bytes to parse header; got {got} bytes",
+                )
+            }
+            SequencesHeaderParseError::ReservedBitsSet { got } => {
+                write!(
+                    f,
+                    "the reserved bits of Symbol_Compression_Modes must be zero; got 0x{got:02X}",
                 )
             }
         }
