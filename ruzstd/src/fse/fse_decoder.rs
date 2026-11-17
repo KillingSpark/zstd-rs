@@ -49,6 +49,39 @@ impl<'t> FSEDecoder<'t> {
 
         //println!("Update: {}, {} -> {}", base_line, add,  self.state);
     }
+
+    /// Advance the internal state to decode the next symbol in the bitstream for all three
+    /// decoders. Refills once before doing that. The `REFILL_UNCHECKED` parameter chooses between
+    /// a checked or unchecked refill.
+    /// Making sure the prerequisites for an unchecked refill are met is the callers responsibility.
+    pub fn update_state_triple<const REFILL_UNCHECKED: bool>(
+        first: &mut Self,
+        second: &mut Self,
+        third: &mut Self,
+        bits: &mut BitReaderReversed<'_>,
+    ) {
+        if REFILL_UNCHECKED {
+            bits.refill_unchecked();
+        } else {
+            bits.refill();
+        }
+        let (add1, add2, add3) = bits.get_bits_triple_unchecked(
+            first.state.num_bits,
+            second.state.num_bits,
+            third.state.num_bits,
+        );
+
+        let new_state1 = first.state.base_line + add1 as u32;
+        first.state = first.table.decode[new_state1 as usize];
+
+        let new_state2 = second.state.base_line + add2 as u32;
+        second.state = second.table.decode[new_state2 as usize];
+
+        let new_state3 = third.state.base_line + add3 as u32;
+        third.state = third.table.decode[new_state3 as usize];
+
+        //println!("Update: {}, {} -> {}", base_line, add,  self.state);
+    }
 }
 
 /// FSE decoding involves a decoding table that describes the probabilities of
