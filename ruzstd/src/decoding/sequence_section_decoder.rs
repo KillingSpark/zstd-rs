@@ -185,7 +185,7 @@ fn decode_sequences_without_rle(
     let max_bits_read_per_triple = 16 + 16 + MAX_OFFSET_CODE;
     let max_bits_read_per_loop =
         max_bits_read_per_triple as u32 + max_bits_read_per_update as u32 * UNROLL;
-    let max_bytes_read_per_loop = (max_bits_read_per_loop + 7) / 8;
+    let max_bytes_read_per_loop = max_bits_read_per_loop.div_ceil(8);
     debug_assert!(max_bytes_read_per_loop <= 32);
     const MAX_BYTES_READ_PER_LOOP: usize = 32;
 
