@@ -3,11 +3,20 @@ use alloc::vec::Vec;
 #[cfg(feature = "hash")]
 use core::hash::Hasher;
 
-use super::ringbuffer::RingBuffer;
 use crate::decoding::errors::DecodeBufferError;
 
+/// Bytes past `end` that wild copies may overwrite.
+pub(crate) const SLACK: usize = 32;
+
+/// Decoded output of the current frame.
+///
+/// A flat, fully initialized buffer: `buf[..end]` is the history matches can refer to, `buf[drained..end]` is
+/// output not handed out yet. When it runs out of space, the part still needed (the last `window_size` bytes
+/// and anything not drained) moves to the front, so there are no wrap-arounds to handle while decoding.
 pub struct DecodeBuffer {
-    buffer: RingBuffer,
+    buf: Vec<u8>,
+    end: usize,
+    drained: usize,
     pub dict_content: Vec<u8>,
 
     pub window_size: usize,
@@ -18,23 +27,16 @@ pub struct DecodeBuffer {
 
 impl Read for DecodeBuffer {
     fn read(&mut self, target: &mut [u8]) -> Result<usize, Error> {
-        let max_amount = self.can_drain_to_window_size().unwrap_or(0);
-        let amount = max_amount.min(target.len());
-
-        let mut written = 0;
-        self.drain_to(amount, |buf| {
-            target[written..][..buf.len()].copy_from_slice(buf);
-            written += buf.len();
-            (buf.len(), Ok(()))
-        })?;
-        Ok(amount)
+        self.read_all(target)
     }
 }
 
 impl DecodeBuffer {
     pub fn new(window_size: usize) -> DecodeBuffer {
         DecodeBuffer {
-            buffer: RingBuffer::new(),
+            buf: Vec::new(),
+            end: 0,
+            drained: 0,
             dict_content: Vec::new(),
             window_size,
             total_output_counter: 0,
@@ -45,8 +47,8 @@ impl DecodeBuffer {
 
     pub fn reset(&mut self, window_size: usize) {
         self.window_size = window_size;
-        self.buffer.clear();
-        self.buffer.reserve(self.window_size);
+        self.end = 0;
+        self.drained = 0;
         self.dict_content.clear();
         self.total_output_counter = 0;
         #[cfg(feature = "hash")]
@@ -55,89 +57,79 @@ impl DecodeBuffer {
         }
     }
 
+    /// Bytes decoded but not drained yet.
     pub fn len(&self) -> usize {
-        self.buffer.len()
+        self.end - self.drained
+    }
+
+    /// Makes room for writing `amount` bytes (plus `SLACK`) at `end`.
+    #[inline(always)]
+    fn ensure(&mut self, amount: usize) {
+        if self.buf.len() - self.end < amount + SLACK {
+            self.make_room(amount);
+        }
+    }
+
+    #[cold]
+    fn make_room(&mut self, amount: usize) {
+        let keep_from = self.drained.min(self.end.saturating_sub(self.window_size));
+        let kept = self.end - keep_from;
+        let needed = kept + amount + SLACK;
+        // only move what frees at least half as much space, amortized to two extra copies per byte
+        if keep_from > 0 && keep_from >= kept / 2 {
+            self.buf.copy_within(keep_from..self.end, 0);
+            self.end -= keep_from;
+            self.drained -= keep_from;
+        }
+        if self.buf.len() - self.end < amount + SLACK {
+            // twice what is kept, so the next move frees at least as much as it copies
+            let size = (2 * needed).max(self.end + amount + SLACK).max(1 << 16);
+            self.buf.resize(size, 0);
+        }
+    }
+
+    /// Writes `amount` bytes at `end` with `write`, which may write up to `SLACK` bytes more.
+    #[inline(always)]
+    pub(crate) fn write_with(&mut self, amount: usize, write: impl FnOnce(&mut [u8], usize)) {
+        self.ensure(amount);
+        write(&mut self.buf, self.end);
+        self.end += amount;
+        self.total_output_counter += amount as u64;
     }
 
     pub fn extend_and_fill(&mut self, fill_with: u8, fill_length: usize) {
-        self.buffer.extend_and_fill(fill_with, fill_length);
+        self.write_with(fill_length, |buf, end| {
+            buf[end..end + fill_length].fill(fill_with)
+        });
     }
 
     pub fn extend_from_reader<R: Read>(
         &mut self,
-        read: R,
+        mut read: R,
         fill_length: usize,
     ) -> Result<(), crate::io::Error> {
-        self.buffer.extend_from_reader(read, fill_length)
+        self.ensure(fill_length);
+        read.read_exact(&mut self.buf[self.end..self.end + fill_length])?;
+        self.end += fill_length;
+        self.total_output_counter += fill_length as u64;
+        Ok(())
     }
 
+    #[inline(always)]
     pub fn push(&mut self, data: &[u8]) {
-        self.buffer.extend(data);
-        self.total_output_counter += data.len() as u64;
+        let len = data.len();
+        self.write_with(len, |buf, end| buf[end..end + len].copy_from_slice(data));
     }
 
+    #[inline(always)]
     pub fn repeat(&mut self, offset: usize, match_length: usize) -> Result<(), DecodeBufferError> {
-        if offset > self.buffer.len() {
-            self.repeat_from_dict(offset, match_length)
-        } else {
-            let buf_len = self.buffer.len();
-            let start_idx = buf_len - offset;
-            let end_idx = start_idx + match_length;
-
-            self.buffer.reserve(match_length);
-            if end_idx > buf_len {
-                // We need to copy in chunks.
-                self.repeat_in_chunks(offset, match_length, start_idx);
-            } else {
-                // can just copy parts of the existing buffer
-                // SAFETY: Requirements checked:
-                // 1. start_idx + match_length must be <= self.buffer.len()
-                //      We know that:
-                //      1. start_idx = self.buffer.len() - offset
-                //      2. end_idx = start_idx + match_length
-                //      3. end_idx <= self.buffer.len()
-                //      Thus follows: start_idx + match_length <= self.buffer.len()
-                //
-                // 2. explicitly reserved enough memory for the whole match_length
-                unsafe {
-                    self.buffer
-                        .extend_from_within_unchecked(start_idx, match_length)
-                };
-            }
-
-            self.total_output_counter += match_length as u64;
-            Ok(())
+        if offset > self.end {
+            return self.repeat_from_dict(offset, match_length);
         }
-    }
-
-    fn repeat_in_chunks(&mut self, offset: usize, match_length: usize, start_idx: usize) {
-        // We have at max offset bytes in one chunk, the last one can be smaller
-        let mut start_idx = start_idx;
-        let mut copied_counter_left = match_length;
-        // TODO this can  be optimized further I think.
-        // Each time we copy a chunk we have a repetiton of length 'offset', so we can copy offset * iteration many bytes from start_idx
-        while copied_counter_left > 0 {
-            let chunksize = usize::min(offset, copied_counter_left);
-
-            // SAFETY: Requirements checked:
-            // 1. start_idx + chunksize must be <= self.buffer.len()
-            //      We know that:
-            //      1. start_idx starts at buffer.len() - offset
-            //      2. chunksize <= offset (== offset for each iteration but the last, and match_length modulo offset in the last iteration)
-            //      3. the buffer grows by offset many bytes each iteration but the last
-            //      4. start_idx is increased by the same amount as the buffer grows each iteration
-            //
-            //      Thus follows: start_idx + chunksize == self.buffer.len() in each iteration but the last, where match_length modulo offset == chunksize < offset
-            //          Meaning: start_idx + chunksize <= self.buffer.len()
-            //
-            // 2. explicitly reserved enough memory for the whole match_length
-            unsafe {
-                self.buffer
-                    .extend_from_within_unchecked(start_idx, chunksize)
-            };
-            copied_counter_left -= chunksize;
-            start_idx += chunksize;
-        }
+        self.write_with(match_length, |buf, end| {
+            copy_match(buf, end, offset, match_length)
+        });
+        Ok(())
     }
 
     #[cold]
@@ -148,7 +140,7 @@ impl DecodeBuffer {
     ) -> Result<(), DecodeBufferError> {
         if self.total_output_counter <= self.window_size as u64 {
             // at least part of that repeat is from the dictionary content
-            let bytes_from_dict = offset - self.buffer.len();
+            let bytes_from_dict = offset - self.end;
 
             if bytes_from_dict > self.dict_content.len() {
                 return Err(DecodeBufferError::NotEnoughBytesInDictionary {
@@ -157,31 +149,27 @@ impl DecodeBuffer {
                 });
             }
 
-            if bytes_from_dict < match_length {
-                let dict_slice = &self.dict_content[self.dict_content.len() - bytes_from_dict..];
-                self.buffer.extend(dict_slice);
-
-                self.total_output_counter += bytes_from_dict as u64;
-                return self.repeat(self.buffer.len(), match_length - bytes_from_dict);
-            } else {
-                let low = self.dict_content.len() - bytes_from_dict;
-                let high = low + match_length;
-                let dict_slice = &self.dict_content[low..high];
-                self.buffer.extend(dict_slice);
+            let low = self.dict_content.len() - bytes_from_dict;
+            let from_dict = bytes_from_dict.min(match_length);
+            let dict = core::mem::take(&mut self.dict_content);
+            self.push(&dict[low..low + from_dict]);
+            self.dict_content = dict;
+            if from_dict < match_length {
+                return self.repeat(self.end, match_length - from_dict);
             }
             Ok(())
         } else {
             Err(DecodeBufferError::OffsetTooBig {
                 offset,
-                buf_len: self.buffer.len(),
+                buf_len: self.end,
             })
         }
     }
 
     /// Check if and how many bytes can currently be drawn from the buffer
     pub fn can_drain_to_window_size(&self) -> Option<usize> {
-        if self.buffer.len() > self.window_size {
-            Some(self.buffer.len() - self.window_size)
+        if self.len() > 0 {
+            Some(self.len())
         } else {
             None
         }
@@ -189,65 +177,39 @@ impl DecodeBuffer {
 
     //How many bytes can be drained if the window_size does not have to be maintained
     pub fn can_drain(&self) -> usize {
-        self.buffer.len()
+        self.len()
     }
 
-    /// Drain as much as possible while retaining enough so that decoding si still possible with the required window_size
-    /// At best call only if can_drain_to_window_size reports a 'high' number of bytes to reduce allocations
+    /// Drain everything not drained yet; the history needed for decoding is kept separately.
     pub fn drain_to_window_size(&mut self) -> Option<Vec<u8>> {
-        //TODO investigate if it is possible to return the std::vec::Drain iterator directly without collecting here
-        match self.can_drain_to_window_size() {
-            None => None,
-            Some(can_drain) => {
-                let mut vec = Vec::with_capacity(can_drain);
-                self.drain_to(can_drain, |buf| {
-                    vec.extend_from_slice(buf);
-                    (buf.len(), Ok(()))
-                })
-                .ok()?;
-                Some(vec)
-            }
-        }
+        self.can_drain_to_window_size()?;
+        Some(self.drain())
     }
 
-    pub fn drain_to_window_size_writer(&mut self, mut sink: impl Write) -> Result<usize, Error> {
-        match self.can_drain_to_window_size() {
-            None => Ok(0),
-            Some(can_drain) => self.drain_to(can_drain, |buf| write_all_bytes(&mut sink, buf)),
-        }
+    pub fn drain_to_window_size_writer(&mut self, sink: impl Write) -> Result<usize, Error> {
+        self.drain_to_writer(sink)
     }
 
     /// drain the buffer completely
     pub fn drain(&mut self) -> Vec<u8> {
-        let (slice1, slice2) = self.buffer.as_slices();
+        let out = self.buf[self.drained..self.end].to_vec();
         #[cfg(feature = "hash")]
-        {
-            self.hash.write(slice1);
-            self.hash.write(slice2);
-        }
-
-        let mut vec = Vec::with_capacity(slice1.len() + slice2.len());
-        vec.extend_from_slice(slice1);
-        vec.extend_from_slice(slice2);
-        self.buffer.clear();
-        vec
+        self.hash.write(&out);
+        self.drained = self.end;
+        out
     }
 
     pub fn drain_to_writer(&mut self, mut sink: impl Write) -> Result<usize, Error> {
-        let write_limit = self.buffer.len();
-        self.drain_to(write_limit, |buf| write_all_bytes(&mut sink, buf))
+        let amount = self.len();
+        self.drain_to(amount, |buf| write_all_bytes(&mut sink, buf))
     }
 
     pub fn read_all(&mut self, target: &mut [u8]) -> Result<usize, Error> {
-        let amount = self.buffer.len().min(target.len());
-
-        let mut written = 0;
+        let amount = self.len().min(target.len());
         self.drain_to(amount, |buf| {
-            target[written..][..buf.len()].copy_from_slice(buf);
-            written += buf.len();
+            target[..buf.len()].copy_from_slice(buf);
             (buf.len(), Ok(()))
-        })?;
-        Ok(amount)
+        })
     }
 
     /// Semantics of write_bytes:
@@ -261,56 +223,37 @@ impl DecodeBuffer {
         if amount == 0 {
             return Ok(0);
         }
+        let slice = &self.buf[self.drained..self.drained + amount];
+        let (written, res) = write_bytes(slice);
+        #[cfg(feature = "hash")]
+        self.hash.write(&slice[..written]);
+        self.drained += written;
+        res?;
+        Ok(written)
+    }
+}
 
-        struct DrainGuard<'a> {
-            buffer: &'a mut RingBuffer,
-            amount: usize,
+/// Appends `len` bytes at `end`, copied from `offset` bytes back, with LZ77 semantics: when `offset < len`,
+/// the copy repeats the bytes it is writing. May write up to `SLACK` bytes past `end + len`.
+#[inline(always)]
+fn copy_match(buf: &mut [u8], end: usize, offset: usize, len: usize) {
+    let src = end - offset;
+    if offset >= 16 && len <= SLACK {
+        // each 16 byte chunk only reads bytes that are final already
+        buf.copy_within(src..src + 16, end);
+        if len > 16 {
+            buf.copy_within(src + 16..src + 32, end + 16);
         }
-
-        impl Drop for DrainGuard<'_> {
-            fn drop(&mut self) {
-                if self.amount != 0 {
-                    self.buffer.drop_first_n(self.amount);
-                }
-            }
+    } else if offset >= len {
+        buf.copy_within(src..src + len, end);
+    } else {
+        // the pattern repeats every `offset` bytes, so the copied part can double each time
+        let mut copied = 0;
+        while copied < len {
+            let chunk = (offset + copied).min(len - copied);
+            buf.copy_within(src..src + chunk, end + copied);
+            copied += chunk;
         }
-
-        let mut drain_guard = DrainGuard {
-            buffer: &mut self.buffer,
-            amount: 0,
-        };
-
-        let (slice1, slice2) = drain_guard.buffer.as_slices();
-        let n1 = slice1.len().min(amount);
-        let n2 = slice2.len().min(amount - n1);
-
-        if n1 != 0 {
-            let (written1, res1) = write_bytes(&slice1[..n1]);
-            #[cfg(feature = "hash")]
-            self.hash.write(&slice1[..written1]);
-            drain_guard.amount += written1;
-
-            // Apparently this is what clippy thinks is the best way of expressing this
-            res1?;
-
-            // Only if the first call to write_bytes was not a partial write we can continue with slice2
-            // Partial writes SHOULD never happen without res1 being an error, but lets just protect against it anyways.
-            if written1 == n1 && n2 != 0 {
-                let (written2, res2) = write_bytes(&slice2[..n2]);
-                #[cfg(feature = "hash")]
-                self.hash.write(&slice2[..written2]);
-                drain_guard.amount += written2;
-
-                // Apparently this is what clippy thinks is the best way of expressing this
-                res2?;
-            }
-        }
-
-        let amount_written = drain_guard.amount;
-        // Make sure we don't accidentally drop `DrainGuard` earlier.
-        drop(drain_guard);
-
-        Ok(amount_written)
     }
 }
 
@@ -368,19 +311,28 @@ mod tests {
         decode_buf.push(b"0123456789");
         decode_buf.repeat(10, 90).unwrap();
         let repeats = 1000;
+        decode_buf
+            .drain_to_window_size_writer(&mut short_writer)
+            .unwrap();
         for _ in 0..repeats {
-            assert_eq!(decode_buf.len(), 100);
+            assert_eq!(decode_buf.len(), 0);
             decode_buf.repeat(10, 50).unwrap();
-            assert_eq!(decode_buf.len(), 150);
+            assert_eq!(decode_buf.len(), 50);
             decode_buf
                 .drain_to_window_size_writer(&mut short_writer)
                 .unwrap();
-            assert_eq!(decode_buf.len(), 100);
         }
 
-        assert_eq!(short_writer.buf.len(), repeats * 50);
+        assert_eq!(short_writer.buf.len(), repeats * 50 + 100);
         decode_buf.drain_to_writer(&mut short_writer).unwrap();
         assert_eq!(short_writer.buf.len(), repeats * 50 + 100);
+        let expected: Vec<u8> = b"0123456789"
+            .iter()
+            .copied()
+            .cycle()
+            .take(repeats * 50 + 100)
+            .collect();
+        assert_eq!(short_writer.buf, expected);
     }
 
     #[test]
@@ -419,9 +371,7 @@ mod tests {
         decode_buf.repeat(10, 90).unwrap();
         let repeats = 1000;
         for _ in 0..repeats {
-            assert_eq!(decode_buf.len(), 100);
             decode_buf.repeat(10, 50).unwrap();
-            assert_eq!(decode_buf.len(), 150);
             loop {
                 match decode_buf.drain_to_window_size_writer(&mut short_writer) {
                     Ok(written) => {
@@ -438,10 +388,10 @@ mod tests {
                     }
                 }
             }
-            assert_eq!(decode_buf.len(), 100);
+            assert_eq!(decode_buf.len(), 0);
         }
 
-        assert_eq!(short_writer.buf.len(), repeats * 50);
+        assert_eq!(short_writer.buf.len(), repeats * 50 + 100);
         loop {
             match decode_buf.drain_to_writer(&mut short_writer) {
                 Ok(written) => {

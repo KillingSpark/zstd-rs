@@ -44,5 +44,5 @@ jobs:
       - run: cargo +nightly fmt --all -- --check
       - run: cargo +nightly clippy --workspace --no-default-features -- -D warnings
       - run: cargo +nightly clippy --workspace -- -D warnings
-      - run: cargo +nightly miri test ringbuffer
+      - run: cargo +nightly miri test decode_buffer
       - run: cargo +nightly miri test short_Writer

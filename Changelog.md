@@ -8,6 +8,7 @@ This document records the changes made between versions, starting with version 0
 
 * Apply the per-block decoded size limit to a block's literals, including blocks with no sequences
 * Reject a sequences section header whose Symbol_Compression_Modes sets its reserved bits
+* Speed up decoding with a flat decode buffer instead of the ring buffer, which removes its unsafe code
 
 # After 0.9.0
 
